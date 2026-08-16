@@ -29,8 +29,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Pack **once**, on Linux, exactly as `release.yml` does.
+  #
+  # This job exists because of the v0.1.0 defect. The matrix below used to build
+  # its own tarball on each platform and test it there, so every job's native
+  # module happened to match the machine it ran on -- and the arrangement that
+  # actually ships, one Linux-built tarball installed on Windows, was the one
+  # combination never tried. Three green jobs, and `npx grndctrl` was broken on
+  # two of the three platforms the moment it was published.
+  #
+  # Building here and testing that artifact everywhere is the whole point: the
+  # thing under test has to be the thing users get.
+  pack:
+    name: Pack the tarballs (once, on Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run native --workspace=@grndctrl/desktop
+      - run: npm run build
+
+      # The guard for the specific mistake: nothing platform-specific may be in
+      # a tarball that goes to every platform. `files` now lists
+      # `native/requirements.json` and not `native/`, and this fails if that ever
+      # regresses -- a compiled addon is detectable by its magic bytes, whatever
+      # it is named.
+      - name: No compiled binary in the universal tarball
+        run: |
+          mkdir -p dist-tarballs
+          npm pack --workspace @grndctrl/desktop --pack-destination dist-tarballs
+          tar -tzf dist-tarballs/*.tgz | tee /tmp/listing
+          if grep -qE '\.(node|dll|dylib|so)$' /tmp/listing; then
+            echo "::error::A compiled binary is inside the published tarball."
+            echo "A single npm tarball goes to every platform; a native addon is"
+            echo "specific to one. This is exactly how v0.1.0 shipped a Linux"
+            echo "binary to Windows and macOS users."
+            exit 1
+          fi
+          echo "No compiled binary in the tarball."
+          test -f /tmp/listing
+
+      - name: Pack the rest
+        run: |
+          for w in @grndctrl/core grndctrl-mcp grndctrl; do
+            npm pack --workspace "$w" --pack-destination dist-tarballs
+          done
+          ls -l dist-tarballs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs
+          path: dist-tarballs/
+
   npx:
     name: npx from a tarball (${{ matrix.os }})
+    needs: pack
     runs-on: ${{ matrix.os }}
     strategy:
       # Never fail-fast here. "It works on Windows and not on Linux" is the most
@@ -55,6 +113,14 @@ jobs:
       # missing from the shipped package while everything passed locally.
       - name: Install workspace
         run: npm ci
+
+      # The artifact from `pack`, built on Linux. `verify-npx.mjs` installs
+      # these rather than packing new ones, so what each platform exercises is
+      # the byte-identical tarball a user would download.
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: dist-tarballs
 
       # Electron needs a display and a handful of shared libraries that the
       # ubuntu image does not carry. Without this the app exits before it can
@@ -84,7 +150,11 @@ jobs:
       - name: Verify npx (Linux, under xvfb)
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum node scripts/verify-npx.mjs
+        env:
+          GRNDCTRL_TARBALLS: ${{ github.workspace }}/dist-tarballs
 
       - name: Verify npx
         if: runner.os != 'Linux'
         run: node scripts/verify-npx.mjs
+        env:
+          GRNDCTRL_TARBALLS: ${{ github.workspace }}/dist-tarballs

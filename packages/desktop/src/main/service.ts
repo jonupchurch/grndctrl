@@ -96,10 +96,28 @@ export interface AppServiceOptions {
  * Node, and under Electron it produces an error naming the ABI mismatch, which
  * is a better clue than anything invented here.
  */
+/**
+ * Where the Electron-ABI `better-sqlite3` binding is, on *this* machine.
+ *
+ * The launcher supplies it. A native addon is specific to an ABI, a platform and
+ * an architecture; an npm tarball is specific to none of those, so the binary
+ * cannot travel in the package — v0.1.0 tried, and every Windows and macOS user
+ * received the Linux build that `release.yml`'s ubuntu runner had fetched.
+ *
+ * The package-relative path is still checked second, for a checkout that has run
+ * `npm run native`. It is not a fallback for a published install: there, the file
+ * is absent by design and its absence must not be papered over — returning
+ * `undefined` would let `better-sqlite3` load its own Node-ABI copy and fail at
+ * `dlopen` with a message about module versions, which is the confusing error
+ * this whole path exists to prevent.
+ */
 function electronSqliteBinding(): string | undefined {
   if (process.versions['electron'] === undefined) return undefined
 
-  const path = join(
+  const supplied = process.env['GRNDCTRL_NATIVE_BINDING']
+  if (supplied !== undefined && supplied !== '' && existsSync(supplied)) return supplied
+
+  const local = join(
     dirname(fileURLToPath(import.meta.url)),
     '..',
     '..',
@@ -107,7 +125,7 @@ function electronSqliteBinding(): string | undefined {
     'better_sqlite3.node',
   )
 
-  return existsSync(path) ? path : undefined
+  return existsSync(local) ? local : undefined
 }
 
 export async function startAppService(options: AppServiceOptions = {}): Promise<AppService> {

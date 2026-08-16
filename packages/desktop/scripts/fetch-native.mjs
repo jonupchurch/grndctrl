@@ -38,6 +38,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const PKG = join(HERE, '..')
 const DEST = join(PKG, 'native', 'better_sqlite3.node')
 const MANIFEST = join(PKG, 'native', 'manifest.json')
+const REQUIREMENTS = join(PKG, 'native', 'requirements.json')
 
 const better = require('better-sqlite3/package.json')
 const electron = require('electron/package.json')
@@ -66,6 +67,22 @@ function writeManifest(abi) {
         arch: process.arch,
         betterSqlite3: better.version,
       },
+      null,
+      2,
+    ) + '\n',
+  )
+
+  // The published half, and the distinction is the whole lesson of v0.1.0.
+  //
+  // `manifest.json` describes *a file on this machine* — it names a platform and
+  // an arch because a compiled binary has them. `requirements.json` states what
+  // the app *needs*, which is true on every machine, and it is the only one in
+  // `files`. Shipping the first one is what let a Linux binary reach every
+  // Windows user with the package's own metadata admitting it.
+  writeFileSync(
+    REQUIREMENTS,
+    JSON.stringify(
+      { electronVersion: electron.version, abi, betterSqlite3: better.version },
       null,
       2,
     ) + '\n',
@@ -99,7 +116,7 @@ if (existsSync(DEST) && !process.argv.includes('--force')) {
   // The manifest is regenerated even on the fast path: a checkout that fetched
   // the binary before this existed has one and not the other, and "the file is
   // present" is not the same claim as "the file is described".
-  if (!existsSync(MANIFEST)) writeManifest(electronAbi())
+  if (!existsSync(MANIFEST) || !existsSync(REQUIREMENTS)) writeManifest(electronAbi())
   console.log(`native/better_sqlite3.node is present (better-sqlite3 ${better.version}, electron ${electron.version})`)
   console.log('pass --force to fetch it again')
   process.exit(0)

@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -53,19 +53,40 @@ function fail(why, detail) {
   process.exit(1)
 }
 
+/** The version being verified, read from the launcher rather than typed here. */
+function version() {
+  return JSON.parse(readFileSync(join(ROOT, 'packages', 'launcher', 'package.json'), 'utf8')).version
+}
+
 // --- build -------------------------------------------------------------------
 
-step('Building, including the Electron-ABI native module')
-// `native` before `build`: the manifest it writes records the ABI of the binary
-// actually on disk, and the launcher reads that rather than a number someone
-// typed. Building without it produces a package that cannot describe itself.
-run('npm', ['run', 'native', '--workspace=@grndctrl/desktop'], { cwd: ROOT, stdio: 'inherit' })
-run('npm', ['run', 'build'], { cwd: ROOT, stdio: 'inherit' })
+// Skipped entirely when the tarballs came from somewhere else. Building here
+// would fetch *this* machine's native module and rewrite `dist/`, which is the
+// opposite of testing the artifact that was handed to us.
+if (process.env['GRNDCTRL_TARBALLS'] === undefined) {
+  step('Building, including the Electron-ABI native module')
+  // `native` before `build`: the manifest it writes records the ABI of the
+  // binary actually on disk, and the launcher reads that rather than a number
+  // someone typed. Building without it produces a package that cannot describe
+  // itself.
+  run('npm', ['run', 'native', '--workspace=@grndctrl/desktop'], { cwd: ROOT, stdio: 'inherit' })
+  run('npm', ['run', 'build'], { cwd: ROOT, stdio: 'inherit' })
+}
 
 // --- pack --------------------------------------------------------------------
 
-step('Packing tarballs')
-const staging = mkdtempSync(join(tmpdir(), 'grndctrl-pack-'))
+/**
+ * Tarballs built elsewhere, when `GRNDCTRL_TARBALLS` names a directory.
+ *
+ * This is the difference between the matrix proving something and proving
+ * nothing. Packing here means each platform builds its own tarball and tests it
+ * on the machine that built it, so the native module always matches by
+ * construction. v0.1.0 passed that way on all three platforms and was broken on
+ * two of them: what ships is **one** tarball, packed on Linux, and until it is
+ * the artifact under test the arrangement that fails is the one never tried.
+ */
+const prepacked = process.env['GRNDCTRL_TARBALLS']
+const staging = prepacked ?? mkdtempSync(join(tmpdir(), 'grndctrl-pack-'))
 
 /** Pack one workspace and return the absolute path of the tarball. */
 function pack(workspace) {
@@ -80,8 +101,34 @@ function pack(workspace) {
   return path
 }
 
-const desktopTarball = pack('@grndctrl/desktop')
-const launcherTarball = pack('grndctrl')
+/** Find a tarball already in the directory, by the name `npm pack` gives it. */
+function prepackedTarball(filename) {
+  const path = join(staging, filename)
+  if (!existsSync(path)) {
+    fail(
+      `GRNDCTRL_TARBALLS is set to ${staging} but ${filename} is not in it.`,
+      `An empty or partial directory must fail here rather than silently fall\n` +
+        `back to packing locally — falling back would quietly restore exactly the\n` +
+        `blind spot this exists to remove.`,
+    )
+  }
+  note(`using prepacked ${filename}`)
+  return path
+}
+
+let desktopTarball
+let launcherTarball
+
+if (prepacked) {
+  step(`Using tarballs packed elsewhere (${staging})`)
+  const v = version()
+  desktopTarball = prepackedTarball(`grndctrl-desktop-${v}.tgz`)
+  launcherTarball = prepackedTarball(`grndctrl-${v}.tgz`)
+} else {
+  step('Packing tarballs')
+  desktopTarball = pack('@grndctrl/desktop')
+  launcherTarball = pack('grndctrl')
+}
 
 // --- install into a clean directory ------------------------------------------
 
