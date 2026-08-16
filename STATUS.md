@@ -54,11 +54,49 @@ File inventories match at 316 both sides, so nothing was lost in the rebuild.
 **Not yet done:** the clean branch has not been pushed anywhere, and the
 repository is still private. Publishing is a separate decision.
 
+### Packaging is verified on all three platforms, and finding that fixed two bugs
+
+`.github/workflows/packaging.yml` packs the tarballs, installs them into a
+directory with no relationship to the workspace, and runs `npx grndctrl` with an
+empty runtime cache on Windows, macOS and Linux. **All three green.** The app
+reports on itself through `GRNDCTRL_SMOKE`, so a runner can verify what
+previously needed a person watching a window.
+
+What that proves: the tarballs install standalone, the runtime downloads and its
+checksum verifies, it unpacks leaving no staging directory, the ABI check
+passes, Electron boots, the native module *loads* (`app.status` reads both
+databases), the renderer paints, and a second run downloads nothing. **What it
+does not prove: that a human would recognise the board.** That remains a Windows
+claim, made by eye, and is not asserted elsewhere.
+
+Two real bugs came out of building it, neither findable by reading:
+
+- **`npx grndctrl` could not start on Linux at all.** Electron ships
+  `chrome-sandbox`, which Chromium requires to be root-owned and setuid; npm
+  unpacks as the invoking user and cannot arrange that, so Chromium aborted
+  rather than run unsandboxed. Fixed by falling back to the **namespace
+  sandbox** (`--disable-setuid-sandbox`) — a different sandbox, not a weaker
+  one — and refusing outright when neither is available, with both one-line
+  fixes printed. Never `--no-sandbox`: the renderer displays strings fetched
+  from the network, which is the entire reason the sandbox is there.
+- **`app.status` was registered by nothing.** Implemented, exported, reachable
+  from no surface. Its stated purpose was to give the packaging failure a place
+  to surface, so the ABI diagnostic for the riskiest failure in the project was
+  itself unreachable. The XII conformance gate could not catch it: an operation
+  nobody registered is not in the registry to check.
+
+**T163 is closed as not needed**, on evidence rather than by assumption:
+`fetch-native.mjs` fetched a working Electron-ABI `better-sqlite3` on all three
+platforms, so publishing our own prebuilds would solve a problem no shipped
+platform has. It reopens if a platform upstream does not cover is added —
+darwin-x64, linux-arm64 and win32-arm64 are untested because nothing ships to
+them.
+
 ### The product
 
-**168 of 176 tasks** (175 planned plus T176, the always-on-top toggle added
+**171 of 176 tasks** (175 planned plus T176, the always-on-top toggle added
 mid-M4; the count said 162 and was hand-tallied — it is now counted from the
-file). **716 unit tests, 60 end-to-end. The application launches,
+file). **734 unit tests, 60 end-to-end. The application launches,
 the board is on screen, and the golden path runs end to end** — configure,
 render, open each row type, write a note, confirm a dispatch, and find the
 action still queued after a restart.
@@ -536,15 +574,27 @@ each one changes what remains, and several override what this file said earlier:
    separate thing that is meant to travel into other codebases, and it cannot do
    that from inside a product repository.
 
-**The immediate next step is a decision, not code:** `clean-main` exists locally
-and is verified, and nothing has been pushed. Replacing the remote's history
-against the existing repository leaves the old objects reachable by SHA if it is
-ever made public again; a new repository does not. That choice is open.
+**Done since:** the old repository is private and renamed `grndctrl-archive`;
+`jonupchurch/grndctrl` is a new **private** repository holding one clean history,
+verified by cloning it fresh and auditing the clone (634 sources, tree and
+history, zero hits). CI is green on all five jobs; packaging is green on all
+three platforms.
 
-Then, in order: wire the publish and cross-platform-verification workflows
-(T163, T166–T168, T172), make the fixture-consuming tests skip cleanly when the
-gitignored directory is absent and record from live (T038–T040), bundle Archivo,
-and run the two egress captures (T170).
+**What is left, in order:**
+
+1. **T038–T040** — make the fixture-consuming tests skip cleanly when the
+   gitignored directory is absent, then record from the live connections.
+2. **Archivo** — bundle a subset so `--f-brand` stops naming a font nobody ships.
+3. **T170** — the two egress captures, long and driven.
+4. **T172** — quickstart end to end on all three platforms.
+5. **Publish** — remove `"private": true` from the four packages, exclude the
+   `ai-tools` toolkit from the published tree, add the release workflow, and
+   flip the repository public. `grndctrl`, `@grndctrl/core` and
+   `@grndctrl/desktop` are all free on npm.
+
+**Nothing is published.** The repository is private and npm is untouched, and
+that should stay true until the client-reference gate has run on the final tree
+and the operator has read what it is publishing.
 
 **Two things need the operator, not me.** T167 and T168 are the npx verification
 on macOS and Linux, which needs those machines — everything they test is written

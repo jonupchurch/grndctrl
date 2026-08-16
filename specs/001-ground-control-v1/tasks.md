@@ -330,12 +330,12 @@ the DOM — enforced by lint rule T009, not by discipline.
 - [x] T160 Implement the launcher bin in `packages/launcher/bin/grndctrl.js` — resolve runtime, spawn app
 - [x] T161 Implement runtime download from GitHub releases with **checksum verification** in `packages/launcher/src/runtime.ts`
 - [x] T162 Implement per-machine versioned runtime caching in `packages/launcher/src/cache.ts`
-- [ ] T163 Configure `@electron/rebuild` and publish `better-sqlite3` prebuilds per platform/arch/ABI in `.github/workflows/prebuilds.yml` — **partly done**: `packages/desktop/scripts/fetch-native.mjs` solves it locally from upstream prebuilds; no workflow exists and no prebuild is published
+- [x] T163 ~~Configure `@electron/rebuild` and publish `better-sqlite3` prebuilds~~ — **closed as not needed, on evidence.** `packages/desktop/scripts/fetch-native.mjs` fetches an Electron-ABI build from upstream, and `.github/workflows/packaging.yml` proves it works: on Windows, macOS and Linux the app boots from a packed tarball and `app.status` reads both databases, which cannot happen unless the native module loaded. Publishing our own prebuilds would solve a problem no shipped platform has. **Reopen if** a platform/arch upstream does not cover is added (darwin-x64, linux-arm64 and win32-arm64 are untested — nothing ships to them yet)
 - [x] T164 Implement the launch-time ABI check in `packages/launcher/src/abi.ts` — fail with a message naming **expected and actual runtime**, not a raw Node error
 - [x] T165 Write the ABI guard test in `packages/launcher/test/abi-guard.test.ts` — deliberately mismatch, assert the actionable message
 - [x] T166 Verify `npx` from a packed tarball on a **clean machine with a cleared runtime cache** — Windows
-- [ ] T167 [P] Verify the same on macOS
-- [ ] T168 [P] Verify the same on Linux
+- [x] T167 [P] Verify the same on macOS — automated in `.github/workflows/packaging.yml`
+- [x] T168 [P] Verify the same on Linux — automated; found that npx could not start at all (SUID sandbox), fixed in `packages/launcher/src/sandbox.ts`
 
 ---
 
