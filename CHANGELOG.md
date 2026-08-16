@@ -5,8 +5,17 @@ All notable changes to Ground Control (`grndctrl`) are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Nothing has been released yet — v1 is still in specification. Until the first
-release, everything lands under **[Unreleased]**.
+Released versions are summarised at the top, newest first. **[Unreleased]** below
+them holds the accumulated detail of the v1 build, including everything that
+shipped in the first releases — it is the working record, not a backlog.
+
+## [0.1.2] — 2026-08-16
+
+The board now updates when an **agent** acts, not only when the window does. In
+0.1.1 a session could start, run and end with an open board showing none of it —
+push events were wired to the IPC dispatch and not to the loopback one agents
+use. First release cut from a tag. See below for the detail, including the push
+loop the first version of the fix introduced.
 
 ## [0.1.1] — 2026-08-16
 

@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-15 (late — the client-reference gate and the history rebuild) · **Stage:** implementing (Phase 7; M4 complete) · **Released:** nothing yet
+**Last updated:** 2026-08-16 (the agent-push fix; 0.1.2 cut, not yet tagged) · **Stage:** released · **On npm:** 0.1.1 — `npx grndctrl` (0.1.0 broken and superseded). **0.1.2 is cut and awaiting a tag**, which needs trusted publishing configured first.
 
 A living snapshot of where the project actually is. Update it whenever a phase
 completes, a decision closes, or a blocker appears — it should never be more
@@ -51,8 +51,10 @@ has never contained a client string — verified with `--scope history --rev
 clean-main`, 315 blobs, zero hits — with the old history retained privately.
 File inventories match at 316 both sides, so nothing was lost in the rebuild.
 
-**Not yet done:** the clean branch has not been pushed anywhere, and the
-repository is still private. Publishing is a separate decision.
+**Since done (2026-08-16):** the clean history was pushed to a new repository,
+`jonupchurch/grndctrl`, which is **public**. The old one is retained privately as
+`grndctrl-archive` and must stay that way — it holds the pre-scrub history. The
+gate runs on every push and again in `release.yml` before `npm publish`.
 
 ### Packaging is verified on all three platforms, and finding that fixed two bugs
 

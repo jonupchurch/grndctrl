@@ -1,6 +1,6 @@
 {
   "name": "@grndctrl/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The service layer: providers, correlation, drift, stores, and the operation registry. No Electron. No UI. No display.",
   "license": "MIT",
   "type": "module",

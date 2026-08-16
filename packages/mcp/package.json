@@ -1,6 +1,6 @@
 {
   "name": "grndctrl-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP stdio server for Ground Control. A thin adapter over the core operation registry.",
   "license": "MIT",
   "type": "module",
@@ -16,7 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@grndctrl/core": "0.1.1",
+    "@grndctrl/core": "0.1.2",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.23.8"
   },
