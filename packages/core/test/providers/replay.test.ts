@@ -108,15 +108,45 @@ describe('GitHub, replayed from a recording', () => {
 
     expect(pullRequests.length + branches.length).toBeGreaterThan(0)
 
+    let decided = 0
     for (const pull of pullRequests) {
       // The renderer compared this against GitHub's raw casing for weeks, so no
       // pull request could ever render "Changes requested". A fixture recorded
       // from the wire is what makes the normalisation checkable rather than
       // asserted against the same belief that produced it.
       if (pull.reviewDecision !== null) {
-        expect(pull.reviewDecision).toMatch(/^(approved|changes-requested|review-required)$/)
+        decided += 1
+        expect(pull.reviewDecision).toMatch(/^(approved|changesRequested|reviewRequired)$/)
       }
     }
+
+    // The guard above is why this assertion existed for a week without ever
+    // running: the first recording came from a repository nobody had reviewed,
+    // every `reviewDecision` was null, and the loop body was skipped fifty
+    // times over. It passed, and it was checking nothing — and when a fixture
+    // finally did reach it, the pattern turned out to be wrong too, written in
+    // kebab-case against a value core has always emitted in camelCase.
+    //
+    // So the count is the real assertion. A conditional check needs something
+    // that proves the condition was met, or the next fixture quietly returns
+    // this to a test that cannot fail.
+    expect(decided, 'no pull request in the fixture carries a review decision').toBeGreaterThan(0)
+  })
+
+  it.skipIf(github === null)('covers more than one review decision', async () => {
+    const provider = githubProvider({
+      token: 'replayed',
+      fetcher: replayFetcher(join(ROOT, 'github')),
+    })
+
+    const { pullRequests } = await provider.fetchRepository({ owner: 'example', repo: 'example' })
+    const seen = new Set(pullRequests.map((pull) => pull.reviewDecision).filter((d) => d !== null))
+
+    // One distinct value would satisfy the check above while proving only that
+    // a single branch of the normaliser works. Which values a public repository
+    // happens to be showing is not ours to choose, so this asserts on the
+    // spread rather than on any particular member of it.
+    expect(seen.size, `only saw ${[...seen].join(', ') || 'nothing'}`).toBeGreaterThan(1)
   })
 })
 
