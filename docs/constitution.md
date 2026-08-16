@@ -388,8 +388,8 @@ before implementing any. Then take each feature through the loop below.
 
 1. **Fast orientation pass** — stack, entry points, directory conventions,
    how an action flows, and the handful of existing patterns to match.
-   Delegate to `codebase-scout` (`.claude/agents/codebase-scout.md`) when
-   there is enough code to be worth mapping.
+   Delegate it to a read-only reconnaissance agent when there is enough code
+   to be worth mapping.
 2. **Clarify scope** — the actual ask, acceptance criteria, explicit
    non-goals (Principle I), asking per Principle X.
 3. **Plan** — the full-set plan (Principle VII) at project inception, or a
@@ -412,11 +412,18 @@ a design that violates one of XI–XVIII is changed, or the violation is
 recorded in the plan's Complexity Tracking table with an explicit
 justification and accepted deliberately.
 
-**Amendment procedure.** Amendments are made through `speckit-constitution`,
-which rewrites this file in place. Every amendment MUST update the Sync
-Impact Report above, bump the version, and propagate to dependent artifacts
-(`AGENTS.md`, `CLAUDE.md`, `MANIFEST.md`, and the `.specify/templates/`
-files) in the same change.
+**Amendment procedure.** Every amendment MUST update the Sync Impact Report
+above and bump the version in the same change.
+
+The Sync Impact Report and the amendment notes in it refer to files that used
+to sit beside this one — `AGENTS.md`, `CLAUDE.md`, `MANIFEST.md`, `.claude/`,
+`.specify/`. That was the `ai-tools` agent toolkit, which was removed from this
+repository on 2026-08-16 so that it could travel into other codebases from its
+own home at `github.com/jonupchurch/ai-tools`. The references are left as
+written because they are a record of what was true at each amendment, not
+live instructions. **This document stayed** — Part II is Ground Control's own
+design gates, cited by the conformance tests, the specs and the source, and it
+is a product document that happened to live in a toolkit directory.
 
 **Versioning policy.** MAJOR — a principle removed or redefined, or the
 document's authority restructured. MINOR — a principle added, or guidance
