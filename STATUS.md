@@ -1,6 +1,12 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-16 (the agent-push fix; 0.1.2 cut, not yet tagged) · **Stage:** released · **On npm:** 0.1.1 — `npx grndctrl` (0.1.0 broken and superseded). **0.1.2 is cut and awaiting a tag**, which needs trusted publishing configured first.
+**Last updated:** 2026-08-16 (0.1.2 published from a tag) · **Stage:** released · **On npm:** 0.1.2 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.1.2 is the first release published by the workflow rather than by hand.**
+Trusted publishing is configured per package, so a release is now: bump, commit,
+tag `vX.Y.Z`, push. It carries SLSA provenance, which hand-published 0.1.1 does
+not — a difference that doubles as a control when checking that the tag-driven
+route was the one taken.
 
 A living snapshot of where the project actually is. Update it whenever a phase
 completes, a decision closes, or a blocker appears — it should never be more
