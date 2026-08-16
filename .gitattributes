@@ -1,0 +1,21 @@
+# Windows is a first-class target (constitution XVII) and the primary dev
+# machine. Normalize in the repo, check out native, and keep the fixtures that
+# encode line-ending behaviour byte-exact — a CRLF fixture that git "helpfully"
+# converts stops testing the thing it was recorded to test.
+
+* text=auto
+
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.sql  text eol=lf
+
+*.sh   text eol=lf
+*.ps1  text eol=crlf
+
+fixtures/** -text
+*.png binary
+*.node binary

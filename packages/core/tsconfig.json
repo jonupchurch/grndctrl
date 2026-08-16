@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "types": ["node"],
+
+    // No DOM. Not an oversight — constitution XVIII requires this package to be
+    // testable with no display and no Electron, and leaving DOM out of `lib`
+    // makes a stray `window` or `document` a compile error rather than a habit
+    // someone has to notice in review. The lint rule in eslint.config.js covers
+    // the import side; this covers the ambient side.
+    "lib": ["ES2023"]
+  },
+  "include": ["src/**/*"]
+}

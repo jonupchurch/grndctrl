@@ -1,0 +1,230 @@
+import type { Database } from 'better-sqlite3'
+import type { CredentialStore } from '../auth/keychain.js'
+import { credentialRef, unavailableKeychain } from '../auth/keychain.js'
+import type { DriftFinding, WorkItem } from '../domain/types.js'
+import { gitRunner } from '../providers/git/exec.js'
+import { localGitProvider } from '../providers/git/read.js'
+import type { Fetcher } from '../providers/http.js'
+import type { LocalGitProvider } from '../providers/seam.js'
+import type { Envelope } from '../registry/envelope.js'
+import { buildBoard, envelopeBoard, type Board } from '../services/board.js'
+import { runSync, type SyncReport } from '../services/sync.js'
+import { buildSyncTargets, type BuiltTargets } from './providers.js'
+import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
+import { notesService, type NotesService } from '../services/notes.js'
+import { outboxService, type OutboxService } from '../services/outbox.js'
+import { connectionsService, type ConnectionsService } from '../services/connections.js'
+import { sessionsService, type SessionsService } from '../services/sessions.js'
+import { settingsStore, type SettingsStore } from '../services/settings.js'
+import {
+  dismissalsRepository,
+  projectsRepository,
+  type DismissalsRepository,
+  type ProjectsRepository,
+} from '../store/authored/config.js'
+import { notesRepository } from '../store/authored/notes.js'
+import { outboxRepository } from '../store/authored/outbox.js'
+import { sessionsRepository } from '../store/authored/sessions.js'
+import { mirrorRepository, type MirrorRepository } from '../store/mirror/repository.js'
+import { openAuthored, openMirror } from '../store/open.js'
+import { subjectPresenceResolver } from './presence.js'
+
+/**
+ * The composition root: two database files in, one bundle of services out.
+ *
+ * This is where the two stores are joined, and it is the *only* place. Neither
+ * repository holds a handle to the other's file, so anything needing both —
+ * "is this note's subject still there?", "which work items are in drift?" —
+ * is assembled here in code (XIII). There is no SQL join to write because there
+ * is no foreign key to join on, by design.
+ *
+ * Nothing in this file knows what an adapter is. It builds fine with Electron
+ * uninstalled, which is the point of XVIII and the reason the CLI can drive the
+ * whole engine.
+ */
+
+export interface CoreServices {
+  mirror: MirrorRepository
+  projects: ProjectsRepository
+  /** Adding, testing and removing provider credentials (FR-005 to FR-007). */
+  connections: ConnectionsService
+  dismissals: DismissalsRepository
+  notes: NotesService
+  sessions: SessionsService
+  outbox: OutboxService
+  settings: SettingsStore
+  confirmations: ConfirmationTokens
+  /** The whole board, correlated and wrapped in its freshness envelope (XIV). */
+  board(now: Date): Envelope<BoardView>
+  /** Whether a connection has a credential. Never whether it is valid, and never the value. */
+  hasCredential(connectionId: string): boolean
+  /** Connections that cannot sync, and which of the two reasons applies. */
+  credentialGaps(): BuiltTargets['unavailable']
+  syncNow(options: { connectionId?: string | undefined }, now: Date): Promise<SyncReport>
+  databases: { mirror: Database; authored: Database }
+  close(): void
+}
+
+export interface BoardView {
+  workItems: WorkItem[]
+  findings: DriftFinding[]
+  dangling: Board['dangling']
+}
+
+export interface CoreServicesOptions {
+  /** The data directory. Both database files live side by side inside it. */
+  dir: string
+  /**
+   * Where credentials live.
+   *
+   * Defaults to a store that reports itself unreachable rather than to the OS
+   * keychain, because reaching the real one means loading a native module —
+   * and core must stay importable with no native binding and no Electron
+   * (XVIII). The host injects the real store.
+   */
+  credentials?: CredentialStore
+  /** Injected so tests, and the CLI's fixture mode, never shell out to git. */
+  git?: LocalGitProvider
+  /** Injected so a sync can be driven from recorded fixtures with no network. */
+  fetcher?: Fetcher
+  /**
+   * Where the compiled SQLite addon lives, when it is not the copy in
+   * `node_modules`. Electron needs its own ABI build; see `store/open.ts`.
+   */
+  nativeBinding?: string | undefined
+}
+
+export function createCoreServices(options: CoreServicesOptions): CoreServices {
+  const open = { dir: options.dir, nativeBinding: options.nativeBinding }
+  const mirrorDb = openMirror(open).db
+  const authoredDb = openAuthored(open).db
+
+  const mirror = mirrorRepository(mirrorDb)
+  const notesRepo = notesRepository(authoredDb)
+  const sessionsRepo = sessionsRepository(authoredDb)
+  const projects = projectsRepository(authoredDb)
+  const dismissals = dismissalsRepository(authoredDb)
+  const settings = settingsStore(authoredDb)
+
+  // Notes ask the sessions store whether a session subject exists; sessions ask
+  // the notes store which subjects have open questions. Both at the repository
+  // level, so the two services do not depend on each other and neither has to
+  // be constructed first.
+  const notes = notesService({
+    notes: notesRepo,
+    subjectPresence: subjectPresenceResolver({ mirror, hasSession: (key) => sessionsRepo.has(key) }),
+  })
+
+  const sessions = sessionsService({
+    sessions: sessionsRepo,
+    openQuestionSubjects: () => notesRepo.openQuestionSubjects(),
+    // Read per call rather than captured, so changing the setting takes effect
+    // without a restart.
+    missMultiplier: () => settings.get().heartbeatMissMultiplier,
+  })
+
+  const confirmations = confirmationTokens()
+  const outbox = outboxService({ outbox: outboxRepository(authoredDb), confirmations })
+
+  const credentials = options.credentials ?? unavailableKeychain()
+  const git = options.git ?? localGitProvider(gitRunner())
+
+  /**
+   * Providers are rebuilt per sync rather than cached.
+   *
+   * A cached client would hold a credential in memory for the life of the
+   * process and keep using a token the operator has since revoked or replaced.
+   * Rebuilding costs nothing measurable next to an HTTP round trip.
+   */
+  const buildTargets = (now?: () => Date): BuiltTargets =>
+    buildSyncTargets({
+      projects: projects.list(),
+      connections: mirror.listConnections(),
+      credentials,
+      git,
+      fetcher: options.fetcher,
+      now,
+    })
+
+  const connections = connectionsService({
+    mirror,
+    credentials,
+    projects: () => projects.list(),
+    fetcher: options.fetcher,
+  })
+
+  return {
+    mirror,
+    projects,
+    connections,
+    dismissals,
+    notes,
+    sessions,
+    outbox,
+    settings,
+    confirmations,
+    databases: { mirror: mirrorDb, authored: authoredDb },
+
+    board(now) {
+      const current = settings.get()
+
+      const board = buildBoard({
+        mirror,
+        projects: projects.list(),
+        // The real note data, at last. Until now these were inputs a caller had
+        // to supply; the count on every row and the questions driving Attention
+        // and ball-in-court now come from what the operator and agents wrote
+        // (FR-052, FR-053).
+        noteCounts: notesRepo.countsBySubject(),
+        openQuestionSubjects: notesRepo.openQuestionSubjects(),
+        sessions: sessionsRepo.list(),
+        dismissals: dismissals.list(),
+        settings: current,
+        now,
+      })
+
+      return envelopeBoard(
+        { workItems: board.workItems, findings: board.findings, dangling: board.dangling },
+        mirror,
+        now,
+        current,
+      )
+    },
+
+    hasCredential(connectionId) {
+      try {
+        const secret = credentials.get(credentialRef(connectionId))
+        return secret !== null && secret !== ''
+      } catch {
+        // The keychain being unreachable is not "no credential" — but for the
+        // purpose of this boolean it is equally unusable, and the distinction
+        // is reported properly by `credentialGaps`.
+        return false
+      }
+    },
+
+    credentialGaps: () => buildTargets().unavailable,
+
+    async syncNow(request, now) {
+      const built = buildTargets(() => now)
+
+      return runSync({
+        mirror,
+        // The gaps travel with the targets, so a connection that could not be
+        // given a provider is reported as a failed refresh rather than skipped
+        // in silence. `buildSyncTargets` has always computed `unavailable`;
+        // until now the only thing that read it was `sync.status`, which the
+        // interface never called.
+        targets: { ...built.targets, unavailable: built.unavailable },
+        settings: settings.get(),
+        now: () => now,
+        ...(request.connectionId === undefined ? {} : { connectionId: request.connectionId }),
+      })
+    },
+
+    close() {
+      mirrorDb.close()
+      authoredDb.close()
+    },
+  }
+}

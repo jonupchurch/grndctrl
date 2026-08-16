@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#f9f9f7; }
+  a { color:#0e7fa3; text-decoration:none; border-bottom:1px solid rgba(14,127,163,.35); }
+  a:hover { color:#0b6683; border-bottom-color:#0b6683; }
+  @keyframes gc-pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.35; transform:scale(.8); } }
+</style>
+</helmet>
+
+<div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif; color:#0b0b0b; background:#f9f9f7; max-width:1240px; margin:0 auto; padding:0 0 96px;">
+
+  <header style="display:flex; align-items:flex-end; justify-content:space-between; gap:40px; padding:64px 56px 28px; border-bottom:1px solid rgba(11,11,11,0.10);">
+    <div style="display:flex; align-items:center; gap:16px;">
+      <svg width="42" height="42" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="1" stroke-dasharray="2.5 4" opacity="0.55"></circle>
+        <circle cx="24" cy="24" r="10" stroke="currentColor" stroke-width="1.8"></circle>
+        <circle cx="42" cy="24" r="3.5" fill="#0e7fa3"></circle>
+      </svg>
+      <span style="font-family:Archivo,system-ui,sans-serif; font-weight:600; font-size:26px; letter-spacing:.145em; text-transform:uppercase; line-height:1;">Ground&nbsp;Control</span>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#52514e;">Design system</div>
+      <div style="font-size:12px; color:#898781; font-variant-numeric:tabular-nums;">v0.1 · Aug 2026 · direction 1a locked</div>
+    </div>
+  </header>
+
+  <section style="padding:44px 56px; border-bottom:1px solid rgba(11,11,11,0.10);">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:22px;">
+      <span style="font-size:11px; font-weight:600; color:#898781; font-variant-numeric:tabular-nums;">01</span>
+      <h2 style="margin:0; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Mark &amp; wordmark</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px;">
+      <div>
+        <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:34px 24px; display:flex; justify-content:center;">
+          <div style="display:flex; align-items:center; gap:14px; outline:1px dashed rgba(14,127,163,.45); outline-offset:20px;">
+            <svg width="36" height="36" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="1" stroke-dasharray="2.5 4" opacity="0.55"></circle><circle cx="24" cy="24" r="10" stroke="currentColor" stroke-width="1.8"></circle><circle cx="42" cy="24" r="3.5" fill="#0e7fa3"></circle></svg>
+            <span style="font-family:Archivo,system-ui,sans-serif; font-weight:600; font-size:22px; letter-spacing:.145em; text-transform:uppercase; line-height:1;">Ground&nbsp;Control</span>
+          </div>
+        </div>
+        <p style="margin:10px 0 0; font-size:12px; line-height:1.6; color:#52514e;">Clear space equals the mark's inner-circle diameter on all four sides. Nothing enters it.</p>
+      </div>
+      <div>
+        <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:34px 24px; display:flex; align-items:flex-end; justify-content:center; gap:26px; min-height:104px;">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 5" opacity="0.55"></circle><circle cx="24" cy="24" r="10" stroke="currentColor" stroke-width="2.6"></circle><circle cx="42" cy="24" r="4.5" fill="#0e7fa3"></circle></svg>
+          <svg width="20" height="20" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2.4" stroke-dasharray="5 7" opacity="0.55"></circle><circle cx="24" cy="24" r="9" stroke="currentColor" stroke-width="4"></circle><circle cx="42" cy="24" r="6" fill="#0e7fa3"></circle></svg>
+          <svg width="16" height="16" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="9" stroke="currentColor" stroke-width="5"></circle><circle cx="42" cy="24" r="6" fill="#0e7fa3"></circle></svg>
+        </div>
+        <p style="margin:10px 0 0; font-size:12px; line-height:1.6; color:#52514e;">Three cut sizes. Below 20px the dashed orbit is dropped — never scaled. 16px is the tray floor.</p>
+      </div>
+      <div>
+        <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:20px 24px; min-height:104px; display:flex; flex-direction:column; justify-content:center; gap:9px;">
+          <div style="display:flex; gap:9px; align-items:baseline;"><span style="color:#d03b3b; font-size:13px; line-height:1;">✕</span><span style="font-size:12px; color:#52514e; line-height:1.5;">Never set the wordmark in the UI face, and never set UI copy in Archivo.</span></div>
+          <div style="display:flex; gap:9px; align-items:baseline;"><span style="color:#d03b3b; font-size:13px; line-height:1;">✕</span><span style="font-size:12px; color:#52514e; line-height:1.5;">Never recolor the satellite dot to a status hue.</span></div>
+          <div style="display:flex; gap:9px; align-items:baseline;"><span style="color:#d03b3b; font-size:13px; line-height:1;">✕</span><span style="font-size:12px; color:#52514e; line-height:1.5;">Never stack, rotate, or tighten below .145em tracking.</span></div>
+        </div>
+        <p style="margin:10px 0 0; font-size:12px; line-height:1.6; color:#52514e;">Archivo 600 is brand-only. Everything inside the product is system sans.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:44px 56px; border-bottom:1px solid rgba(11,11,11,0.10);">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:8px;">
+      <span style="font-size:11px; font-weight:600; color:#898781; font-variant-numeric:tabular-nums;">02</span>
+      <h2 style="margin:0; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Color</h2>
+    </div>
+    <p style="margin:0 0 26px; font-size:13px; line-height:1.65; color:#52514e; max-width:720px; text-wrap:pretty;">Four sets, none of which overlap: neutrals build the surface, status is reserved for state, project chips are categorical identity, and one accent marks the product's own voice. Dark values are chosen against the dark surface, not derived from the light ones.</p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px;">
+      <div>
+        <h3 style="margin:0 0 12px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Neutrals</h3>
+        <div style="border-top:1px solid rgba(11,11,11,0.10);">
+          <sc-for list="{{ neutrals }}" as="c" hint-placeholder-count="7">
+            <div style="display:flex; align-items:center; gap:14px; padding:9px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+              <span style="display:flex; flex:none;">
+                <span style="width:26px; height:26px; border:1px solid rgba(11,11,11,0.12); background:{{ c.light }};"></span>
+                <span style="width:26px; height:26px; border:1px solid rgba(11,11,11,0.12); border-left:0; background:{{ c.dark }};"></span>
+              </span>
+              <code style="flex:none; width:132px; font-family:ui-monospace,'SF Mono',monospace; font-size:11.5px; color:#0b0b0b;">{{ c.token }}</code>
+              <span style="flex:1; font-size:12px; color:#52514e;">{{ c.role }}</span>
+              <code style="font-family:ui-monospace,'SF Mono',monospace; font-size:11px; color:#898781; font-variant-numeric:tabular-nums;">{{ c.hexes }}</code>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 12px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Status — reserved</h3>
+        <div style="border-top:1px solid rgba(11,11,11,0.10);">
+          <sc-for list="{{ statuses }}" as="c" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:14px; padding:9px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+              <span style="display:flex; flex:none;">
+                <span style="width:26px; height:26px; border:1px solid rgba(11,11,11,0.12); background:{{ c.light }};"></span>
+                <span style="width:26px; height:26px; border:1px solid rgba(11,11,11,0.12); border-left:0; background:{{ c.dark }};"></span>
+              </span>
+              <code style="flex:none; width:132px; font-family:ui-monospace,'SF Mono',monospace; font-size:11.5px; color:#0b0b0b;">{{ c.token }}</code>
+              <span style="flex:1; font-size:12px; color:#52514e;">{{ c.role }}</span>
+              <code style="font-family:ui-monospace,'SF Mono',monospace; font-size:11px; color:#898781; font-variant-numeric:tabular-nums;">{{ c.hexes }}</code>
+            </div>
+          </sc-for>
+        </div>
+        <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:#52514e; text-wrap:pretty;">Warning and serious fall below 3:1 on the light surface by design. The mitigation is the shape+label pairing in §04, never a darker hue.</p>
+
+        <h3 style="margin:26px 0 12px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Accent — brand only</h3>
+        <div style="display:flex; align-items:center; gap:14px; padding:9px 0; border-top:1px solid rgba(11,11,11,0.10); border-bottom:1px solid rgba(11,11,11,0.07);">
+          <span style="display:flex; flex:none;">
+            <span style="width:26px; height:26px; border:1px solid rgba(11,11,11,0.12); background:#0e7fa3;"></span>
+            <span style="width:26px; height:26px; border:1px solid rgba(11,11,11,0.12); border-left:0; background:#3fb6dc;"></span>
+          </span>
+          <code style="flex:none; width:132px; font-family:ui-monospace,'SF Mono',monospace; font-size:11.5px;">--accent</code>
+          <span style="flex:1; font-size:12px; color:#52514e;">Satellite dot, live pulse, focus ring, selected filter chip</span>
+          <code style="font-family:ui-monospace,'SF Mono',monospace; font-size:11px; color:#898781;">0e7fa3 / 3fb6dc</code>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin:34px 0 12px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Project identity — fixed order, assigned once, never recycled</h3>
+    <div style="display:flex; flex-wrap:wrap; gap:10px;">
+      <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
+        <div style="flex:1 1 176px; background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:12px 14px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:9px;">
+            <span style="width:9px; height:9px; flex:none; background:{{ c.light }};"></span>
+            <span style="font-size:12px; font-weight:600; letter-spacing:.05em; font-variant-numeric:tabular-nums;">{{ c.code }}</span>
+            <span style="margin-left:auto; font-size:11px; color:#898781; font-variant-numeric:tabular-nums;">{{ c.index }}</span>
+          </div>
+          <div style="display:flex; gap:0; margin-bottom:8px;">
+            <span style="flex:1; height:18px; background:{{ c.light }};"></span>
+            <span style="flex:1; height:18px; background:{{ c.dark }};"></span>
+          </div>
+          <code style="font-family:ui-monospace,'SF Mono',monospace; font-size:10.5px; color:#898781;">{{ c.hexes }}</code>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:#52514e; max-width:720px; text-wrap:pretty;">No green and no red in the set — a project chip must never be mistaken for a health signal. Chips carry a color <em>and</em> a 3–4 character code, so identity survives for colorblind users and at 16px.</p>
+  </section>
+
+  <section style="padding:44px 56px; border-bottom:1px solid rgba(11,11,11,0.10);">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:22px;">
+      <span style="font-size:11px; font-weight:600; color:#898781; font-variant-numeric:tabular-nums;">03</span>
+      <h2 style="margin:0; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Type</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:44px; align-items:start;">
+      <div style="border-top:1px solid rgba(11,11,11,0.10);">
+        <div style="display:flex; align-items:center; gap:20px; padding:14px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+          <span style="flex:none; width:132px; font-size:11px; color:#898781; letter-spacing:.06em; text-transform:uppercase;">Stat figure</span>
+          <span style="flex:1; font-size:40px; font-weight:600; line-height:1; letter-spacing:-.02em;">14</span>
+          <code style="font-family:ui-monospace,monospace; font-size:11px; color:#898781;">40 / 600 / proportional</code>
+        </div>
+        <div style="display:flex; align-items:center; gap:20px; padding:14px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+          <span style="flex:none; width:132px; font-size:11px; color:#898781; letter-spacing:.06em; text-transform:uppercase;">Section title</span>
+          <span style="flex:1; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Pull requests</span>
+          <code style="font-family:ui-monospace,monospace; font-size:11px; color:#898781;">15 / 600 / .07em caps</code>
+        </div>
+        <div style="display:flex; align-items:center; gap:20px; padding:14px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+          <span style="flex:none; width:132px; font-size:11px; color:#898781; letter-spacing:.06em; text-transform:uppercase;">Row title</span>
+          <span style="flex:1; font-size:13px;">Reconcile worktree state on branch delete</span>
+          <code style="font-family:ui-monospace,monospace; font-size:11px; color:#898781;">13 / 400</code>
+        </div>
+        <div style="display:flex; align-items:center; gap:20px; padding:14px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+          <span style="flex:none; width:132px; font-size:11px; color:#898781; letter-spacing:.06em; text-transform:uppercase;">Identifier</span>
+          <span style="flex:1; font-size:12px; font-weight:500; color:#52514e; font-variant-numeric:tabular-nums;">MERC-1184 · #451 · feature/merc-1184</span>
+          <code style="font-family:ui-monospace,monospace; font-size:11px; color:#898781;">12 / 500 / tabular</code>
+        </div>
+        <div style="display:flex; align-items:center; gap:20px; padding:14px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+          <span style="flex:none; width:132px; font-size:11px; color:#898781; letter-spacing:.06em; text-transform:uppercase;">Meta / age</span>
+          <span style="flex:1; font-size:11px; color:#898781; font-variant-numeric:tabular-nums;">3d 04h · as of 0:42 · 2 unresolved</span>
+          <code style="font-family:ui-monospace,monospace; font-size:11px; color:#898781;">11 / 400 / tabular</code>
+        </div>
+        <div style="display:flex; align-items:center; gap:20px; padding:14px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+          <span style="flex:none; width:132px; font-size:11px; color:#898781; letter-spacing:.06em; text-transform:uppercase;">Brand only</span>
+          <span style="flex:1; font-family:Archivo,sans-serif; font-size:16px; font-weight:600; letter-spacing:.145em; text-transform:uppercase;">Ground&nbsp;Control</span>
+          <code style="font-family:ui-monospace,monospace; font-size:11px; color:#898781;">Archivo 600 / .145em</code>
+        </div>
+      </div>
+      <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:18px 20px;">
+        <h3 style="margin:0 0 10px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Rules</h3>
+        <ul style="margin:0; padding-left:16px; font-size:12px; line-height:1.75; color:#52514e;">
+          <li>One family in product: <code style="font-family:ui-monospace,monospace; font-size:11px;">system-ui</code>. Six sizes: 11 · 12 · 13 · 15 · 20 · 40.</li>
+          <li><code style="font-family:ui-monospace,monospace; font-size:11px;">tabular-nums</code> on everything that stacks in a column. Stat figures are the one exception — proportional, so 14 doesn't sit in a puddle of space.</li>
+          <li>Weight carries hierarchy before size does. 400 → 500 → 600, nothing heavier.</li>
+          <li>Text is never a status color. A shape token beside it carries the state.</li>
+          <li>Row titles truncate with an ellipsis at one line; identifiers never truncate.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:44px 56px; border-bottom:1px solid rgba(11,11,11,0.10);">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:8px;">
+      <span style="font-size:11px; font-weight:600; color:#898781; font-variant-numeric:tabular-nums;">04</span>
+      <h2 style="margin:0; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Status language</h2>
+    </div>
+    <p style="margin:0 0 24px; font-size:13px; line-height:1.65; color:#52514e; max-width:720px; text-wrap:pretty;">Every state is a triple: shape, color, label. Each severity gets its own silhouette, so the four levels stay distinguishable in greyscale, at 11px, and for the ~8% of male developers with a red-green deficiency.</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px;">
+      <div style="border-top:1px solid rgba(11,11,11,0.10);">
+        <sc-for list="{{ tokens }}" as="t" hint-placeholder-count="4">
+          <div style="display:flex; align-items:center; gap:16px; padding:12px 0; border-bottom:1px solid rgba(11,11,11,0.07);">
+            <span style="flex:none; width:150px; display:inline-flex; align-items:center; gap:7px;">
+              <span style="width:9px; height:9px; flex:none; background:{{ t.color }}; clip-path:{{ t.clip }};"></span>
+              <span style="font-size:12px; font-weight:500;">{{ t.label }}</span>
+            </span>
+            <span style="flex:1; font-size:12px; color:#52514e;">{{ t.use }}</span>
+            <code style="font-family:ui-monospace,monospace; font-size:11px; color:#898781;">{{ t.shape }}</code>
+          </div>
+        </sc-for>
+      </div>
+      <div>
+        <h3 style="margin:0 0 12px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Iconography</h3>
+        <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:18px 20px;">
+          <ul style="margin:0; padding-left:16px; font-size:12px; line-height:1.75; color:#52514e;">
+            <li>14px box, 1.25px stroke, geometric primitives only — circle, square, triangle, diamond, line. No pictograms, no emoji.</li>
+            <li>Status tokens are filled solids. Correlation badges are outlined. Fill means state; outline means fact.</li>
+            <li>Badges show glyph only at rest and expand to glyph + label on row hover.</li>
+            <li>An absent badge is information: "assigned to me, nothing started" is a row with three empty slots, drawn as hairline placeholders rather than omitted.</li>
+          </ul>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;">
+          <sc-for list="{{ badges }}" as="b" hint-placeholder-count="5">
+            <span style="display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 8px; border:1px solid rgba(11,11,11,0.18); font-size:11px; color:#52514e; font-variant-numeric:tabular-nums;">
+              <span style="width:7px; height:7px; flex:none; border:1px solid #52514e; clip-path:{{ b.clip }};"></span>{{ b.label }}
+            </span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:44px 56px; border-bottom:1px solid rgba(11,11,11,0.10);">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:8px;">
+      <span style="font-size:11px; font-weight:600; color:#898781; font-variant-numeric:tabular-nums;">05</span>
+      <h2 style="margin:0; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Row anatomy</h2>
+    </div>
+    <p style="margin:0 0 26px; font-size:13px; line-height:1.65; color:#52514e; max-width:720px; text-wrap:pretty;">One 34px primitive serves all three lanes. Slots are fixed-width and always present, so the columns align down the lane and an empty slot reads as an absence rather than a shift.</p>
+
+    <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10);">
+      <div style="display:flex; align-items:center; height:38px; padding-right:14px;">
+        <span style="width:3px; height:38px; flex:none; background:#ec835a;"></span>
+        <span style="width:11px; flex:none;"></span>
+        <span style="display:inline-flex; align-items:center; gap:7px; width:74px; flex:none;">
+          <span style="width:9px; height:9px; background:#2a78d6;"></span>
+          <span style="font-size:11px; font-weight:600; letter-spacing:.04em; color:#52514e;">MERC</span>
+        </span>
+        <span style="width:96px; flex:none; font-size:12px; font-weight:500; color:#52514e; font-variant-numeric:tabular-nums;">MERC-1184</span>
+        <span style="flex:1; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:16px;">Reconcile worktree state when a branch is deleted upstream</span>
+        <span style="display:inline-flex; align-items:center; gap:6px; width:104px; flex:none;">
+          <span style="width:8px; height:8px; background:#fab219; clip-path:polygon(50% 0,100% 100%,0 100%);"></span>
+          <span style="font-size:12px; color:#52514e;">In Review</span>
+        </span>
+        <span style="display:inline-flex; gap:5px; width:74px; flex:none;">
+          <span style="width:16px; height:16px; border:1px solid rgba(11,11,11,0.30); display:inline-flex; align-items:center; justify-content:center;"><span style="width:6px; height:6px; border:1px solid #52514e;"></span></span>
+          <span style="width:16px; height:16px; border:1px solid rgba(11,11,11,0.30); display:inline-flex; align-items:center; justify-content:center;"><span style="width:6px; height:6px; border:1px solid #52514e; border-radius:50%;"></span></span>
+          <span style="width:16px; height:16px; border:1px dashed rgba(11,11,11,0.18);"></span>
+        </span>
+        <span style="width:88px; flex:none; display:inline-flex; align-items:center; gap:6px;">
+          <span style="width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-left:6px solid #0b0b0b;"></span>
+          <span style="font-size:11px; font-weight:500;">You</span>
+        </span>
+        <span style="width:52px; flex:none; text-align:right; font-size:11px; color:#898781; font-variant-numeric:tabular-nums;">3d 04h</span>
+      </div>
+    </div>
+
+    <div style="display:flex; margin-top:0; padding-right:14px; font-size:10.5px; color:#898781; line-height:1.45;">
+      <span style="width:14px; flex:none;"></span>
+      <span style="width:74px; flex:none; border-top:1px solid rgba(11,11,11,0.18); padding-top:6px;">Project</span>
+      <span style="width:96px; flex:none; border-top:1px solid rgba(11,11,11,0.18); padding-top:6px;">Identifier</span>
+      <span style="flex:1; border-top:1px solid rgba(11,11,11,0.18); padding-top:6px;">Title — truncates</span>
+      <span style="width:104px; flex:none; border-top:1px solid rgba(11,11,11,0.18); padding-top:6px;">Status</span>
+      <span style="width:74px; flex:none; border-top:1px solid rgba(11,11,11,0.18); padding-top:6px;">Correlation</span>
+      <span style="width:88px; flex:none; border-top:1px solid rgba(11,11,11,0.18); padding-top:6px;">Ball in court</span>
+      <span style="width:52px; flex:none; text-align:right; border-top:1px solid rgba(11,11,11,0.18); padding-top:6px;">Age</span>
+    </div>
+    <div style="font-size:10.5px; color:#898781; margin-top:-13px; padding-left:0;"><span style="display:inline-block; width:3px; border-top:1px solid rgba(11,11,11,0.18);"></span></div>
+
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:24px; margin-top:28px;">
+      <div>
+        <h3 style="margin:0 0 10px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Staleness — leading bar</h3>
+        <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:14px 16px;">
+          <sc-for list="{{ staleness }}" as="s" hint-placeholder-count="5">
+            <div style="display:flex; align-items:center; gap:12px; padding:5px 0;">
+              <span style="width:44px; height:12px; flex:none; display:flex; align-items:center;">
+                <span style="width:3px; height:{{ s.h }}; background:{{ s.color }};"></span>
+              </span>
+              <span style="flex:1; font-size:12px; color:#52514e;">{{ s.label }}</span>
+              <span style="font-size:11px; color:#898781; font-variant-numeric:tabular-nums;">{{ s.age }}</span>
+            </div>
+          </sc-for>
+          <p style="margin:10px 0 0; font-size:11.5px; line-height:1.6; color:#898781; text-wrap:pretty;">Height and hue both move, so the bar reads as a filling gauge peripherally and as a severity in focus. Measured from last <em>real</em> activity — a bot comment or a label change does not reset it.</p>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin:0 0 10px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Ball in court</h3>
+        <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:14px 16px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+            <span style="width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-left:6px solid #0b0b0b;"></span>
+            <span style="font-size:12px; font-weight:500;">You</span>
+            <span style="margin-left:auto; font-size:11px; color:#898781;">solid, points in, ink</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+            <span style="width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:6px solid #898781;"></span>
+            <span style="font-size:12px; color:#52514e;">Them</span>
+            <span style="margin-left:auto; font-size:11px; color:#898781;">points out, muted</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+            <span style="width:6px; height:8px; border:1px solid #898781;"></span>
+            <span style="font-size:12px; color:#52514e;">Agent</span>
+            <span style="margin-left:auto; font-size:11px; color:#898781;">outlined, held</span>
+          </div>
+          <p style="margin:10px 0 0; font-size:11.5px; line-height:1.6; color:#898781; text-wrap:pretty;">Direction, fill, and weight all encode it. Sorting a lane by ball-in-court groups every "You" arrow into one visual block.</p>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin:0 0 10px; font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:#898781;">Drift alert — elevated row</h3>
+        <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:14px 16px;">
+          <div style="display:flex; align-items:stretch; border:1px solid #d03b3b; background:rgba(208,59,59,0.05);">
+            <span style="width:3px; background:#d03b3b; flex:none;"></span>
+            <div style="padding:9px 11px;">
+              <div style="display:flex; align-items:center; gap:7px; margin-bottom:3px;">
+                <span style="width:8px; height:8px; background:#d03b3b; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);"></span>
+                <span style="font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Drift</span>
+                <span style="font-size:11px; color:#898781; font-variant-numeric:tabular-nums;">MERC-1184</span>
+              </div>
+              <div style="font-size:12px; line-height:1.5; color:#0b0b0b;">Ticket is In Review; PR #451 merged 3d ago.</div>
+            </div>
+          </div>
+          <p style="margin:10px 0 0; font-size:11.5px; line-height:1.6; color:#898781; text-wrap:pretty;">Drift is a claim about two sources, not a property of one row — so it gets a boxed strip above the lanes, not a row treatment. Each strip names both sides and offers the one-click reconcile.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:44px 56px; border-bottom:1px solid rgba(11,11,11,0.10);">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:22px;">
+      <span style="font-size:11px; font-weight:600; color:#898781; font-variant-numeric:tabular-nums;">06</span>
+      <h2 style="margin:0; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Motion</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:24px;">
+      <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:16px 18px;">
+        <div style="display:flex; align-items:center; gap:9px; margin-bottom:8px;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#0e7fa3; animation:gc-pulse 2.4s ease-in-out infinite;"></span>
+          <span style="font-size:12px; font-weight:600;">The one loop</span>
+        </div>
+        <p style="margin:0; font-size:12px; line-height:1.6; color:#52514e; text-wrap:pretty;">A 2.4s opacity+scale pulse on the accent dot. Permitted on exactly two referents: an agent session that is actually streaming, and a CI run in progress. It stops the moment the thing stops.</p>
+      </div>
+      <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:16px 18px;">
+        <div style="font-size:12px; font-weight:600; margin-bottom:8px;">State change</div>
+        <p style="margin:0; font-size:12px; line-height:1.6; color:#52514e; text-wrap:pretty;">200ms, <code style="font-family:ui-monospace,monospace; font-size:11px;">cubic-bezier(.2,.7,.3,1)</code>. A row that changed status settles into its new sort position; a stat figure counts to its new value. Nothing animates on first paint.</p>
+      </div>
+      <div style="background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:16px 18px;">
+        <div style="font-size:12px; font-weight:600; margin-bottom:8px;">Hover</div>
+        <p style="margin:0; font-size:12px; line-height:1.6; color:#52514e; text-wrap:pretty;">120ms. Row lifts to the raised surface, correlation badges expand from glyph to glyph+label, row actions fade in at the trailing edge. No transform, no shadow — density is preserved.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:44px 56px;">
+    <div style="display:flex; align-items:baseline; gap:14px; margin-bottom:22px;">
+      <span style="font-size:11px; font-weight:600; color:#898781; font-variant-numeric:tabular-nums;">07</span>
+      <h2 style="margin:0; font-size:15px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Tokens</h2>
+    </div>
+    <pre style="margin:0; background:#fcfcfb; border:1px solid rgba(11,11,11,0.10); padding:22px 24px; font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:11.5px; line-height:1.75; color:#0b0b0b; overflow:auto;">:root {
+  --plane:#f9f9f7;      --surface:#fcfcfb;     --raised:#ffffff;      --sunken:#f2f2ef;
+  --ink:#0b0b0b;        --ink-2:#52514e;       --ink-3:#898781;
+  --line:rgba(11,11,11,.10);                   --line-strong:rgba(11,11,11,.18);
+  --good:#0ca30c;       --warning:#fab219;     --serious:#ec835a;     --critical:#d03b3b;
+  --good-wash:rgba(12,163,12,.06);             --critical-wash:rgba(208,59,59,.05);
+  --accent:#0e7fa3;     --accent-wash:rgba(14,127,163,.08);
+  --p1:#2a78d6; --p2:#eb6834; --p3:#1baf7a; --p4:#eda100; --p5:#e87ba4; --p6:#4a3aa7;
+
+  --f-ui:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-brand:Archivo,var(--f-ui);
+  --t-meta:11px; --t-id:12px; --t-body:13px; --t-title:15px; --t-lg:20px; --t-stat:40px;
+  --row-h:34px; --lane-head-h:40px; --gutter:14px; --stale-w:3px;
+  --ease:cubic-bezier(.2,.7,.3,1); --dur-state:200ms; --dur-hover:120ms; --dur-pulse:2400ms;
+}
+
+[data-theme="dark"] {
+  --plane:#0d0d0d;      --surface:#1a1a19;     --raised:#232322;      --sunken:#111110;
+  --ink:#ffffff;        --ink-2:#c3c2b7;       --ink-3:#898781;
+  --line:rgba(255,255,255,.10);                --line-strong:rgba(255,255,255,.18);
+  --good:#2fbe2f;       --warning:#fac33f;     --serious:#f0946f;     --critical:#e05a5a;
+  --good-wash:rgba(47,190,47,.08);             --critical-wash:rgba(224,90,90,.08);
+  --accent:#3fb6dc;     --accent-wash:rgba(63,182,220,.10);
+  --p1:#3987e5; --p2:#d95926; --p3:#199e70; --p4:#c98500; --p5:#d55181; --p6:#9085e9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { /* same dark block — the [data-theme] scope wins both ways */ }
+}</pre>
+    <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:#52514e; max-width:720px; text-wrap:pretty;">Every value is addressed by role, never by hue, so the two themes swap in one place and a component never names a color. Next: the main page, built entirely from these.</p>
+  </section>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const CIRCLE = "circle(50% at 50% 50%)";
+const TRIANGLE = "polygon(50% 0, 100% 100%, 0 100%)";
+const DIAMOND = "polygon(50% 0, 100% 50%, 50% 100%, 0 50%)";
+const SQUARE = "none";
+
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      neutrals: [
+        { token: "--plane", light: "#f9f9f7", dark: "#0d0d0d", role: "Page behind the panels", hexes: "f9f9f7 / 0d0d0d" },
+        { token: "--surface", light: "#fcfcfb", dark: "#1a1a19", role: "Panels, tiles, rows", hexes: "fcfcfb / 1a1a19" },
+        { token: "--raised", light: "#ffffff", dark: "#232322", role: "Hover, popovers", hexes: "ffffff / 232322" },
+        { token: "--ink", light: "#0b0b0b", dark: "#ffffff", role: "Titles, figures", hexes: "0b0b0b / ffffff" },
+        { token: "--ink-2", light: "#52514e", dark: "#c3c2b7", role: "Labels, identifiers", hexes: "52514e / c3c2b7" },
+        { token: "--ink-3", light: "#898781", dark: "#898781", role: "Ages, counts, hints", hexes: "898781 both" },
+        { token: "--line", light: "rgba(11,11,11,.10)", dark: "rgba(255,255,255,.10)", role: "Hairlines, panel edges", hexes: "10% ink" }
+      ],
+      statuses: [
+        { token: "--good", light: "#0ca30c", dark: "#2fbe2f", role: "Merged, passing, clear", hexes: "0ca30c / 2fbe2f" },
+        { token: "--warning", light: "#fab219", dark: "#fac33f", role: "Aging, waiting, queued", hexes: "fab219 / fac33f" },
+        { token: "--serious", light: "#ec835a", dark: "#f0946f", role: "Stalled, behind, blocked", hexes: "ec835a / f0946f" },
+        { token: "--critical", light: "#d03b3b", dark: "#e05a5a", role: "Failing, drift, unreachable", hexes: "d03b3b / e05a5a" }
+      ],
+      chips: [
+        { code: "MERC", index: "01", light: "#2a78d6", dark: "#3987e5", hexes: "2a78d6 / 3987e5" },
+        { code: "ATLS", index: "02", light: "#eb6834", dark: "#d95926", hexes: "eb6834 / d95926" },
+        { code: "VEGA", index: "03", light: "#1baf7a", dark: "#199e70", hexes: "1baf7a / 199e70" },
+        { code: "ORBT", index: "04", light: "#eda100", dark: "#c98500", hexes: "eda100 / c98500" },
+        { code: "HELO", index: "05", light: "#e87ba4", dark: "#d55181", hexes: "e87ba4 / d55181" },
+        { code: "NOVA", index: "06", light: "#4a3aa7", dark: "#9085e9", hexes: "4a3aa7 / 9085e9" }
+      ],
+      tokens: [
+        { label: "Good", color: "#0ca30c", clip: CIRCLE, shape: "circle", use: "Merged, checks green, nothing owed" },
+        { label: "Warning", color: "#fab219", clip: TRIANGLE, shape: "triangle", use: "Aging past its lane's threshold" },
+        { label: "Serious", color: "#ec835a", clip: SQUARE, shape: "square", use: "Stalled, behind main, agent silent" },
+        { label: "Critical", color: "#d03b3b", clip: DIAMOND, shape: "diamond", use: "Failing checks, drift, provider down" }
+      ],
+      badges: [
+        { label: "branch", clip: SQUARE },
+        { label: "PR", clip: CIRCLE },
+        { label: "agent", clip: DIAMOND },
+        { label: "CI", clip: TRIANGLE },
+        { label: "nothing started", clip: SQUARE }
+      ],
+      staleness: [
+        { label: "Under 4 hours", age: "0–4h", h: "3px", color: "rgba(11,11,11,0.12)" },
+        { label: "Same day", age: "4–24h", h: "6px", color: "#fab219" },
+        { label: "Two to three days", age: "1–3d", h: "9px", color: "#fab219" },
+        { label: "Past the lane threshold", age: "3–7d", h: "12px", color: "#ec835a" },
+        { label: "Abandoned", age: "7d+", h: "12px", color: "#d03b3b" }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

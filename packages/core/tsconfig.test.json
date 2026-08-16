@@ -1,0 +1,15 @@
+{
+  // Tests are typechecked but never emitted — vitest transpiles them itself, and
+  // emitting them would put `dist/test/` next to `dist/src/` and break every
+  // package entry point. Typechecking them still matters: a test that no longer
+  // compiles against the code it covers is a test that has stopped covering it.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "types": ["node", "vitest/globals"],
+    "lib": ["ES2023"]
+  },
+  "include": ["test/**/*", "scripts/**/*", "src/**/*"]
+}

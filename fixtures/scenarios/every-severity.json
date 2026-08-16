@@ -1,0 +1,277 @@
+{
+  "description": "One work item at each severity, so the greyscale check (SC-015) has all four shapes on screen at once. Severity is derived, never declared: MERC-2001 is blocked (critical), MERC-2002 has changes requested (serious), MERC-2003 is a draft awaiting review (warning), and MERC-2004 is in progress, approved, with a required check green (good) — its status must not match /review|qa|verify|waiting/, which alone would make it a warning.",
+  "now": "2026-08-14T12:00:00Z",
+  "freshness": [
+    {
+      "connectionId": "jira-1",
+      "resourceKind": "tickets",
+      "lastSuccessAt": "2026-08-14T11:57:00Z",
+      "lastFailureAt": null,
+      "failureReason": null,
+      "nextAttemptAt": null
+    },
+    {
+      "connectionId": "gh-1",
+      "resourceKind": "pulls",
+      "lastSuccessAt": "2026-08-14T11:59:30Z",
+      "lastFailureAt": null,
+      "failureReason": null,
+      "nextAttemptAt": null
+    },
+    {
+      "connectionId": "local",
+      "resourceKind": "local",
+      "lastSuccessAt": "2026-08-14T11:59:50Z",
+      "lastFailureAt": null,
+      "failureReason": null,
+      "nextAttemptAt": null
+    }
+  ],
+  "input": {
+    "projects": [
+      {
+        "id": "p-merc",
+        "code": "MERC",
+        "name": "Mercury",
+        "colorIndex": 0,
+        "jiraConnectionId": "jira-1",
+        "jiraProjectKey": "MERC",
+        "githubConnectionId": "gh-1",
+        "repoOwner": "acme",
+        "repoName": "mercury",
+        "documentationUrl": null,
+        "ticketKeyPattern": "(MERC-\\d+)",
+        "checkoutPaths": [
+          "D:\\work\\mercury"
+        ],
+        "statusOverrides": {}
+      }
+    ],
+    "operatorAccountIds": [
+      "me"
+    ],
+    "noteCounts": {},
+    "openQuestionSubjects": [],
+    "comparisons": [],
+    "workspaces": [],
+    "sessions": [],
+    "tickets": [
+      {
+        "key": "jira:acme.atlassian.net/MERC-2001",
+        "connectionId": "jira-1",
+        "issueKey": "MERC-2001",
+        "summary": "Payment webhook drops retries",
+        "assignee": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "reporter": {
+          "accountId": "them",
+          "displayName": "Sam",
+          "email": null
+        },
+        "statusName": "Blocked",
+        "statusCategory": "indeterminate",
+        "isBlocked": true,
+        "createdAt": "2026-08-01T09:00:00Z",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "lastStatusChangeAt": "2026-08-14T09:00:00Z",
+        "url": "https://acme.atlassian.net/browse/MERC-2001",
+        "fetchedAt": "2026-08-14T11:57:00Z"
+      },
+      {
+        "key": "jira:acme.atlassian.net/MERC-2002",
+        "connectionId": "jira-1",
+        "issueKey": "MERC-2002",
+        "summary": "Reconcile worktree state on upstream delete",
+        "assignee": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "reporter": {
+          "accountId": "them",
+          "displayName": "Sam",
+          "email": null
+        },
+        "statusName": "In Progress",
+        "statusCategory": "indeterminate",
+        "isBlocked": false,
+        "createdAt": "2026-08-01T09:00:00Z",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "lastStatusChangeAt": "2026-08-14T09:00:00Z",
+        "url": "https://acme.atlassian.net/browse/MERC-2002",
+        "fetchedAt": "2026-08-14T11:57:00Z"
+      },
+      {
+        "key": "jira:acme.atlassian.net/MERC-2003",
+        "connectionId": "jira-1",
+        "issueKey": "MERC-2003",
+        "summary": "Session picker should remember the last provider",
+        "assignee": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "reporter": {
+          "accountId": "them",
+          "displayName": "Sam",
+          "email": null
+        },
+        "statusName": "In Progress",
+        "statusCategory": "indeterminate",
+        "isBlocked": false,
+        "createdAt": "2026-08-01T09:00:00Z",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "lastStatusChangeAt": "2026-08-14T09:00:00Z",
+        "url": "https://acme.atlassian.net/browse/MERC-2003",
+        "fetchedAt": "2026-08-14T11:57:00Z"
+      },
+      {
+        "key": "jira:acme.atlassian.net/MERC-2004",
+        "connectionId": "jira-1",
+        "issueKey": "MERC-2004",
+        "summary": "Bump the changelog for 0.4",
+        "assignee": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "reporter": {
+          "accountId": "them",
+          "displayName": "Sam",
+          "email": null
+        },
+        "statusName": "In Progress",
+        "statusCategory": "indeterminate",
+        "isBlocked": false,
+        "createdAt": "2026-08-01T09:00:00Z",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "lastStatusChangeAt": "2026-08-14T09:00:00Z",
+        "url": "https://acme.atlassian.net/browse/MERC-2004",
+        "fetchedAt": "2026-08-14T11:57:00Z"
+      }
+    ],
+    "pullRequests": [
+      {
+        "key": "gh:acme/mercury#2101",
+        "connectionId": "gh-1",
+        "number": 2101,
+        "title": "fix: reconcile worktree",
+        "author": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "headBranch": "feature/MERC-2002",
+        "headSha": "sha2101",
+        "baseBranch": "main",
+        "state": "open",
+        "isDraft": false,
+        "reviewDecision": "changesRequested",
+        "requestedReviewers": [],
+        "unresolvedThreadCount": 0,
+        "mergedAt": null,
+        "closedAt": null,
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/pull/2101",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      },
+      {
+        "key": "gh:acme/mercury#2102",
+        "connectionId": "gh-1",
+        "number": 2102,
+        "title": "feat: remember the last provider",
+        "author": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "headBranch": "feature/MERC-2003",
+        "headSha": "sha2102",
+        "baseBranch": "main",
+        "state": "open",
+        "isDraft": true,
+        "reviewDecision": "reviewRequired",
+        "requestedReviewers": [],
+        "unresolvedThreadCount": 0,
+        "mergedAt": null,
+        "closedAt": null,
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/pull/2102",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      },
+      {
+        "key": "gh:acme/mercury#2103",
+        "connectionId": "gh-1",
+        "number": 2103,
+        "title": "chore: changelog for 0.4",
+        "author": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "headBranch": "feature/MERC-2004",
+        "headSha": "sha2103",
+        "baseBranch": "main",
+        "state": "open",
+        "isDraft": false,
+        "reviewDecision": "approved",
+        "requestedReviewers": [],
+        "unresolvedThreadCount": 0,
+        "mergedAt": null,
+        "closedAt": null,
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/pull/2103",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      }
+    ],
+    "checks": [
+      {
+        "key": "check:acme/mercury@sha2103/build",
+        "connectionId": "gh-1",
+        "sha": "sha2103",
+        "name": "build",
+        "state": "success",
+        "isRequired": true,
+        "url": "https://github.com/acme/mercury/actions/runs/9100",
+        "completedAt": "2026-08-14T09:00:00Z",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      }
+    ],
+    "branches": [
+      {
+        "key": "repo:github.com/acme/mercury#feature/MERC-2002",
+        "connectionId": "gh-1",
+        "name": "feature/MERC-2002",
+        "headSha": "sha2101",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/tree/feature/MERC-2002",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      },
+      {
+        "key": "repo:github.com/acme/mercury#feature/MERC-2003",
+        "connectionId": "gh-1",
+        "name": "feature/MERC-2003",
+        "headSha": "sha2102",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/tree/feature/MERC-2003",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      },
+      {
+        "key": "repo:github.com/acme/mercury#feature/MERC-2004",
+        "connectionId": "gh-1",
+        "name": "feature/MERC-2004",
+        "headSha": "sha2103",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/tree/feature/MERC-2004",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      }
+    ]
+  }
+}

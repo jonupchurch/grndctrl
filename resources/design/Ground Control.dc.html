@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --plane:#f2f2ef; --surface:#fcfcfb; --raised:#ffffff; --sunken:#f2f2ef;
+    --ink:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+    --line:rgba(11,11,11,.10); --line-soft:rgba(11,11,11,.07); --line-strong:rgba(11,11,11,.18);
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --critical-wash:rgba(208,59,59,.05); --stale-idle:rgba(11,11,11,.12);
+    --accent:#0e7fa3; --accent-wash:rgba(14,127,163,.08);
+    --p1:#2a78d6; --p2:#eb6834; --p3:#1baf7a; --p4:#eda100; --p5:#e87ba4; --p6:#4a3aa7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --plane:#0d0d0d; --surface:#1a1a19; --raised:#232322; --sunken:#111110;
+      --ink:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+      --line:rgba(255,255,255,.10); --line-soft:rgba(255,255,255,.07); --line-strong:rgba(255,255,255,.18);
+      --good:#2fbe2f; --warning:#fac33f; --serious:#f0946f; --critical:#e05a5a;
+      --critical-wash:rgba(224,90,90,.08); --stale-idle:rgba(255,255,255,.14);
+      --accent:#3fb6dc; --accent-wash:rgba(63,182,220,.10);
+      --p1:#3987e5; --p2:#d95926; --p3:#199e70; --p4:#c98500; --p5:#d55181; --p6:#9085e9;
+    }
+  }
+  :root[data-theme="dark"] {
+    --plane:#0d0d0d; --surface:#1a1a19; --raised:#232322; --sunken:#111110;
+    --ink:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+    --line:rgba(255,255,255,.10); --line-soft:rgba(255,255,255,.07); --line-strong:rgba(255,255,255,.18);
+    --good:#2fbe2f; --warning:#fac33f; --serious:#f0946f; --critical:#e05a5a;
+    --critical-wash:rgba(224,90,90,.08); --stale-idle:rgba(255,255,255,.14);
+    --accent:#3fb6dc; --accent-wash:rgba(63,182,220,.10);
+    --p1:#3987e5; --p2:#d95926; --p3:#199e70; --p4:#c98500; --p5:#d55181; --p6:#9085e9;
+  }
+  body { margin:0; background:var(--plane); color:var(--ink); }
+  a { color:var(--accent); text-decoration:none; border-bottom:1px solid currentColor; }
+  a:hover { opacity:.75; }
+  @keyframes gc-pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.35; transform:scale(.8); } }
+</style>
+</helmet>
+
+<div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif; background:var(--plane); color:var(--ink); min-height:100vh; display:flex; flex-direction:column; font-variant-numeric:tabular-nums;">
+
+  <div style="display:flex; align-items:center; gap:14px; height:38px; padding:0 14px; background:var(--surface); border-bottom:1px solid var(--line); flex:none;">
+    <div style="display:flex; gap:7px; flex:none; padding-right:6px;">
+      <span style="width:11px; height:11px; border-radius:50%; background:var(--line-strong);"></span>
+      <span style="width:11px; height:11px; border-radius:50%; background:var(--line-strong);"></span>
+      <span style="width:11px; height:11px; border-radius:50%; background:var(--line-strong);"></span>
+    </div>
+    <div style="display:flex; align-items:center; gap:9px; flex:none;">
+      <svg width="16" height="16" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <circle cx="24" cy="24" r="9" stroke="currentColor" stroke-width="5"></circle>
+        <circle cx="42" cy="24" r="6" fill="var(--accent)"></circle>
+      </svg>
+      <span style="font-family:Archivo,system-ui,sans-serif; font-size:11px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;">Ground Control</span>
+    </div>
+    <span style="width:1px; height:18px; background:var(--line); flex:none;"></span>
+    <div style="display:flex; align-items:center; gap:6px; flex:none;">
+      <button type="button" onClick="{{ clearProject }}" style="{{ allChipStyle }}" style-hover="{{ ghostHover }}">All</button>
+      <sc-for list="{{ projectChips }}" as="p" hint-placeholder-count="6">
+        <button type="button" onClick="{{ p.onClick }}" style="{{ p.style }}" style-hover="{{ ghostHover }}">
+          <span style="width:7px; height:7px; flex:none; background:{{ p.color }};"></span>{{ p.code }}
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="flex:1;"></div>
+
+    <div style="display:flex; align-items:center; gap:8px; flex:none;">
+      <span style="width:7px; height:7px; border-radius:50%; background:var(--accent); animation:gc-pulse 2.4s ease-in-out infinite;"></span>
+      <span style="font-size:11px; color:var(--ink-3);">as of {{ asOf }}</span>
+      <button type="button" onClick="{{ refresh }}" style="{{ ghostBtn }}" style-hover="{{ ghostHover }}">Refresh</button>
+    </div>
+    <div style="display:flex; border:1px solid var(--line-strong); height:22px; flex:none;">
+      <button type="button" onClick="{{ setAuto }}" style="{{ autoStyle }}">Auto</button>
+      <button type="button" onClick="{{ setLight }}" style="{{ lightStyle }}">Light</button>
+      <button type="button" onClick="{{ setDark }}" style="{{ darkStyle }}">Dark</button>
+    </div>
+  </div>
+
+  <div style="flex:1; display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); grid-auto-rows:min-content; gap:12px; padding:12px; align-content:start;">
+
+    <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+      <button type="button" onClick="{{ s.onClick }}" style="{{ s.tileStyle }}" style-hover="{{ tileHover }}">
+        <span style="display:flex; align-items:center; gap:8px;">
+          <span style="width:8px; height:8px; flex:none; background:{{ s.color }}; clip-path:{{ s.clip }};"></span>
+          <span style="font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2);">{{ s.label }}</span>
+        </span>
+        <span style="display:flex; align-items:baseline; gap:10px;">
+          <span style="font-size:40px; font-weight:600; line-height:1; letter-spacing:-.02em; font-variant-numeric:proportional-nums;">{{ s.value }}</span>
+          <span style="font-size:11px; color:var(--ink-3);">{{ s.delta }}</span>
+        </span>
+        <span style="font-size:11px; color:var(--ink-3);">{{ s.sub }}</span>
+      </button>
+    </sc-for>
+
+    <section data-screen-label="Attention" style="grid-column:span 8; align-self:start; border:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; gap:10px; height:32px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--sunken); flex:none;">
+        <h2 style="margin:0; font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;">Attention</h2>
+        <span style="font-size:11px; color:var(--ink-3);">{{ attentionCount }}</span>
+        <span style="margin-left:auto; font-size:11px; color:var(--ink-3);">two sources disagree · resolve here</span>
+      </div>
+      <div style="padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
+        <sc-for list="{{ drifts }}" as="d" hint-placeholder-count="2">
+          <div style="display:flex; align-items:stretch; border:1px solid var(--critical); background:var(--critical-wash);">
+            <span style="width:3px; background:var(--critical); flex:none;"></span>
+            <div style="display:flex; align-items:center; gap:12px; padding:9px 11px; flex:1; min-width:0;">
+              <span style="display:inline-flex; align-items:center; gap:7px; flex:none;">
+                <span style="width:8px; height:8px; background:var(--critical); clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);"></span>
+                <span style="font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">Drift</span>
+              </span>
+              <a href="{{ d.href }}" target="_blank" rel="noopener" title="{{ d.href }}" style="flex:1; min-width:0; font-size:12px; line-height:1.45; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink); text-decoration:none; border:0; cursor:pointer;" style-hover="{{ textLinkHover }}">{{ d.text }}</a>
+              <span style="font-size:11px; color:var(--ink-3); flex:none;">{{ d.age }}</span>
+              <button type="button" style="{{ solidBtn }}" style-hover="{{ solidHover }}">{{ d.action }}</button>
+            </div>
+          </div>
+        </sc-for>
+        <sc-for list="{{ nudges }}" as="n" hint-placeholder-count="2">
+          <div style="display:flex; align-items:center; gap:12px; padding:8px 11px; border:1px solid var(--line-strong);">
+            <span style="display:inline-flex; align-items:center; gap:7px; flex:none;">
+              <span style="width:8px; height:8px; background:{{ n.color }}; clip-path:{{ n.clip }};"></span>
+              <span style="font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;">{{ n.kind }}</span>
+            </span>
+            <a href="{{ n.href }}" target="_blank" rel="noopener" title="{{ n.href }}" style="flex:1; min-width:0; font-size:12px; line-height:1.45; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink); text-decoration:none; border:0; cursor:pointer;" style-hover="{{ textLinkHover }}">{{ n.text }}</a>
+            <span style="font-size:11px; color:var(--ink-3); flex:none;">{{ n.age }}</span>
+            <button type="button" style="{{ ghostBtn }}" style-hover="{{ ghostHover }}">{{ n.action }}</button>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section data-screen-label="Agent sessions" style="grid-column:span 4; border:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; gap:10px; height:32px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--sunken); flex:none;">
+        <h2 style="margin:0; font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;">Agent sessions</h2>
+        <span style="font-size:11px; color:var(--ink-3);">{{ agentCount }}</span>
+        <sc-if value="{{ providerDown }}" hint-placeholder-val="{{ false }}">
+          <span style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--critical);">
+            <span style="width:7px; height:7px; background:var(--critical); clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);"></span>cached
+          </span>
+        </sc-if>
+      </div>
+      <div style="display:flex; flex-direction:column;">
+        <sc-for list="{{ agents }}" as="a" hint-placeholder-count="4">
+          <a href="{{ a.href }}" target="_blank" rel="noopener" title="{{ a.href }}" style="display:flex; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line-soft); text-decoration:none; color:inherit; cursor:pointer;" style-hover="{{ rowHover }}">
+            <span style="width:3px; flex:none; align-self:stretch; display:flex; align-items:flex-end;">
+              <span style="width:3px; height:{{ a.staleH }}; background:{{ a.staleColor }};"></span>
+            </span>
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="width:8px; height:8px; flex:none; background:{{ a.projectColor }};"></span>
+                <span style="font-size:12px; font-weight:500; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.ident }}</span>
+                <span style="margin-left:auto; font-size:11px; color:var(--ink-3); flex:none;">{{ a.age }}</span>
+              </div>
+              <div style="font-size:12px; line-height:1.45; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.note }}</div>
+              <div style="display:flex; align-items:center; gap:7px;">
+                <span style="{{ a.statusDot }}"></span>
+                <span style="font-size:11px; color:var(--ink-2);">{{ a.status }}</span>
+                <span style="margin-left:auto; display:inline-flex; align-items:center; gap:5px;">
+                  <span style="{{ a.ballGlyph }}"></span>
+                  <span style="{{ a.ballLabelStyle }}">{{ a.ball }}</span>
+                </span>
+              </div>
+            </div>
+          </a>
+        </sc-for>
+      </div>
+    </section>
+
+    <sc-for list="{{ lanes }}" as="lane" hint-placeholder-count="2">
+      <section data-screen-label="{{ lane.title }}" style="grid-column:span 6; border:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; height:32px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--sunken); flex:none;">
+          <h2 style="margin:0; font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;">{{ lane.title }}</h2>
+          <span style="font-size:11px; color:var(--ink-3);">{{ lane.count }}</span>
+          <span style="margin-left:auto; font-size:11px; color:var(--ink-3);">{{ lane.threshold }}</span>
+        </div>
+        <div style="display:flex; padding:0 12px 0 15px; height:22px; align-items:center; gap:0; border-bottom:1px solid var(--line); font-size:10.5px; color:var(--ink-3);">
+          <span style="width:78px; flex:none;">Identifier</span>
+          <span style="flex:1;">Title</span>
+          <span style="width:96px; flex:none;">Status</span>
+          <span style="width:56px; flex:none;">Court</span>
+          <span style="width:46px; flex:none; text-align:right;">Age</span>
+        </div>
+        <div>
+          <sc-for list="{{ lane.rows }}" as="r" hint-placeholder-count="6">
+            <a href="{{ r.href }}" target="_blank" rel="noopener" title="{{ r.href }}" style="{{ r.rowStyle }}" style-hover="{{ rowHover }}">
+              <span style="width:3px; flex:none; align-self:stretch; display:flex; align-items:flex-end;">
+                <span style="width:3px; height:{{ r.staleH }}; background:{{ r.staleColor }};"></span>
+              </span>
+              <span style="width:12px; flex:none; display:flex; justify-content:center;">
+                <span style="width:8px; height:8px; background:{{ r.projectColor }};"></span>
+              </span>
+              <span style="width:78px; flex:none; font-size:12px; font-weight:500; color:var(--ink-2);">{{ r.ident }}</span>
+              <span style="flex:1; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px;">{{ r.title }}</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; width:96px; flex:none;">
+                <span style="{{ r.statusDot }}"></span>
+                <span style="font-size:12px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.status }}</span>
+              </span>
+              <span style="width:56px; flex:none; display:inline-flex; align-items:center; gap:5px;">
+                <span style="{{ r.ballGlyph }}"></span>
+                <span style="{{ r.ballLabelStyle }}">{{ r.ball }}</span>
+              </span>
+              <span style="width:46px; flex:none; text-align:right; font-size:11px; color:var(--ink-3);">{{ r.age }}</span>
+            </a>
+          </sc-for>
+          <sc-if value="{{ lane.empty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:20px 12px; font-size:12px; color:var(--ink-3);">Nothing here under the current filter.</div>
+          </sc-if>
+        </div>
+      </section>
+    </sc-for>
+
+    <section data-screen-label="Open branches" style="grid-column:span 8; border:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; gap:10px; height:32px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--sunken); flex:none;">
+        <h2 style="margin:0; font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;">Open branches</h2>
+        <span style="font-size:11px; color:var(--ink-3);">{{ branchCount }}</span>
+        <span style="margin-left:auto; font-size:11px; color:var(--ink-3);">{{ branchNote }}</span>
+      </div>
+      <div style="display:flex; padding:0 12px 0 15px; height:22px; align-items:center; border-bottom:1px solid var(--line); font-size:10.5px; color:var(--ink-3);">
+        <span style="flex:1;">Branch</span>
+        <span style="width:78px; flex:none;">Sync</span>
+        <span style="width:132px; flex:none;">Worktree</span>
+        <span style="width:96px; flex:none;">Pull request</span>
+        <span style="width:52px; flex:none; text-align:right;">Commit</span>
+      </div>
+      <div>
+        <sc-for list="{{ branches }}" as="b" hint-placeholder-count="6">
+          <div style="{{ b.rowStyle }}" style-hover="{{ rowHover }}">
+            <a href="{{ b.href }}" target="_blank" rel="noopener" title="{{ b.href }}" style="{{ b.mainLink }}" style-hover="{{ linkHover }}">
+              <span style="width:3px; flex:none; align-self:stretch; display:flex; align-items:flex-end;">
+                <span style="width:3px; height:{{ b.staleH }}; background:{{ b.staleColor }};"></span>
+              </span>
+              <span style="width:12px; flex:none; display:flex; justify-content:center;">
+                <span style="width:8px; height:8px; background:{{ b.projectColor }};"></span>
+              </span>
+              <span style="flex:1; min-width:0; font-size:12px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px;">{{ b.name }}</span>
+              <span style="width:78px; flex:none; display:inline-flex; gap:8px; font-size:11px;">
+                <span style="color:var(--ink-3);">{{ b.ahead }}</span>
+                <span style="{{ b.behindStyle }}">{{ b.behind }}</span>
+              </span>
+              <span style="width:132px; flex:none; display:inline-flex; align-items:center; gap:6px; padding-right:12px; box-sizing:border-box;">
+                <span style="{{ b.stateDot }}"></span>
+                <span style="font-size:12px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ b.state }}</span>
+              </span>
+            </a>
+            <a href="{{ b.prHref }}" target="_blank" rel="noopener" title="{{ b.prHref }}" style="{{ b.prLink }}" style-hover="{{ prHover }}">{{ b.prLabel }}</a>
+            <span style="width:52px; flex:none; text-align:right; font-size:11px; color:var(--ink-3);">{{ b.age }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section data-screen-label="Ball in court" style="grid-column:span 4; border:1px solid var(--line); background:var(--surface);">
+      <div style="display:flex; align-items:center; gap:10px; height:32px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--sunken);">
+        <h2 style="margin:0; font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;">Ball in court</h2>
+        <span style="margin-left:auto; font-size:11px; color:var(--ink-3);">{{ courtTotal }} open items</span>
+      </div>
+      <div style="padding:14px 12px; display:flex; flex-direction:column; gap:11px;">
+        <sc-for list="{{ court }}" as="c" hint-placeholder-count="3">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="{{ c.glyph }}"></span>
+            <span style="width:52px; flex:none; font-size:12px; color:var(--ink-2);">{{ c.label }}</span>
+            <span style="flex:1; height:10px; background:var(--sunken); display:flex;">
+              <span style="width:{{ c.pct }}; background:{{ c.color }};"></span>
+            </span>
+            <span style="width:28px; flex:none; text-align:right; font-size:12px; font-weight:500;">{{ c.n }}</span>
+          </div>
+        </sc-for>
+        <p style="margin:2px 0 0; font-size:11px; line-height:1.55; color:var(--ink-3); text-wrap:pretty;">Yours are the only ones you can move today. The other two are waiting on someone else.</p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;providerDown&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;States&quot;}}">
+const CIRCLE = "circle(50% at 50% 50%)";
+const TRIANGLE = "polygon(50% 0, 100% 100%, 0 100%)";
+const DIAMOND = "polygon(50% 0, 100% 50%, 50% 100%, 0 50%)";
+const SQUARE = "none";
+
+const P = { MERC: "var(--p1)", ATLS: "var(--p2)", VEGA: "var(--p3)", ORBT: "var(--p4)", HELO: "var(--p5)", NOVA: "var(--p6)" };
+const SHAPE = {
+  good: { color: "var(--good)", clip: CIRCLE },
+  warning: { color: "var(--warning)", clip: TRIANGLE },
+  serious: { color: "var(--serious)", clip: SQUARE },
+  critical: { color: "var(--critical)", clip: DIAMOND }
+};
+const REPO = { MERC: "acme/mercury", ATLS: "acme/atlas", VEGA: "acme/vega", ORBT: "acme/orbit", HELO: "acme/helio", NOVA: "acme/nova" };
+const gh = (project, suffix) => "https://github.com/" + REPO[project] + suffix;
+const linear = (ident) => "https://linear.app/acme/issue/" + ident;
+
+const STALE = [
+  { max: 4, h: "22%", color: "var(--stale-idle)" },
+  { max: 24, h: "45%", color: "var(--warning)" },
+  { max: 72, h: "68%", color: "var(--warning)" },
+  { max: 168, h: "100%", color: "var(--serious)" },
+  { max: Infinity, h: "100%", color: "var(--critical)" }
+];
+
+const TICKETS = [
+  { project: "MERC", ident: "MERC-1184", title: "Reconcile worktree state when a branch is deleted upstream", status: "In Review", sev: "warning", ball: "you", hours: 76 },
+  { project: "ATLS", ident: "ATLS-402", title: "Rate limiter drops the first request after a cold start", status: "In Progress", sev: "serious", ball: "agent", hours: 91 },
+  { project: "ORBT", ident: "ORBT-15", title: "Migrate telemetry ingest off the legacy queue", status: "Blocked", sev: "critical", ball: "them", hours: 214 },
+  { project: "VEGA", ident: "VEGA-77", title: "Export CSV omits archived rows", status: "Todo", sev: "warning", ball: "you", hours: 30 },
+  { project: "NOVA", ident: "NOVA-238", title: "Add keyboard nav to the diff viewer", status: "Todo", sev: "good", ball: "you", hours: 9 },
+  { project: "MERC", ident: "MERC-1190", title: "Session picker should remember the last provider", status: "In Progress", sev: "good", ball: "them", hours: 3 }
+];
+
+const PRS = [
+  { project: "ATLS", ident: "#88", title: "perf: warm the limiter bucket on boot", status: "Checks failing", sev: "critical", ball: "you", hours: 20 },
+  { project: "MERC", ident: "#451", title: "fix: reconcile worktree on upstream branch delete", status: "2 changes req", sev: "serious", ball: "you", hours: 74 },
+  { project: "HELO", ident: "#12", title: "feat: per-project notification thresholds", status: "Awaiting review", sev: "warning", ball: "them", hours: 46 },
+  { project: "VEGA", ident: "#309", title: "test: cover archived-row export path", status: "Draft", sev: "warning", ball: "agent", hours: 31 },
+  { project: "MERC", ident: "#455", title: "chore: bump provider SDK to 4.2", status: "Approved", sev: "good", ball: "you", hours: 5 },
+  { project: "NOVA", ident: "#77", title: "docs: shortcut reference for the diff viewer", status: "Approved", sev: "good", ball: "you", hours: 12 }
+];
+
+const AGENTS = [
+  { project: "ATLS", ident: "atls-402-limiter", note: "Writing tests for the cold-start path", status: "Streaming", sev: "live", ball: "agent", hours: 0 },
+  { project: "VEGA", ident: "vega-77-export", note: "Patch drafted, waiting on your review", status: "Needs you", sev: "warning", ball: "you", hours: 6 },
+  { project: "NOVA", ident: "nova-238-keys", note: "No output since the last tool call", status: "Silent", sev: "serious", ball: "agent", hours: 27 },
+  { project: "MERC", ident: "merc-1190-picker", note: "Finished, branch pushed", status: "Done", sev: "good", ball: "you", hours: 2 }
+];
+
+const BRANCHES = [
+  { project: "ATLS", name: "atls-402-limiter", ahead: 7, behind: 14, state: "Dirty · agent editing", sev: "warning", pr: "#88", hours: 20 },
+  { project: "MERC", name: "feature/merc-1184", ahead: 2, behind: 0, state: "Clean", sev: "good", pr: "#451", hours: 74 },
+  { project: "ORBT", name: "orbt-15-ingest", ahead: 0, behind: 41, state: "Worktree abandoned", sev: "critical", pr: "no PR", hours: 214 },
+  { project: "NOVA", name: "nova-238-keys", ahead: 4, behind: 2, state: "Uncommitted changes", sev: "serious", pr: "no PR", hours: 27 },
+  { project: "VEGA", name: "vega-77-export", ahead: 1, behind: 3, state: "Clean", sev: "good", pr: "#309 draft", hours: 31 },
+  { project: "MERC", name: "merc-1190-picker", ahead: 3, behind: 0, state: "Clean · pushed", sev: "good", pr: "#455", hours: 5 }
+];
+
+function fmtAge(h) {
+  if (h < 1) return "live";
+  if (h < 24) return h + "h";
+  const d = Math.floor(h / 24);
+  return d + "d " + String(h % 24).padStart(2, "0") + "h";
+}
+function stale(h) { return STALE.find(s => h < s.max) || STALE[STALE.length - 1]; }
+
+function ballBits(ball) {
+  const base = { flex: "none", display: "inline-block" };
+  if (ball === "you") return {
+    glyph: Object.assign({}, base, { width: 0, height: 0, borderTop: "4px solid transparent", borderBottom: "4px solid transparent", borderLeft: "6px solid var(--ink)" }),
+    label: { fontSize: "11px", fontWeight: 500, color: "var(--ink)" }, text: "You"
+  };
+  if (ball === "them") return {
+    glyph: Object.assign({}, base, { width: 0, height: 0, borderTop: "4px solid transparent", borderBottom: "4px solid transparent", borderRight: "6px solid var(--ink-3)" }),
+    label: { fontSize: "11px", color: "var(--ink-3)" }, text: "Them"
+  };
+  return {
+    glyph: Object.assign({}, base, { width: "6px", height: "8px", border: "1px solid var(--ink-3)" }),
+    label: { fontSize: "11px", color: "var(--ink-3)" }, text: "Agent"
+  };
+}
+
+class Component extends DCLogic {
+  state = { theme: "auto", project: null, mineOnly: false, asOf: "0:42" };
+
+  componentDidMount() { document.documentElement.setAttribute("data-theme", "auto"); }
+
+  setTheme(mode) {
+    this.setState({ theme: mode });
+    document.documentElement.setAttribute("data-theme", mode);
+  }
+
+  themeBtn(mode, last) {
+    const on = this.state.theme === mode;
+    return {
+      appearance: "none", border: 0, borderRight: last ? 0 : "1px solid var(--line-strong)",
+      padding: "0 10px", height: "20px", font: "inherit", fontSize: "11px", fontWeight: on ? 600 : 400,
+      letterSpacing: ".05em", cursor: "pointer",
+      background: on ? "var(--ink)" : "transparent", color: on ? "var(--surface)" : "var(--ink-2)",
+      transition: "background 120ms cubic-bezier(.2,.7,.3,1), color 120ms cubic-bezier(.2,.7,.3,1)"
+    };
+  }
+
+  chip(active) {
+    return {
+      display: "inline-flex", alignItems: "center", gap: "6px", height: "22px", padding: "0 8px",
+      font: "inherit", fontSize: "11px", fontWeight: active ? 600 : 400, letterSpacing: ".04em",
+      cursor: "pointer", fontVariantNumeric: "tabular-nums",
+      border: "1px solid " + (active ? "var(--accent)" : "var(--line-strong)"),
+      background: active ? "var(--accent-wash)" : "transparent",
+      color: active ? "var(--ink)" : "var(--ink-2)",
+      transition: "color 120ms cubic-bezier(.2,.7,.3,1), border-color 120ms cubic-bezier(.2,.7,.3,1)"
+    };
+  }
+
+  filter(list) {
+    const { project, mineOnly } = this.state;
+    return list.filter(r => (!project || r.project === project) && (!mineOnly || r.ball === "you"));
+  }
+
+  row(r, kind) {
+    const s = stale(r.hours);
+    const sev = SHAPE[r.sev];
+    const b = ballBits(r.ball);
+    const compact = (this.props.density ?? "comfortable") === "compact";
+    const href = kind === "pr"
+      ? gh(r.project, "/pull/" + r.ident.replace("#", ""))
+      : linear(r.ident);
+    return {
+      href,
+      ident: r.ident, title: r.title, status: r.status, age: fmtAge(r.hours),
+      projectColor: P[r.project], staleH: s.h, staleColor: s.color,
+      ball: b.text, ballGlyph: b.glyph, ballLabelStyle: b.label,
+      statusDot: { width: "8px", height: "8px", flex: "none", background: sev.color, clipPath: sev.clip },
+      rowStyle: {
+        display: "flex", alignItems: "center", height: compact ? "28px" : "34px",
+        paddingRight: "12px", borderBottom: "1px solid var(--line-soft)",
+        textDecoration: "none", color: "var(--ink)", cursor: "pointer",
+        transition: "background 120ms cubic-bezier(.2,.7,.3,1)"
+      }
+    };
+  }
+
+  lane(title, rows, threshold, kind) {
+    const built = this.filter(rows);
+    return {
+      title, threshold,
+      count: built.length === rows.length ? String(rows.length) : built.length + " of " + rows.length,
+      empty: built.length === 0,
+      rows: built.map(r => this.row(r, kind))
+    };
+  }
+
+  renderVals() {
+    const all = TICKETS.concat(PRS, AGENTS);
+    const mine = all.filter(r => r.ball === "you").length;
+    const them = all.filter(r => r.ball === "them").length;
+    const agent = all.filter(r => r.ball === "agent").length;
+    const stalled = all.filter(r => r.hours >= 72).length;
+    const live = AGENTS.filter(r => r.sev === "live").length;
+    const total = all.length;
+    const providerDown = this.props.providerDown ?? false;
+
+    const ghostBtn = {
+      appearance: "none", background: "transparent", border: "1px solid var(--line-strong)",
+      height: "22px", padding: "0 9px", font: "inherit", fontSize: "11px", color: "var(--ink-2)",
+      cursor: "pointer", whiteSpace: "nowrap", transition: "color 120ms cubic-bezier(.2,.7,.3,1)"
+    };
+    const solidBtn = {
+      appearance: "none", background: "var(--ink)", border: "1px solid var(--ink)",
+      height: "22px", padding: "0 10px", font: "inherit", fontSize: "11px", fontWeight: 500,
+      color: "var(--surface)", cursor: "pointer", whiteSpace: "nowrap",
+      transition: "opacity 120ms cubic-bezier(.2,.7,.3,1)"
+    };
+    const tile = (active) => ({
+      gridColumn: "span 3", appearance: "none", cursor: "pointer", textAlign: "left",
+      display: "flex", flexDirection: "column", gap: "8px", padding: "14px 16px",
+      border: "1px solid " + (active ? "var(--accent)" : "var(--line)"),
+      background: active ? "var(--accent-wash)" : "var(--surface)",
+      font: "inherit", color: "var(--ink)", fontVariantNumeric: "tabular-nums",
+      transition: "background 120ms cubic-bezier(.2,.7,.3,1), border-color 120ms cubic-bezier(.2,.7,.3,1)"
+    });
+
+    const branchRows = this.filter(BRANCHES);
+    const compact = (this.props.density ?? "comfortable") === "compact";
+    const behindColor = (n) => n >= 20 ? "var(--critical)" : n >= 10 ? "var(--serious)" : n > 0 ? "var(--ink-2)" : "var(--ink-3)";
+
+    return {
+      asOf: this.state.asOf,
+      refresh: () => this.setState({ asOf: "0:00" }),
+      setAuto: () => this.setTheme("auto"),
+      setLight: () => this.setTheme("light"),
+      setDark: () => this.setTheme("dark"),
+      autoStyle: this.themeBtn("auto", false),
+      lightStyle: this.themeBtn("light", false),
+      darkStyle: this.themeBtn("dark", true),
+      ghostBtn, ghostHover: { color: "var(--ink)" },
+      solidBtn, solidHover: { opacity: 0.82 },
+      tileHover: { background: "var(--raised)" },
+      rowHover: { background: "var(--raised)", opacity: 1 },
+      linkHover: { opacity: 1 },
+      prHover: { color: "var(--accent)", opacity: 1 },
+      textLinkHover: { color: "var(--accent)", opacity: 1 },
+      providerDown,
+
+      stats: [
+        { value: mine, label: "Your court", sub: "tickets, PRs and one agent patch", delta: "+3 today", color: "var(--ink)", clip: SQUARE, tileStyle: tile(this.state.mineOnly), onClick: () => this.setState(s => ({ mineOnly: !s.mineOnly })) },
+        { value: 2, label: "Drifting", sub: "ticket and PR disagree", delta: "both MERC/ATLS", color: "var(--critical)", clip: DIAMOND, tileStyle: tile(false), onClick: () => {} },
+        { value: stalled, label: "Stalled", sub: "no real activity in 3d", delta: "1 past 7d", color: "var(--serious)", clip: SQUARE, tileStyle: tile(false), onClick: () => {} },
+        { value: live, label: "Agents live", sub: "1 needs you, 1 silent", delta: "of 4 sessions", color: "var(--accent)", clip: CIRCLE, tileStyle: tile(false), onClick: () => {} }
+      ],
+
+      attentionCount: "2 drift · 2 nudges",
+      drifts: [
+        { text: "MERC-1184 is In Review, but PR #451 was merged 3d ago.", age: "3d 04h", action: "Move to Done", href: linear("MERC-1184") },
+        { text: "ATLS-402 has an agent session running with no ticket transition since Monday.", age: "3d 19h", action: "Move to In Progress", href: linear("ATLS-402") }
+      ],
+      nudges: [
+        { kind: "Silent", text: "nova-238-keys has produced no output since its last tool call.", age: "27h", action: "Open session", color: "var(--serious)", clip: SQUARE, href: "https://claude.ai/code/session/nova-238-keys" },
+        { kind: "Failing", text: "PR #88 checks failed on the cold-start test — you opened it.", age: "20h", action: "View run", color: "var(--critical)", clip: DIAMOND, href: gh("ATLS", "/pull/88/checks") }
+      ],
+
+      projectChips: Object.keys(P).map(code => ({
+        code, color: P[code],
+        style: this.chip(this.state.project === code),
+        onClick: () => this.setState(s => ({ project: s.project === code ? null : code }))
+      })),
+      allChipStyle: this.chip(!this.state.project),
+      clearProject: () => this.setState({ project: null, mineOnly: false }),
+
+      lanes: [
+        this.lane("Tickets", TICKETS, "stale past 3d", "ticket"),
+        this.lane("Pull requests", PRS, "stale past 24h", "pr")
+      ],
+
+      agentCount: this.filter(AGENTS).length + " of " + AGENTS.length,
+      agents: this.filter(AGENTS).map(a => {
+        const s = stale(a.hours);
+        const b = ballBits(a.ball);
+        return {
+          href: "https://claude.ai/code/session/" + a.ident,
+          ident: a.ident, note: a.note, status: a.status, age: fmtAge(a.hours),
+          projectColor: P[a.project], staleH: s.h, staleColor: s.color,
+          ball: b.text, ballGlyph: b.glyph, ballLabelStyle: b.label,
+          statusDot: a.sev === "live"
+            ? { width: "8px", height: "8px", flex: "none", borderRadius: "50%", background: "var(--accent)", animation: "gc-pulse 2.4s ease-in-out infinite" }
+            : { width: "8px", height: "8px", flex: "none", background: SHAPE[a.sev].color, clipPath: SHAPE[a.sev].clip }
+        };
+      }),
+
+      branchCount: branchRows.length === BRANCHES.length ? String(BRANCHES.length) : branchRows.length + " of " + BRANCHES.length,
+      branchNote: BRANCHES.filter(b => b.sev !== "good").length + " need attention · behind main shown against origin",
+      branches: branchRows.map(b => {
+        const s = stale(b.hours);
+        const sev = SHAPE[b.sev];
+        return {
+          href: gh(b.project, "/tree/" + b.name),
+          prHref: b.pr === "no PR"
+            ? gh(b.project, "/compare/" + b.name + "?expand=1")
+            : gh(b.project, "/pull/" + b.pr.replace("#", "").replace(" draft", "")),
+          prLabel: b.pr === "no PR" ? "Open a PR" : b.pr,
+          mainLink: { display: "flex", alignItems: "center", flex: "1", minWidth: 0, alignSelf: "stretch", textDecoration: "none", color: "inherit", border: 0 },
+          prLink: { width: "96px", flex: "none", fontSize: "12px", color: b.pr === "no PR" ? "var(--ink-3)" : "var(--ink-2)", textDecoration: "none", border: 0, cursor: "pointer", transition: "color 120ms cubic-bezier(.2,.7,.3,1)" },
+          name: b.name, state: b.state, pr: b.pr, age: fmtAge(b.hours),
+          ahead: "↑" + b.ahead, behind: "↓" + b.behind,
+          behindStyle: { color: behindColor(b.behind), fontWeight: b.behind >= 10 ? 500 : 400 },
+          projectColor: P[b.project], staleH: s.h, staleColor: s.color,
+          stateDot: { width: "8px", height: "8px", flex: "none", background: sev.color, clipPath: sev.clip },
+          rowStyle: {
+            display: "flex", alignItems: "center", height: compact ? "28px" : "34px",
+            paddingRight: "12px", borderBottom: "1px solid var(--line-soft)",
+            transition: "background 120ms cubic-bezier(.2,.7,.3,1)"
+          }
+        };
+      }),
+
+      courtTotal: total,
+      court: [
+        Object.assign({ label: "You", n: mine, pct: Math.round((mine / total) * 100) + "%", color: "var(--ink)" }, { glyph: ballBits("you").glyph }),
+        Object.assign({ label: "Them", n: them, pct: Math.round((them / total) * 100) + "%", color: "var(--ink-3)" }, { glyph: ballBits("them").glyph }),
+        Object.assign({ label: "Agent", n: agent, pct: Math.round((agent / total) * 100) + "%", color: "var(--line-strong)" }, { glyph: ballBits("agent").glyph })
+      ],
+
+      footNote: providerDown ? "1 source degraded" : "polling every 60s"
+    };
+  }
+}
+
+</script>
+</body>
+</html>

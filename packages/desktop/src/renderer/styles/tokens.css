@@ -1,0 +1,166 @@
+/*
+ * The design system's tokens, ported verbatim from
+ * `resources/design/Ground Control Design System.dc.html` (T129).
+ *
+ * Every value is addressed by role, never by hue — `--critical`, not `--red` —
+ * so the two themes swap in one place and no component ever names a colour.
+ * That is the property that makes the dark palette possible at all: it is a
+ * designed set of values, not an inversion, and several of them move in ways an
+ * algorithm would get wrong. `--good` goes from #0ca30c to #2fbe2f because the
+ * light green disappears against #0d0d0d; `--ink-3` is the same #898781 in both,
+ * because a tertiary grey that works on both grounds is one value, not two.
+ *
+ * Anything added here should be a role. A component reaching for a literal
+ * colour is the signal that a role is missing.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Ground. Four depths, from the page to a lifted surface. */
+  --plane: #f9f9f7;
+  --surface: #fcfcfb;
+  --raised: #ffffff;
+  --sunken: #f2f2ef;
+
+  /* Ink. Three weights: primary, secondary, tertiary. */
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #898781;
+
+  --line: rgba(11, 11, 11, 0.1);
+  --line-strong: rgba(11, 11, 11, 0.18);
+
+  /* Severity. Paired with a shape and a label everywhere it is used — colour
+     alone fails greyscale, 11px, and red-green deficiency (FR-074, SC-015). */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-wash: rgba(12, 163, 12, 0.06);
+  --critical-wash: rgba(208, 59, 59, 0.05);
+
+  /* Held back from status and from the project set, so that when accent does
+     appear it means exactly one thing. */
+  --accent: #0e7fa3;
+  --accent-wash: rgba(14, 127, 163, 0.08);
+
+  /* Six projects. Beyond these, a chip falls back to neutral and carries only
+     its 3–4 character code (decision 8). */
+  --p1: #2a78d6;
+  --p2: #eb6834;
+  --p3: #1baf7a;
+  --p4: #eda100;
+  --p5: #e87ba4;
+  --p6: #4a3aa7;
+
+  --f-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-brand: Archivo, var(--f-ui);
+  --t-meta: 11px;
+  --t-id: 12px;
+  --t-body: 13px;
+  --t-title: 15px;
+  --t-lg: 20px;
+  --t-stat: 40px;
+
+  --row-h: 34px;
+  --lane-head-h: 40px;
+  --gutter: 14px;
+  --stale-w: 3px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur-state: 200ms;
+  --dur-hover: 120ms;
+  --dur-pulse: 2400ms;
+}
+
+/* Compact density (T131, FR-079). Only the measurements move — a density that
+   also changed colours or weights would be a second design to maintain. */
+:root[data-density='compact'] {
+  --row-h: 28px;
+  --lane-head-h: 34px;
+  --gutter: 10px;
+}
+
+/*
+ * Dark, twice.
+ *
+ * `[data-theme="dark"]` is the explicit override; the media query covers the
+ * system default when no override has been chosen (FR-078). The
+ * `:not([data-theme="light"])` guard is what makes the override win in *both*
+ * directions — without it, choosing light on a machine set to dark would be
+ * overruled by the media query.
+ */
+:root[data-theme='dark'],
+:root:not([data-theme='light']):not([data-theme='dark']) {
+  /* placeholder so the two selectors below stay symmetrical */
+}
+
+:root[data-theme='dark'] {
+  --plane: #0d0d0d;
+  --surface: #1a1a19;
+  --raised: #232322;
+  --sunken: #111110;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-3: #898781;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --good: #2fbe2f;
+  --warning: #fac33f;
+  --serious: #f0946f;
+  --critical: #e05a5a;
+  --good-wash: rgba(47, 190, 47, 0.08);
+  --critical-wash: rgba(224, 90, 90, 0.08);
+  --accent: #3fb6dc;
+  --accent-wash: rgba(63, 182, 220, 0.1);
+  --p1: #3987e5;
+  --p2: #d95926;
+  --p3: #199e70;
+  --p4: #c98500;
+  --p5: #d55181;
+  --p6: #9085e9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --plane: #0d0d0d;
+    --surface: #1a1a19;
+    --raised: #232322;
+    --sunken: #111110;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --line: rgba(255, 255, 255, 0.1);
+    --line-strong: rgba(255, 255, 255, 0.18);
+    --good: #2fbe2f;
+    --warning: #fac33f;
+    --serious: #f0946f;
+    --critical: #e05a5a;
+    --good-wash: rgba(47, 190, 47, 0.08);
+    --critical-wash: rgba(224, 90, 90, 0.08);
+    --accent: #3fb6dc;
+    --accent-wash: rgba(63, 182, 220, 0.1);
+    --p1: #3987e5;
+    --p2: #d95926;
+    --p3: #199e70;
+    --p4: #c98500;
+    --p5: #d55181;
+    --p6: #9085e9;
+  }
+}
+
+/*
+ * The motion budget (design system, section 06).
+ *
+ * Honoured rather than assumed: an operator who has asked their OS to stop
+ * animating things has asked this application too, and a board whose job is to
+ * be glanced at has no business pulsing at someone who finds it painful.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-state: 0ms;
+    --dur-hover: 0ms;
+    --dur-pulse: 0ms;
+  }
+}

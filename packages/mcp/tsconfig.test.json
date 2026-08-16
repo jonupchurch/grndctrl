@@ -1,0 +1,15 @@
+{
+  // Same gap as the launcher's, found at the same time: `tsconfig.json` covers
+  // `src/**/*`, so twenty-nine MCP tests had never been typechecked by
+  // anything. `npm run verify` ran them, which is not the same claim.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "types": ["node", "vitest/globals"],
+    "lib": ["ES2023"]
+  },
+  "include": ["test/**/*", "src/**/*"],
+  "references": [{ "path": "../core" }]
+}

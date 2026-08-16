@@ -1,0 +1,349 @@
+@import './tokens.css';
+@import './board.css';
+@import './settings.css';
+@import './modal.css';
+
+/*
+ * Component styles for the renderer foundation.
+ *
+ * Every colour here is a role — `var(--critical)`, never a hex — so the two
+ * themes swap in `tokens.css` and nothing in this file knows which one is on.
+ * A literal colour appearing below is the signal that a role is missing.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--f-ui);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  /* Nothing on this page is a document. A native application does not put a
+     text cursor over its own chrome, and a stray drag-select across a lane
+     looks like a bug. Text that is *meant* to be copied opts back in below. */
+  user-select: none;
+}
+
+/*
+ * Present to assistive technology, absent on screen.
+ *
+ * Used for every status and correlation label. The board shows shape and colour
+ * in 10 pixels; a screen reader gets the word. Not `display:none`, which would
+ * remove it from the accessibility tree as well and leave a coloured div.
+ */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Status ──────────────────────────────────────────────────────────────── */
+
+.status-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.status-mark__shape {
+  display: block;
+  flex: none;
+  background: var(--good);
+}
+
+.status-mark[data-severity='warning'] .status-mark__shape {
+  background: var(--warning);
+}
+.status-mark[data-severity='serious'] .status-mark__shape {
+  background: var(--serious);
+}
+.status-mark[data-severity='critical'] .status-mark__shape {
+  background: var(--critical);
+}
+
+.status-mark__label {
+  font-size: var(--t-meta);
+  color: var(--ink-2);
+}
+
+/* Correlation badges: outline, not fill. Fill means state; outline means fact. */
+.badge {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.badge__shape {
+  width: 9px;
+  height: 9px;
+  /* The outline is drawn as a ring rather than a border so it survives the
+     clip-path that gives the badge its silhouette. */
+  background: var(--ink-2);
+  opacity: 0.85;
+}
+
+/* An absent badge is information, drawn as a hairline placeholder — never
+   omitted, which would let the badges after it slide left. */
+.badge[data-present='false'] .badge__shape {
+  background: var(--line-strong);
+  opacity: 0.5;
+  transform: scale(0.72);
+}
+
+/* ── Staleness ───────────────────────────────────────────────────────────── */
+
+.stale-bar {
+  display: flex;
+  width: var(--stale-w);
+  height: 100%;
+  align-items: center;
+  flex: none;
+}
+
+.stale-bar__fill {
+  display: block;
+  width: 100%;
+  border-radius: 1px;
+  transition: height var(--dur-state) var(--ease);
+}
+
+/* ── Project chips ───────────────────────────────────────────────────────── */
+
+.project-chip {
+  display: inline-flex;
+  min-width: 38px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 2px;
+  background: var(--chip, var(--ink-3));
+  color: var(--raised);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Past the six-colour palette: identity degrades to the label, which the design
+   system already requires to work alone (decision 8, FR-080). */
+.project-chip[data-neutral='true'] {
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--line-strong);
+}
+
+.project-chip--empty {
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+
+/* ── The row ─────────────────────────────────────────────────────────────── */
+
+.row {
+  display: grid;
+  /* Fixed slots, in the design's order: staleness, project, id, title, status,
+     correlation, ball in court, age, trailing, severity. Only the title is
+     flexible — everything else holds its column down the whole lane. */
+  grid-template-columns:
+    var(--stale-w) 46px 82px minmax(0, 1fr) 96px 68px 62px 56px auto auto;
+  align-items: center;
+  gap: 0 var(--gutter);
+  width: 100%;
+  height: var(--row-h);
+  padding: 0 12px 0 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: background var(--dur-hover) var(--ease);
+  /* The containing block for `.row__open`, which covers it. */
+  position: relative;
+}
+
+/*
+ * The row's keyboard affordance for opening (T150).
+ *
+ * Absolutely positioned, so it takes no grid track — the ten columns above are
+ * exactly as they were when the row was itself a button. It is empty and
+ * transparent; everything the operator reads sits in the grid beneath it.
+ *
+ * It takes pointer events, which is what makes the whole row one click target.
+ * The cost is drag-selecting the title beneath it — see `Row.tsx` for why that
+ * trade was made this way round, and `.row__title` below.
+ */
+.row__open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--sunken);
+}
+
+/* On the covering button rather than the row, so the ring appears when the
+   action is focused and not when something inside the row is. `-2px` keeps it
+   inside the row's own bounds, as before. */
+.row__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.row[data-severity='critical'] {
+  background: var(--critical-wash);
+}
+
+.row[data-severity='good'] {
+  background: var(--good-wash);
+}
+
+.row__project {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.row__id {
+  font-size: var(--t-id);
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* No `user-select: text` here any more, and its absence is deliberate rather
+     than an oversight. It was here so a ticket title could be dragged out and
+     pasted into a message, and it stopped working the moment `.row__open`
+     started covering the row — the declaration would have stayed in the file
+     looking like a feature while doing nothing at all. The title is still
+     selectable in the Attention strips and in the confirmation dialog. */
+}
+
+.row__status,
+.row__age {
+  font-size: var(--t-meta);
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__age {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.row__correlation {
+  display: flex;
+  gap: 3px;
+}
+
+.row__court {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--t-meta);
+  color: var(--ink-3);
+}
+
+/* "Ball in court" is the one badge whose label earns its width at rest for the
+   operator's own rows — those are the ones being counted. */
+.row__court[data-court='you'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.row__court-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__trailing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  /* Above `.row__open`, which spans the whole row. That button no longer takes
+     pointer events, so this is about paint order rather than hit testing — but
+     an overlay drawn over a control is still an overlay, and stating the
+     stacking here means the next change to either one has to argue with it. */
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Shell ───────────────────────────────────────────────────────────────── */
+
+.shell {
+  padding: 24px 28px;
+  max-width: 1180px;
+}
+
+.shell h1 {
+  margin: 0 0 4px;
+  font-family: var(--f-brand);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.muted {
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+.failed {
+  color: var(--critical);
+  max-width: 62ch;
+}
+
+.lane {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.lane__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--lane-head-h);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.lane__count {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}

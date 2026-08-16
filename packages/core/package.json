@@ -1,0 +1,35 @@
+{
+  "name": "@grndctrl/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The service layer: providers, correlation, drift, stores, and the operation registry. No Electron. No UI. No display.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./registry": "./dist/registry/index.js",
+    "./domain": "./dist/domain/index.js",
+    "./handshake": "./dist/runtime/handshake.js",
+    "./runtime": "./dist/runtime/services.js",
+    "./scheduler": "./dist/runtime/scheduler.js",
+    "./adapters/http": "./dist/adapters/http.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run",
+    "keychain:roundtrip": "npm run build && node --experimental-strip-types scripts/keychain-roundtrip.ts"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "^1.3.0",
+    "better-sqlite3": "^11.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11"
+  }
+}

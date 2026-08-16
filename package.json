@@ -1,0 +1,46 @@
+{
+  "name": "grndctrl-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ground Control \u2014 a local-first command station correlating tickets, PRs, CI, local git, and agent sessions",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/core",
+    "packages/desktop",
+    "packages/mcp",
+    "packages/launcher",
+    "packages/cli"
+  ],
+  "scripts": {
+    "build": "tsc --build && npm run build --workspace=@grndctrl/desktop",
+    "clean": "tsc --build --clean",
+    "typecheck": "tsc --build --force && npm run typecheck:desktop && npm run typecheck:tests",
+    "typecheck:desktop": "tsc -p packages/desktop/tsconfig.json && tsc -p packages/desktop/tsconfig.ui.json && tsc -p packages/desktop/tsconfig.e2e.json",
+    "typecheck:tests": "tsc -p packages/core/tsconfig.test.json && tsc -p packages/cli/tsconfig.test.json && tsc -p packages/mcp/tsconfig.test.json && tsc -p packages/launcher/tsconfig.test.json && tsc -p scripts/tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm run lint && npm run test",
+    "credential:import": "npm run build && node packages/cli/bin/grndctrl-cli.js credential",
+    "providers:probe": "npm run build && node packages/cli/bin/grndctrl-cli.js probe",
+    "audit:deps": "node --experimental-strip-types scripts/run-audits.ts deps",
+    "audit:egress": "node --experimental-strip-types scripts/run-audits.ts egress",
+    "audit:secrets": "node --experimental-strip-types scripts/run-audits.ts secrets"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/node": "^22.8.0",
+    "eslint": "^9.13.0",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.11.0",
+    "vitest": "^2.1.4"
+  }
+}

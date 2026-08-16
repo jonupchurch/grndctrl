@@ -1,0 +1,21 @@
+{
+  // The audits are typechecked like everything else. They are run with
+  // `node --experimental-strip-types`, which strips types without checking
+  // them — so without this, the three scripts that are the only evidence for
+  // three of this product's promises would be the only unchecked code in the
+  // repository.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "types": ["node", "vitest/globals"],
+    "lib": ["ES2023"],
+    // `--experimental-strip-types` requires the extension on a relative import,
+    // and it must be the `.ts` one because there is no build step to rewrite it.
+    "allowImportingTsExtensions": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
+  },
+  "include": ["**/*.ts"]
+}

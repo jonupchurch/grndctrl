@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Typecheck only. esbuild emits all three bundles — main and preload as
+    // CommonJS, the renderer as an ESM bundle — for reasons `scripts/build.mjs`
+    // sets out. Nothing imports this package, so there is no library to emit.
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node"],
+
+    // No DOM. The main process is Node, and leaving DOM out of `lib` makes a
+    // stray `window` or `document` a compile error rather than something a
+    // reviewer has to notice — the same argument core makes for XVIII, applied
+    // one process over. `tsconfig.ui.json` is where DOM lives.
+    "lib": ["ES2023"]
+  },
+  "include": ["src/main/**/*", "src/shared/**/*", "test/**/*"],
+  // The end-to-end specs run code in both processes and need DOM; see tsconfig.e2e.json.
+  "exclude": ["test/e2e/**/*", "test/renderer/**/*"]
+}

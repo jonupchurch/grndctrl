@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Typecheck only. esbuild emits these two trees — the preload as one
+    // CommonJS file because a sandboxed preload cannot be ESM, and the renderer
+    // as a bundle because a `file:` page has no way to resolve `react`.
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "jsx": "react-jsx",
+
+    // DOM lives here and only here.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["src/preload/**/*", "src/renderer/**/*", "src/shared/**/*", "test/renderer/**/*"]
+}

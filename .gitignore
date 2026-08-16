@@ -1,0 +1,99 @@
+# Per-project Spec-Kit state (created by speckit-specify at runtime).
+.specify/feature.json
+
+# Machine-local Claude Code settings (permissions/paths, never shared).
+# Personal overrides like defaultMode belong here, not in settings.json.
+.claude/settings.local.json
+
+# --- Node / TypeScript ---
+
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# build output
+dist/
+out/
+build/
+lib/
+*.tsbuildinfo
+
+# testing (vitest coverage, Playwright artifacts)
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# --- Electron ---
+
+# electron-builder / electron-forge packaging output
+release/
+dist-electron/
+app/dist/
+*.asar
+
+# cached Electron runtime downloaded at first run
+.electron/
+.electron-gyp/
+
+# --- Native modules (better-sqlite3) ---
+prebuilds/
+*.node
+!**/fixtures/**/*.node
+
+# --- Local runtime state (never commit a user's data) ---
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# --- Secrets & env ---
+.env*
+!.env.example
+*.pem
+
+# The client-reference denylist (scripts/audit-client-refs.ts). Deliberately not
+# committed: a gate that names the string it suppresses publishes it on every
+# clone. The audit is public, its subject is not. In CI it arrives as a repo
+# secret via GRNDCTRL_CLIENT_DENYLIST.
+.client-denylist
+
+# Recorded provider fixtures (T038-T040). Real payloads, scrubbed, kept local by
+# decision (2026-08-15) so nothing client-derived ever enters the tree. The
+# recorder is `packages/core/test/fixtures/record.ts`; tests that consume these
+# skip when the directory is absent, so a fresh clone stays green.
+fixtures/jira/
+fixtures/github/
+fixtures/git/
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- Editor / OS cruft ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# The Electron-ABI build of better-sqlite3, fetched by
+# packages/desktop/scripts/fetch-native.mjs. A compiled binary, per-platform,
+# and reproducible from the two versions in package.json.
+packages/desktop/native/
+
+packages/desktop/test-results/
+packages/desktop/playwright-report/

@@ -1,0 +1,190 @@
+{
+  "description": "The canonical drift case from quickstart.md: MERC-1184 is In Review while its PR merged three days ago. Must produce exactly one D1 finding naming both sides. Alongside it, a healthy in-progress item and a silent agent session, so the board has something to compare against.",
+  "now": "2026-08-14T12:00:00Z",
+  "freshness": [
+    {
+      "connectionId": "jira-1",
+      "resourceKind": "tickets",
+      "lastSuccessAt": "2026-08-14T11:57:00Z",
+      "lastFailureAt": null,
+      "failureReason": null,
+      "nextAttemptAt": null
+    },
+    {
+      "connectionId": "gh-1",
+      "resourceKind": "pulls",
+      "lastSuccessAt": "2026-08-14T11:59:30Z",
+      "lastFailureAt": null,
+      "failureReason": null,
+      "nextAttemptAt": null
+    },
+    {
+      "connectionId": "local",
+      "resourceKind": "local",
+      "lastSuccessAt": "2026-08-14T11:59:50Z",
+      "lastFailureAt": null,
+      "failureReason": null,
+      "nextAttemptAt": null
+    }
+  ],
+  "input": {
+    "projects": [
+      {
+        "id": "p-merc",
+        "code": "MERC",
+        "name": "Mercury",
+        "colorIndex": 0,
+        "jiraConnectionId": "jira-1",
+        "jiraProjectKey": "MERC",
+        "githubConnectionId": "gh-1",
+        "repoOwner": "acme",
+        "repoName": "mercury",
+        "documentationUrl": null,
+        "ticketKeyPattern": "(MERC-\\d+)",
+        "checkoutPaths": ["D:\\work\\mercury"],
+        "statusOverrides": {}
+      }
+    ],
+    "tickets": [
+      {
+        "key": "jira:acme.atlassian.net/MERC-1184",
+        "connectionId": "jira-1",
+        "issueKey": "MERC-1184",
+        "summary": "Reconcile worktree state when a branch is deleted upstream",
+        "assignee": { "accountId": "me", "displayName": "Jon", "email": null },
+        "reporter": { "accountId": "them", "displayName": "Sam", "email": null },
+        "statusName": "In Review",
+        "statusCategory": "indeterminate",
+        "isBlocked": false,
+        "createdAt": "2026-08-01T09:00:00Z",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "lastRealActivityAt": "2026-08-11T08:00:00Z",
+        "lastStatusChangeAt": "2026-08-10T14:00:00Z",
+        "url": "https://acme.atlassian.net/browse/MERC-1184",
+        "fetchedAt": "2026-08-14T11:57:00Z"
+      },
+      {
+        "key": "jira:acme.atlassian.net/MERC-1190",
+        "connectionId": "jira-1",
+        "issueKey": "MERC-1190",
+        "summary": "Session picker should remember the last provider",
+        "assignee": { "accountId": "me", "displayName": "Jon", "email": null },
+        "reporter": { "accountId": "me", "displayName": "Jon", "email": null },
+        "statusName": "In Progress",
+        "statusCategory": "indeterminate",
+        "isBlocked": false,
+        "createdAt": "2026-08-12T09:00:00Z",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "lastStatusChangeAt": "2026-08-13T10:00:00Z",
+        "url": "https://acme.atlassian.net/browse/MERC-1190",
+        "fetchedAt": "2026-08-14T11:57:00Z"
+      }
+    ],
+    "pullRequests": [
+      {
+        "key": "gh:acme/mercury#451",
+        "connectionId": "gh-1",
+        "number": 451,
+        "title": "fix: reconcile worktree on upstream branch delete",
+        "author": { "accountId": "me", "displayName": "Jon", "email": null },
+        "headBranch": "feature/MERC-1184",
+        "headSha": "a1b2c3",
+        "baseBranch": "main",
+        "state": "merged",
+        "isDraft": false,
+        "reviewDecision": "approved",
+        "requestedReviewers": [],
+        "unresolvedThreadCount": 0,
+        "mergedAt": "2026-08-11T08:00:00Z",
+        "closedAt": "2026-08-11T08:00:00Z",
+        "lastRealActivityAt": "2026-08-11T08:00:00Z",
+        "url": "https://github.com/acme/mercury/pull/451",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      },
+      {
+        "key": "gh:acme/mercury#455",
+        "connectionId": "gh-1",
+        "number": 455,
+        "title": "chore: remember the last provider in the session picker",
+        "author": { "accountId": "me", "displayName": "Jon", "email": null },
+        "headBranch": "feature/MERC-1190",
+        "headSha": "d4e5f6",
+        "baseBranch": "main",
+        "state": "open",
+        "isDraft": false,
+        "reviewDecision": "reviewRequired",
+        "requestedReviewers": [{ "accountId": "them", "displayName": "Sam", "email": null }],
+        "unresolvedThreadCount": 1,
+        "mergedAt": null,
+        "closedAt": null,
+        "lastRealActivityAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/pull/455",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      }
+    ],
+    "checks": [
+      {
+        "key": "check:acme/mercury@d4e5f6/build",
+        "connectionId": "gh-1",
+        "sha": "d4e5f6",
+        "name": "build",
+        "state": "success",
+        "isRequired": false,
+        "url": "https://github.com/acme/mercury/actions/runs/9001",
+        "completedAt": "2026-08-14T09:05:00Z",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      }
+    ],
+    "branches": [
+      {
+        "key": "repo:github.com/acme/mercury#feature/MERC-1190",
+        "connectionId": "gh-1",
+        "name": "feature/MERC-1190",
+        "headSha": "d4e5f6",
+        "updatedAt": "2026-08-14T09:00:00Z",
+        "url": "https://github.com/acme/mercury/tree/feature/MERC-1190",
+        "fetchedAt": "2026-08-14T11:59:30Z"
+      }
+    ],
+    "comparisons": [],
+    "workspaces": [
+      {
+        "key": "ws:github.com/acme/mercury#feature/MERC-1190@main",
+        "repoPath": "D:\\work\\mercury",
+        "canonicalRemote": "github.com/acme/mercury",
+        "branch": "feature/MERC-1190",
+        "worktreeId": "main",
+        "isPrimaryWorktree": true,
+        "worktreePresent": true,
+        "hasUncommittedChanges": true,
+        "unpushedCommitCount": 2,
+        "headSha": "d4e5f6",
+        "upstreamRef": "origin/feature/MERC-1190",
+        "readAt": "2026-08-14T11:59:50Z"
+      }
+    ],
+    "sessions": [
+      {
+        "key": "session:claude-code/01J8XY",
+        "agentId": "claude-code",
+        "sessionId": "01J8XY",
+        "projectId": "p-merc",
+        "workItemKey": "jira:acme.atlassian.net/MERC-1190",
+        "workspaceKey": "ws:github.com/acme/mercury#feature/MERC-1190@main",
+        "reportedStatus": "Writing tests for the provider-memory path",
+        "startedAt": "2026-08-14T06:00:00Z",
+        "lastHeartbeatAt": "2026-08-14T06:40:00Z",
+        "lastRealActivityAt": "2026-08-14T06:38:00Z",
+        "endedAt": null,
+        "outcome": null,
+        "heartbeatIntervalSec": 60
+      }
+    ],
+    "noteCounts": {
+      "jira:acme.atlassian.net/MERC-1184": 2
+    },
+    "openQuestionSubjects": [],
+    "operatorAccountIds": ["me"]
+  }
+}

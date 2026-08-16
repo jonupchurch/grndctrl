@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows first, deliberately. It is the primary development machine and
+        # a first-class target (constitution XVII) — listing it first means a
+        # Windows-only break is the first red X anyone sees, not the last.
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # M1-M3 need no Electron binary. Skipping it keeps CI fast and doubles as
+      # a standing check on constitution XVIII: if the core suite ever starts
+      # needing Electron, this job fails rather than quietly downloading it.
+      - name: Install
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+  engine-without-electron:
+    name: correlation engine with Electron uninstalled (XVIII)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The gate, run as its own job so it cannot be satisfied by accident:
+      # install only what `core` needs, then run its suite. If anything in the
+      # engine has grown a dependency on Electron, a display, or the network,
+      # this is where it surfaces.
+      - name: Install core only
+        run: npm ci --workspace packages/core --include-workspace-root
+
+      - name: Run the engine suite
+        run: npx vitest run --project core
