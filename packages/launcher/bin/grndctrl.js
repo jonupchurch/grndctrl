@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
@@ -63,6 +63,28 @@ const io = {
       throw new LaunchError(unpackFailure(extractor, e))
     } finally {
       rmSync(join(into, name), { force: true })
+    }
+  },
+
+  // Linux sandbox detection (T168). `statSync` rather than `access`, because
+  // the question is not "can I read it" but "who owns it and is the setuid bit
+  // set" — the two things Chromium checks before it will use the helper.
+  fileOwner(path) {
+    try {
+      const stats = statSync(path)
+      return { uid: stats.uid, mode: stats.mode & 0o7777 }
+    } catch {
+      return null
+    }
+  },
+
+  readSmallFile(path) {
+    try {
+      return readFileSync(path, 'utf8')
+    } catch {
+      // A `/proc` knob that is absent is not a denial — it means this kernel
+      // does not have that switch. `sandbox.ts` distinguishes the two.
+      return null
     }
   },
 

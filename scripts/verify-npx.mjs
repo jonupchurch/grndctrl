@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url'
  * its checksum verifies against the digest published in the same release, it
  * unpacks into a per-version slot, the ABI check passes, Electron boots, the
  * native module *loads* (`app.status` reaches SQLite), the renderer parses and
- * paints, and a second run downloads nothing and prints nothing.
+ * paints, and a second run downloads nothing.
  *
  * It does not prove the board is correct or that a human would recognise what is
  * on screen. That is verified on Windows, by eye, and is not claimed elsewhere.
@@ -169,9 +169,12 @@ if (!first.out.includes('smoke: ok')) {
 
 // The progress messages go to stderr (`onProgress` in bin/grndctrl.js). Their
 // presence is what distinguishes a real download from a cache hit, so the second
-// run's silence below is only meaningful if the first run spoke.
-if (first.err.trim() === '') {
-  fail('the first run printed no progress, so the runtime cache was not actually empty')
+// run's check below is only meaningful if the first run spoke.
+const DOWNLOAD_NOISE = ['Downloading', 'Fetching checksums', 'Verifying checksum', 'Unpacking']
+const downloaded = (text) => DOWNLOAD_NOISE.filter((phrase) => text.includes(phrase))
+
+if (downloaded(first.err).length === 0) {
+  fail('the first run reported no download, so the runtime cache was not actually empty', first.err)
 }
 
 const slots = readdirSync(cache).filter((entry) => !entry.startsWith('.staging-'))
@@ -185,20 +188,28 @@ if (leftovers.length > 0) {
 
 // --- second run --------------------------------------------------------------
 
-const second = launch('Second run - nothing may be downloaded, and nothing printed')
+const second = launch('Second run - nothing may be downloaded')
 process.stdout.write(second.out)
 
 if (!second.ok) fail('the second `npx grndctrl` did not exit 0', second.err)
 if (!second.out.includes('smoke: ok')) fail('the second run did not boot', second.err)
-if (second.err.trim() !== '') {
-  fail('the second run printed progress, so it did not reuse the cached runtime', second.err)
+
+// Not "printed nothing" -- "downloaded nothing". On Linux the launcher reports
+// which sandbox it selected on every run, and that message is worth keeping:
+// an operator running under the namespace sandbox rather than the setuid one
+// should be able to discover that without reading the source. Asserting total
+// silence here would have forced the choice between a correct message and a
+// passing test.
+const noise = downloaded(second.err)
+if (noise.length > 0) {
+  fail(`the second run downloaded again (${noise.join(', ')}), so it did not reuse the cache`, second.err)
 }
 
 // --- done --------------------------------------------------------------------
 
 step('PASS')
 note('installed from tarballs, runtime downloaded and verified, ABI matched,')
-note('the native module loaded, the renderer painted, and the second run was silent.')
+note('the native module loaded, the renderer painted, and the second run reused the cache.')
 note('Not proved here: that a human would recognise the board. That is Windows, by eye.')
 
 rmSync(sandbox, { recursive: true, force: true })

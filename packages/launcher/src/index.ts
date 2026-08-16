@@ -40,6 +40,15 @@ export {
 } from './runtime.js'
 export { extractorFor, unpackFailure, type Extractor } from './unpack.js'
 export {
+  helperIsUsable,
+  refusal,
+  sandboxDecision,
+  userNamespacesAvailable,
+  type FileOwner,
+  type SandboxDecision,
+  type SandboxIo,
+} from './sandbox.js'
+export {
   launch,
   LaunchError,
   type AppRequirements,

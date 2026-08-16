@@ -66,6 +66,16 @@ function harness(options: { cached?: boolean; runtimeAbi?: string } = {}): Harne
       return p
     },
 
+    // These two exist for the Linux sandbox check, and every case in this file
+    // launches as `win32`, where `sandboxDecision` returns before it consults
+    // either. Answering "not there" rather than throwing keeps that a property
+    // of the decision rather than of this double: if the platform guard were
+    // ever removed, these would report an unusable helper and no `/proc`, the
+    // decision would become a refusal, and these tests would fail — which is
+    // the behaviour worth having.
+    fileOwner: () => null,
+    readSmallFile: () => null,
+
     text: async () => {
       events.push('checksums')
       return `${DIGEST} *${assetName(TARGET)}\n`

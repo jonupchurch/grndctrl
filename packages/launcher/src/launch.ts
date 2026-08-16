@@ -1,6 +1,7 @@
 import { abiMismatch, probeRuntime, type ProbeIo, type RuntimeIdentity } from './abi.js'
 import { ensureRuntime, slotFor, type CacheIo, type CacheTarget } from './cache.js'
 import { executablePath, fetchRuntime, type DownloadIo } from './runtime.js'
+import { sandboxDecision, type SandboxIo } from './sandbox.js'
 
 /**
  * What `npx grndctrl` actually does, with every piece of I/O passed in (T160).
@@ -29,7 +30,7 @@ export interface AppRequirements {
   appPath: string
 }
 
-export interface LaunchIo extends CacheIo, DownloadIo, ProbeIo {
+export interface LaunchIo extends CacheIo, DownloadIo, ProbeIo, SandboxIo {
   /** Replace this process with the app, or run it to completion. */
   spawn(executable: string, args: readonly string[], env: NodeJS.ProcessEnv): Promise<number>
 }
@@ -107,6 +108,14 @@ export async function launch(request: LaunchRequest): Promise<number> {
   const problem = abiMismatch({ expected, actual, cacheDir: dir })
   if (problem !== null) throw new LaunchError(problem)
 
+  // After the ABI check and before the spawn, because it is the same class of
+  // problem: something about this machine makes the runtime unusable, and the
+  // operator needs a sentence rather than a Chromium abort message quoting a
+  // source file. Rule 2 above, extended — nothing is spawned that cannot run.
+  const sandbox = sandboxDecision(request.platform, sandboxHelper(dir, request.platform), io)
+  if (sandbox.kind === 'refuse') throw new LaunchError(sandbox.message)
+  if (sandbox.note !== null) say(sandbox.note)
+
   // `ELECTRON_RUN_AS_NODE` is stripped rather than left alone. The probe above
   // sets it deliberately; an *ambient* one — exported by an editor, a CI runner
   // or an agent harness — turns this spawn into a Node process that evaluates
@@ -116,7 +125,20 @@ export async function launch(request: LaunchRequest): Promise<number> {
   delete clean['ELECTRON_RUN_AS_NODE']
   delete clean['ELECTRON_NO_ATTACH_CONSOLE']
 
-  return io.spawn(executable, [app.appPath, ...(request.argv ?? [])], clean)
+  // Chromium switches ahead of the app path. Electron hands everything after
+  // the path to the application, so a flag placed there would arrive as an
+  // argument to Ground Control and never reach the sandbox at all.
+  return io.spawn(executable, [...sandbox.args, app.appPath, ...(request.argv ?? [])], clean)
+}
+
+/**
+ * Where the setuid helper sits, which is beside the executable on Linux.
+ *
+ * Returned for every platform so the caller has one shape to handle; on
+ * anything but Linux `sandboxDecision` never looks at it.
+ */
+function sandboxHelper(dir: string, platform: string): string {
+  return platform === 'linux' ? `${dir}/chrome-sandbox` : ''
 }
 
 const STAGES: Record<'checksums' | 'download' | 'verify' | 'unpack', string> = {
