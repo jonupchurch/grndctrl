@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { handshakePath, readHandshake, writeHandshake } from '../../src/runtime/handshake.js'
+import { handshakePath, onlyGrants, readHandshake, writeHandshake } from '../../src/runtime/handshake.js'
 
 /**
  * The handshake file is a credential.
@@ -159,6 +159,51 @@ describe('permissions', () => {
     } finally {
       handle.remove()
     }
+  })
+
+  // These run everywhere, because the parsing is the part that was wrong and it
+  // has nothing to do with the platform. The strings are real `icacls` output.
+  describe('reading an ACL back', () => {
+    it('accepts a file granted to the current user alone', () => {
+      const acl =
+        'C:\\Users\\jon\\AppData\\Local\\grndctrl\\runtime.json DESKTOP-1\\jon:(F)\r\n\r\n' +
+        'Successfully processed 1 files; Failed processing 0 files\r\n'
+      expect(onlyGrants(acl, 'jon')).toBe(true)
+    })
+
+    it('accepts a bare account name, without the machine prefix', () => {
+      expect(onlyGrants('C:\\x\\runtime.json jon:(F)\r\n', 'jon')).toBe(true)
+    })
+
+    it('rejects the ACL a Windows CI runner actually produced', () => {
+      // The exact shape that made this bug visible: `/inheritance:r` reported
+      // success and left both of these in place, because they were explicit
+      // entries rather than inherited ones.
+      const acl =
+        'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\g\\runtime.json NT AUTHORITY\\SYSTEM:(F)\r\n' +
+        '                                          BUILTIN\\Administrators:(F)\r\n' +
+        '                                          RUNNER~1\\runneradmin:(F)\r\n\r\n' +
+        'Successfully processed 1 files; Failed processing 0 files\r\n'
+      expect(onlyGrants(acl, 'runneradmin')).toBe(false)
+    })
+
+    it('rejects a principal nobody thought to look for', () => {
+      // The reason this checks every entry instead of searching for known-bad
+      // names: a search answers "none of the ones I listed are here", and what
+      // broke this was something that was not on anyone's list.
+      const acl = 'C:\\x\\runtime.json jon:(F)\r\n                  CONTOSO\\backup-svc:(R)\r\n'
+      expect(onlyGrants(acl, 'jon')).toBe(false)
+    })
+
+    it('refuses an ACL it could not read, rather than assuming the best', () => {
+      expect(onlyGrants(null, 'jon')).toBe(false)
+      expect(onlyGrants('', 'jon')).toBe(false)
+      // Only the summary line, no entries at all: nothing was proved, so it is
+      // not a pass.
+      expect(onlyGrants('Successfully processed 1 files; Failed processing 0 files\r\n', 'jon')).toBe(
+        false,
+      )
+    })
   })
 
   it('does not put the token anywhere but the file', () => {

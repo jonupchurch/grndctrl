@@ -226,13 +226,91 @@ async function main(): Promise<void> {
   // a preference could not be read would be absurd.
   const saved = await readWindowState(dispatch)
 
-  createWindow(saved)
+  const window = createWindow(saved)
 
   // macOS keeps the process alive with no windows; clicking the dock icon is
   // expected to bring one back rather than do nothing.
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(saved)
   })
+
+  if (process.env['GRNDCTRL_SMOKE'] === '1') await smokeCheck(window, dispatch)
+}
+
+/**
+ * Boot, prove it worked, and exit (T166–T168).
+ *
+ * `npx grndctrl` is the riskiest path in the project because it fails on a
+ * user's machine and not in CI, and the only previous evidence it works was one
+ * person on Windows watching a window appear. A GitHub Actions runner is a clean
+ * machine with an empty runtime cache — exactly what the task asks for — but
+ * nobody is watching it, so the app has to report on itself.
+ *
+ * **Env-gated, never argv.** `argv` is passed through to Electron by the
+ * launcher and onward to Chromium, where an unrecognised flag is ignored rather
+ * than rejected. A stray `--smoke` in a shortcut would then quit a real
+ * operator's app a second after it opened, with no error to explain it. An
+ * environment variable has to be set deliberately by whoever starts the process.
+ *
+ * What passing actually proves, stated so the CI badge is not read for more than
+ * it is worth: the runtime downloaded and verified, it unpacked, the ABI matched
+ * a native module that then *loaded* — `app.status` reaches SQLite, so this is
+ * the runtime check the launcher's static comparison cannot be — Chromium
+ * composited a frame, and the renderer's HTML parsed. It does **not** prove the
+ * board is correct, or that a human would recognise what is on screen. That
+ * remains verified on Windows only, by eye.
+ */
+async function smokeCheck(
+  window: BrowserWindow,
+  dispatch: (name: string, input: unknown) => Promise<unknown>,
+): Promise<void> {
+  const fail = (why: string): never => {
+    process.stderr.write(`smoke: ${why}\n`)
+    // `app.exit`, not `app.quit`: quit runs `before-quit` and the window-close
+    // path, either of which can swallow a non-zero code and hand CI a pass.
+    app.exit(1)
+    throw new Error(why)
+  }
+
+  const painted = new Promise<void>((resolve, reject) => {
+    // 90s: a cold Chromium on a shared runner is slow, and a smoke test that
+    // flakes gets deleted rather than fixed.
+    const timer = setTimeout(() => reject(new Error('the window never painted within 90s')), 90_000)
+    const done = (): void => {
+      clearTimeout(timer)
+      resolve()
+    }
+
+    if (!window.isDestroyed() && window.webContents.getURL() !== '' && !window.webContents.isLoading()) {
+      done()
+      return
+    }
+    window.once('ready-to-show', done)
+    // A renderer that fails to load never emits `ready-to-show`, so without this
+    // the run would sit until the timeout and report the wrong reason.
+    window.webContents.once('did-fail-load', (_e, code, description) => {
+      clearTimeout(timer)
+      reject(new Error(`the renderer failed to load: ${description} (${code})`))
+    })
+  })
+
+  try {
+    await painted
+  } catch (e) {
+    fail(e instanceof Error ? e.message : String(e))
+  }
+
+  try {
+    // Through the registry, like everything else. This is the arm that touches
+    // the native module: a mismatched build passes the launcher's version
+    // comparison and throws here instead.
+    const status = await dispatch('app.status', {})
+    process.stdout.write(`smoke: ok ${JSON.stringify(status)}\n`)
+  } catch (e) {
+    fail(`app.status failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  app.exit(0)
 }
 
 /**

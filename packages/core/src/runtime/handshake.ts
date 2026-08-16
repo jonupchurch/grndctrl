@@ -169,13 +169,35 @@ function isRunning(pid: unknown): boolean {
 }
 
 /**
- * Tighten the file to the current user.
+ * Principals that must not hold rights on the handshake file.
+ *
+ * Not an exhaustive list of everyone who could be granted access — it is the
+ * set that a default Windows ACL actually carries down onto a new file. The
+ * readback below treats *any* other principal as a failure, so this list only
+ * decides what is worth trying to remove, never what counts as safe.
+ */
+const UNWANTED_PRINCIPALS = ['BUILTIN\\Administrators', 'NT AUTHORITY\\SYSTEM', 'BUILTIN\\Users']
+
+/**
+ * Tighten the file to the current user, and then check that it worked.
  *
  * On POSIX, `chmod 0600` is the whole story. On Windows it is not: Node's
  * `mode` maps only to the read-only attribute and says nothing about the ACL,
  * so the file inherits whatever the parent directory grants — which normally
- * includes Administrators and SYSTEM. `icacls /inheritance:r` drops the
- * inherited entries and grants the current account alone.
+ * includes Administrators and SYSTEM.
+ *
+ * **`/inheritance:r` is not sufficient, and this is why the result is read
+ * back.** It removes *inherited* entries only. On a machine where those entries
+ * are **explicit** on the file — a CI runner's temp directory is one, and a
+ * managed corporate profile is another — they survive untouched, `icacls` still
+ * exits 0, and the old version of this function returned `true` over a file that
+ * Administrators and SYSTEM could both read. Found by a Windows CI runner, on a
+ * test that had passed on the author's Windows machine for weeks.
+ *
+ * That is the difference between "the command succeeded" and "the file is
+ * restricted". This function now answers the second question: it grants, removes
+ * what it knows to remove, then **reads the ACL back and confirms nobody but the
+ * current user appears in it**. The caller gets a fact, not an exit code.
  */
 function restrictToCurrentUser(path: string): boolean {
   try {
@@ -186,18 +208,74 @@ function restrictToCurrentUser(path: string): boolean {
 
   if (process.platform !== 'win32') return true
 
+  const icacls = (args: string[]): boolean => {
+    try {
+      execFileSync('icacls', args, { stdio: 'ignore', windowsHide: true })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  let username: string
   try {
-    const { username } = userInfo()
-    execFileSync(
-      'icacls',
-      [path, '/inheritance:r', '/grant:r', `${username}:F`],
-      { stdio: 'ignore', windowsHide: true },
-    )
-    return true
+    ;({ username } = userInfo())
   } catch {
-    // The app still runs. A handshake readable by an administrator on the
-    // operator's own machine is a smaller problem than refusing to start, and
-    // the caller is told so it can say something.
     return false
   }
+
+  if (!icacls([path, '/inheritance:r', '/grant:r', `${username}:F`])) return false
+
+  // Explicit entries the previous call cannot touch. Each is attempted
+  // separately: `/remove:g` fails the whole invocation if any one principal is
+  // absent, which on a normal machine is most of them.
+  for (const principal of UNWANTED_PRINCIPALS) icacls([path, '/remove:g', principal])
+
+  return onlyGrants(readAcl(path), username)
+}
+
+/** The ACL as `icacls` prints it, or null if it could not be read. */
+function readAcl(path: string): string | null {
+  try {
+    return execFileSync('icacls', [path], { encoding: 'utf8', windowsHide: true })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Whether the printed ACL grants rights to `username` and to nobody else.
+ *
+ * Exported shape kept simple deliberately: it parses the principal off each
+ * entry and compares, rather than searching for the names it dislikes. A search
+ * for known-bad names answers "none of the ones I thought of are here", and the
+ * whole reason this code was wrong is that something nobody thought of was.
+ */
+export function onlyGrants(acl: string | null, username: string): boolean {
+  if (acl === null) return false
+
+  // `icacls` prints `<path> PRINCIPAL:(RIGHTS)` on the first line and indented
+  // `PRINCIPAL:(RIGHTS)` on the rest, ending with a summary line.
+  const entries = acl
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !/^Successfully processed|^Failed processing/.test(line))
+    .map((line) => {
+      // Drop a leading path, which may itself contain colons (`C:\...`). The
+      // principal is the token before the final `:(` on the line.
+      const at = line.lastIndexOf(':(')
+      if (at < 0) return null
+      const before = line.slice(0, at)
+      const space = before.lastIndexOf(' ')
+      return (space < 0 ? before : before.slice(space + 1)).trim()
+    })
+    .filter((p): p is string => p !== null && p !== '')
+
+  if (entries.length === 0) return false
+
+  return entries.every((principal) => {
+    // Accounts print as `MACHINE\user` or bare `user` depending on the machine.
+    const bare = principal.includes('\\') ? principal.slice(principal.indexOf('\\') + 1) : principal
+    return bare.toLowerCase() === username.toLowerCase()
+  })
 }

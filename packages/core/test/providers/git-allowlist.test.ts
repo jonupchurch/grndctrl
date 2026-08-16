@@ -140,10 +140,20 @@ describe('nothing else in core spawns a process', () => {
       'utf8',
     )
 
-    // A second binary appearing here, or the platform guard going away, fails
+    // A second *binary* appearing here, or the platform guard going away, fails
     // this — which is the point of granting the exemption narrowly.
     const spawned = [...source.matchAll(/execFileSync\(\s*'([^']+)'/g)].map((m) => m[1])
-    expect(spawned).toEqual(['icacls'])
+    expect(new Set(spawned)).toEqual(new Set(['icacls']))
+
+    // Two call sites, deliberately, and the count is asserted so a third has to
+    // be argued for rather than absorbed. The exemption was originally granted
+    // for one — the grant. The second is the **readback**: `icacls` exits 0
+    // after `/inheritance:r` even when explicit entries survive, so the only way
+    // to know the handshake is restricted is to read the ACL and look. A Windows
+    // CI runner produced exactly that case, on a test that had passed on the
+    // author's machine for weeks. Widening this from one to two buys the
+    // difference between "the command succeeded" and "the file is restricted".
+    expect(spawned).toHaveLength(2)
     expect(source).toContain("process.platform !== 'win32'")
     expect(source).not.toMatch(/\bexec\(|\bexecSync\(|shell:\s*true/)
   })
