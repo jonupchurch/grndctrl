@@ -1,8 +1,7 @@
 {
   "name": "grndctrl",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Ground Control launcher \u2014 resolves the Electron runtime, verifies it, and spawns the app.",
+  "version": "0.1.0",
+  "description": "Ground Control launcher — resolves the Electron runtime, verifies it, and spawns the app.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -16,12 +15,18 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@grndctrl/desktop": "0.0.0"
+    "@grndctrl/desktop": "0.1.0"
   },
   "files": [
     "bin",
     "dist",
     "!dist/.tsbuildinfo",
     "README.md"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonupchurch/grndctrl.git",
+    "directory": "packages/launcher"
+  },
+  "homepage": "https://github.com/jonupchurch/grndctrl#readme"
 }

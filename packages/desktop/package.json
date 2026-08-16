@@ -1,7 +1,6 @@
 {
   "name": "@grndctrl/desktop",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The Electron application: main, preload, and the React renderer.",
   "license": "MIT",
   "type": "module",
@@ -37,5 +36,11 @@
     "dist",
     "native",
     "README.md"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonupchurch/grndctrl.git",
+    "directory": "packages/desktop"
+  },
+  "homepage": "https://github.com/jonupchurch/grndctrl#readme"
 }
