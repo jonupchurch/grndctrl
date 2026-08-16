@@ -10,6 +10,64 @@ release, everything lands under **[Unreleased]**.
 
 ## [Unreleased]
 
+### Security
+
+- **The repository was public for a day with the employer named in it.**
+  Discovered by running `gh repo view` instead of assuming — it reported
+  `PUBLIC`, created 2026-08-14. Exposed: the employer's name and Jira site in
+  `STATUS.md`, and statistics derived from a real client's backlog in
+  `STATUS.md`, `CHANGELOG.md`, `sync.ts` and one test. Not exposed: any
+  credential. `.env.local` was never committed and every token-shaped string in
+  history is a test placeholder. Zero forks, zero stars, zero watchers.
+  The repository is now private, which with no forks ends public access to every
+  object rather than hiding the current tip.
+
+### Added
+
+- **The client-reference audit** (`scripts/audit-client-refs.ts`). Zero hits is
+  the only pass, with no allow-list of expected occurrences — the same terms as
+  the secret audit, for the same reason. Two properties carry the design. **The
+  denylist is not in the repository**, because writing the terms into a constant
+  publishes on every clone the strings the gate exists to suppress;
+  `.client-denylist` is gitignored and reaches CI as a secret. **A missing or
+  empty denylist fails**, because "nothing was found" and "nothing was looked
+  for" are the same empty list and opposite facts.
+
+  A second arm catches any `*.atlassian.net` host outside the invented
+  placeholder set — a denylist only finds what someone thought to list, and on
+  the first run this arm identified the real site on two lines without being
+  told the name. The report prints file and line and never the matched value,
+  because Actions logs are public on a public repository and a report that names
+  what it found would republish it on every failing run.
+
+  Probed four ways: 13 hits across the tree, 97 across 558 history blobs, a hard
+  fail with the denylist removed, and a planted term caught and then cleared.
+  Two of its catches were the author's own: the test file, which plants matching
+  strings to prove the matcher works and so failed on its own source, and the
+  audit's docblock, which quoted the real figures as an illustration.
+
+### Changed
+
+- **History rebuilt rather than rewritten.** 97 occurrences across the old
+  history meant scrubbing the files and committing the fix would leave every
+  earlier version reachable by SHA. `clean-main` is a single squashed commit
+  whose history has never held a client string — 315 blobs, zero hits — with the
+  full development history retained privately. File inventories match at 316
+  both sides.
+- **Client-derived specifics generalized** in `STATUS.md`, `CHANGELOG.md`,
+  `packages/core/src/services/sync.ts` and `multi-project-sync.test.ts`. The
+  numbers are generalized rather than deleted: they were the evidence for the
+  assignee filter and for the pagination bug, and deleting them would have cost
+  the reasoning to save the digits.
+- **`fixtures/{jira,github,git}` gitignored** ahead of T038–T040, so recorded
+  provider payloads stay on the machine that recorded them.
+
+### Fixed
+
+- **T166 ticked.** `npx` from a packed tarball on Windows was verified last
+  session; the checkbox was missed. The task count in `STATUS.md` is corrected
+  from a hand-tallied 162/175 to a counted 168/176.
+
 ### Added
 
 - **A dialog layer** (T148–T152). The design system stops at the board and has

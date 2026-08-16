@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-15 (late — the poll scheduler, packaging, and the privacy audits) · **Stage:** implementing (Phase 7; M4 complete) · **Released:** nothing yet
+**Last updated:** 2026-08-15 (late — the client-reference gate and the history rebuild) · **Stage:** implementing (Phase 7; M4 complete) · **Released:** nothing yet
 
 A living snapshot of where the project actually is. Update it whenever a phase
 completes, a decision closes, or a blocker appears — it should never be more
@@ -9,9 +9,56 @@ file describes only the present and the immediate next step.
 
 ## Where we are
 
+### The repository was public, and it named the employer
+
+Found by asking rather than assuming: `gh repo view` said `PUBLIC`, created
+2026-08-14. It had been public for a day with the employer's name and Jira site
+in `STATUS.md`, and with statistics derived from a real client's backlog in
+`STATUS.md`, `CHANGELOG.md`, `sync.ts` and one test. **Zero forks, zero stars,
+zero watchers**, and no credential ever entered the repository — `.env.local`
+was never committed and every token-shaped string in history is a test
+placeholder.
+
+**The repository is now private.** With no forks, that ends public access to
+every object rather than merely hiding the current tip.
+
+**`scripts/audit-client-refs.ts` is the gate**, on the secret audit's terms:
+zero hits is the only pass, with no allow-list of expected occurrences. Two
+properties are the whole design:
+
+- **The denylist is not in the repository.** Writing the terms into a constant
+  publishes, on every clone, the strings the gate exists to suppress.
+  `.client-denylist` is gitignored; CI gets it as a secret.
+- **A missing or empty denylist fails.** "Nothing was found" and "nothing was
+  looked for" are the same empty list and opposite facts — the rule that already
+  made the egress recorder write a marker when it loads.
+
+A second arm finds any `*.atlassian.net` host outside the invented placeholder
+set, because a denylist only finds what someone thought to list. On the first
+run it identified the real site on two lines **without being told the name**.
+
+Probed four ways: 13 hits across the tree, 97 across 558 history blobs, a hard
+fail with the denylist removed, and a planted term caught then cleared. Two
+things it caught that were mine: the test file, which plants matching strings to
+prove the matcher works and so failed on its own source, and the audit's own
+docblock, which quoted the real figures as an illustration. **The example is
+always the last place anyone looks.**
+
+**History was rebuilt, not rewritten.** 97 occurrences across the old history
+meant scrubbing the files and committing the fix would leave every previous
+version reachable by SHA. `clean-main` is a single squashed commit whose history
+has never contained a client string — verified with `--scope history --rev
+clean-main`, 315 blobs, zero hits — with the old history retained privately.
+File inventories match at 316 both sides, so nothing was lost in the rebuild.
+
+**Not yet done:** the clean branch has not been pushed anywhere, and the
+repository is still private. Publishing is a separate decision.
+
+### The product
+
 **168 of 176 tasks** (175 planned plus T176, the always-on-top toggle added
 mid-M4; the count said 162 and was hand-tallied — it is now counted from the
-file). **708 unit tests, 60 end-to-end. The application launches,
+file). **716 unit tests, 60 end-to-end. The application launches,
 the board is on screen, and the golden path runs end to end** — configure,
 render, open each row type, write a note, confirm a dispatch, and find the
 action still queued after a restart.
@@ -463,16 +510,41 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Everything left needs a machine or a decision this session does not have.**
+**Six decisions closed on 2026-08-15 (late).** They are recorded here because
+each one changes what remains, and several override what this file said earlier:
 
-The remaining tasks are T163 (a CI workflow publishing prebuilds), T167, T168
-and T172 (all three of which are "run it on macOS and Linux"), and T038–T040.
-There is no more code to write on Windows without one of them.
+1. **Recorded provider fixtures stay local.** `fixtures/{jira,github,git}` are
+   gitignored. Real payloads never enter the tree, so the largest exposure is
+   closed by construction rather than by scrubbing. The cost, stated: CI keeps
+   running against hand-written inline payloads, so the protection does not
+   survive the machine.
+2. **The machine-blocked tasks close in CI.** T167/T168 asked for a clean
+   machine with an empty runtime cache, and a GitHub Actions runner is exactly
+   that. T163's workflow and a cross-platform npx verification replace "borrow a
+   Mac". Named weakness: CI proves the runtime downloads, verifies, unpacks,
+   passes the ABI check and starts — **it does not prove a human sees a correct
+   window**, and that stays unverified off Windows.
+3. **v1 publishes** — public repository, four packages on npm. Gated on the
+   client-reference audit being green, which it now is on `clean-main`.
+4. **T170 gets both captures.** A 30+ minute idle capture with the scheduler
+   live, which is the only thing that catches something firing on a timer, plus
+   a driven pass over every path that can egress. Neither substitutes for the
+   other. The ticked result currently rests on a few minutes.
+5. **Archivo gets bundled**, subset and Open-Font-Licensed, so `--f-brand` stops
+   naming a font nobody ships.
+6. **The public repository is Ground Control only.** The `ai-tools` toolkit is a
+   separate thing that is meant to travel into other codebases, and it cannot do
+   that from inside a product repository.
 
-If more is wanted here, the honest options are a longer egress capture — the
-spec says thirty minutes and this session's was a few — or building the T163
-workflow blind, which is the one thing on the list that can be written without
-the machines and verified only when CI runs it.
+**The immediate next step is a decision, not code:** `clean-main` exists locally
+and is verified, and nothing has been pushed. Replacing the remote's history
+against the existing repository leaves the old objects reachable by SHA if it is
+ever made public again; a new repository does not. That choice is open.
+
+Then, in order: wire the publish and cross-platform-verification workflows
+(T163, T166–T168, T172), make the fixture-consuming tests skip cleanly when the
+gitignored directory is absent and record from live (T038–T040), bundle Archivo,
+and run the two egress captures (T170).
 
 **Two things need the operator, not me.** T167 and T168 are the npx verification
 on macOS and Linux, which needs those machines — everything they test is written

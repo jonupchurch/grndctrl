@@ -46,6 +46,35 @@ jobs:
       - name: Test
         run: npm run test
 
+  client-references:
+    name: no client references (tree and history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The history arm is the entire point of this job, and `checkout`
+          # fetches depth 1 by default — which would scan a single commit and
+          # report a clean pass over a history it never downloaded. That is the
+          # same "nothing found" / "nothing looked at" confusion the audit
+          # itself is built to refuse, one layer up.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No `npm ci`. The audit uses node builtins and `git` only, which keeps
+      # this job fast enough to sit on every push — and a gate that is slow
+      # enough to skip is a gate people skip.
+      - name: Audit tree and history for client references
+        run: node --experimental-strip-types scripts/run-audits.ts client
+        env:
+          # Supplied as a repository secret, because committing the denylist
+          # would publish the strings it exists to suppress. If the secret is
+          # missing the audit fails rather than passing on an empty list — an
+          # unset secret must not look like a clean repository.
+          GRNDCTRL_CLIENT_DENYLIST: ${{ secrets.GRNDCTRL_CLIENT_DENYLIST }}
+
   engine-without-electron:
     name: correlation engine with Electron uninstalled (XVIII)
     runs-on: ubuntu-latest
