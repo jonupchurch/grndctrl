@@ -235,10 +235,17 @@ remove. They are un-ticked again. Recording them needs a decision from the
 operator, because it writes scrubbed payloads from a real Jira into the
 repository.
 
-**Blocked on someone else:** GitHub work repositories need a fine-grained token
-whose **resource owner is the work organization**, which an org owner has to
-approve. The current token is owned by a personal account and reaches two
-personal repos. Separately, the work checkouts are not on this machine, so the local-git
+**~~Blocked on someone else~~ — that blocker was stale, 2026-08-15.** It said
+work repositories needed an org-owned fine-grained token and that the current
+one reached only two personal repos. Asked directly, the token returns four:
+two personal and **two work repositories**. Nothing is waiting on an org owner.
+
+Recorded here because it is the second time this file has carried a resolved
+problem as a live one — the leaked credential was written up as revoked when it
+was not. **A blocker is a claim about the present and decays like any other; ask
+the system rather than the note.**
+
+Separately, the work checkouts are not on this machine, so the local-git
 half of correlation belongs wherever the work actually happens — which is what
 `npx grndctrl` is for, not a second clone of this repo.
 
