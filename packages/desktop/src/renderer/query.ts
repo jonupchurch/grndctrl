@@ -98,6 +98,11 @@ export function usePushInvalidation(): void {
         void client.invalidateQueries({ queryKey: ['outbox.list'] })
         void client.invalidateQueries({ queryKey: ['outbox.pending'] })
       }),
+      // An agent started, reported activity, ended, or simply proved it is still
+      // alive. The panel's own empty state promises a session "appears here the
+      // moment one starts", which was untrue for an open window until this
+      // existed — the board only caught up when an unrelated sync finished.
+      bridge.on.sessionsChanged(() => void client.invalidateQueries({ queryKey: ['sessions.list'] })),
       // Nothing changed; the numbers aged. Re-render without refetching — the
       // data is identical and only the "4 minutes ago" beside it is not.
       bridge.on.freshnessTick(() => void client.invalidateQueries({ queryKey: ['__tick'] })),

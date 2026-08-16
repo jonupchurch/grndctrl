@@ -32,6 +32,7 @@ export interface Bridge {
     syncProgress(listener: (payload: unknown) => void): () => void
     freshnessTick(listener: (payload: unknown) => void): () => void
     outboxChanged(listener: (payload: unknown) => void): () => void
+    sessionsChanged(listener: (payload: unknown) => void): () => void
   }
 }
 

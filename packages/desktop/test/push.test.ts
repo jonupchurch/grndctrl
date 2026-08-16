@@ -91,6 +91,95 @@ describe('events derived from what actually ran', () => {
     const dispatch = push({ targets: () => [] }).observing(() => Promise.resolve({ items: [1, 2] }))
     expect(await dispatch('work.list', {})).toEqual({ items: [1, 2] })
   })
+
+  it('announces every session operation', async () => {
+    const target = recorder()
+    const dispatch = push({ targets: () => [target] }).observing(() => Promise.resolve({}))
+
+    for (const operation of ['sessions.start', 'sessions.activity', 'sessions.end']) {
+      await dispatch(operation, {})
+    }
+
+    expect(target.sent.filter((s) => s.channel === PUSH_CHANNELS.sessionsChanged)).toHaveLength(3)
+  })
+
+  // A heartbeat is explicitly *not* activity — the service is careful about that
+  // — but it does move `sinceHeartbeatSec`, which is what turns a running
+  // session amber. A liveness display that only updates when the agent does real
+  // work is unable to show an agent that has stopped doing any.
+  it('announces a heartbeat, which is not activity but does change the display', async () => {
+    const target = recorder()
+    const dispatch = push({ targets: () => [target] }).observing(() => Promise.resolve({}))
+
+    await dispatch('sessions.heartbeat', {})
+
+    expect(target.sent.map((s) => s.channel)).toEqual([PUSH_CHANNELS.sessionsChanged])
+  })
+})
+
+/**
+ * The half that was missing for the entire life of the feature.
+ *
+ * `main/index.ts` wraps the dispatch it gives the IPC adapter, so every event
+ * above fired for what the *window* did. The loopback adapter that agents use
+ * dispatches straight through the registry and was never wrapped, so nothing an
+ * *agent* did reached the renderer — `outbox:changed` documented itself as
+ * firing "by this window or by an agent over MCP" and did not.
+ *
+ * Both halves were individually correct, which is why nothing failed. Catching
+ * it needed an agent, an open window, and someone watching both.
+ */
+describe('the mapping both surfaces share', () => {
+  it('is the same for an agent as for the window', () => {
+    const target = recorder()
+    const events = push({ targets: () => [target] })
+
+    events.afterDispatch('sessions.start')
+    events.afterDispatch('outbox.claim')
+    events.afterDispatch('work.list')
+
+    expect(target.sent.map((s) => s.channel)).toEqual([
+      PUSH_CHANNELS.sessionsChanged,
+      PUSH_CHANNELS.outboxChanged,
+    ])
+  })
+
+  // The bug this file's `mutates` predicate exists to prevent, and it is a loop
+  // rather than a waste. `sessions.list` shares the `sessions.` prefix, the
+  // renderer answers an announcement by refetching, and the refetch *is* a
+  // `sessions.list`. The first version of the session push matched on prefix
+  // alone and produced hundreds of broadcasts from one agent call — found by
+  // running it, because every unit test still passed.
+  it('does not announce a read that shares a prefix with a write', () => {
+    const target = recorder()
+    const writes = new Set(['sessions.start', 'sessions.end', 'outbox.claim'])
+    const events = push({
+      targets: () => [target],
+      mutates: (operation) => writes.has(operation),
+    })
+
+    events.afterDispatch('sessions.list')
+    events.afterDispatch('outbox.list')
+    events.afterDispatch('outbox.pending')
+
+    expect(target.sent).toEqual([])
+
+    // ...and the writes beside them still do announce, so this is a filter and
+    // not an off switch.
+    events.afterDispatch('sessions.start')
+    expect(target.sent.map((s) => s.channel)).toEqual([PUSH_CHANNELS.sessionsChanged])
+  })
+
+  it('says nothing for a read, whoever dispatched it', () => {
+    const target = recorder()
+    const events = push({ targets: () => [target] })
+
+    for (const read of ['work.list', 'board.summary', 'sync.status', 'app.status']) {
+      events.afterDispatch(read)
+    }
+
+    expect(target.sent).toEqual([])
+  })
 })
 
 describe('the freshness clock', () => {

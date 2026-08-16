@@ -89,7 +89,24 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 async function main(): Promise<void> {
-  service = await startAppService()
+  // Built before the service, because the service needs to tell it about agent
+  // traffic and the loopback adapter starts inside `startAppService`. Safe to
+  // construct this early: `targets()` is a thunk, evaluated per broadcast, so
+  // there being no window yet is simply nobody to tell.
+  const events = push({
+    targets: () => BrowserWindow.getAllWindows().map((w) => w.webContents),
+    // Read from the registry, late — `service` is assigned two lines below and
+    // nothing dispatches before then. Answering `false` until it exists is
+    // correct: there is nothing to announce and nobody to announce it to.
+    mutates: (operation) => service?.mutates(operation) ?? false,
+  })
+
+  service = await startAppService({
+    // The agent's half of the push stream. Without it every event here fired
+    // for what the *window* did and nothing for what an *agent* did — so an
+    // agent starting a session, or claiming an action, left the board still.
+    onAgentDispatch: (operation) => events.afterDispatch(operation),
+  })
 
   // Electron's default menu is not in the design, and two of its items are
   // actively wrong here: View → Reload navigates the window, which
@@ -100,9 +117,6 @@ async function main(): Promise<void> {
 
   applySecurity(session.defaultSession)
 
-  const events = push({
-    targets: () => BrowserWindow.getAllWindows().map((w) => w.webContents),
-  })
   stopFreshnessClock = events.start()
 
   // `authorKind` is stamped `user` because this is the UI surface.

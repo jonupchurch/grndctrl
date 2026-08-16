@@ -22,6 +22,26 @@ import { PUSH_CHANNELS } from '../shared/channels.js'
  * - `outbox:changed` — an action was enqueued, claimed, completed or expired, by
  *   this window or by an agent over MCP. Without it the operator watches a
  *   dispatched action sit at "pending" until they happen to click something.
+ * - `sessions:changed` — an agent started, reported activity, or ended. The
+ *   Sessions panel tells the operator "a session appears here the moment one
+ *   starts"; until this existed that sentence was false for an open window.
+ *
+ * ## The half that was missing, and why it was invisible
+ *
+ * These are derived by wrapping a dispatch — and for a year only *one* dispatch
+ * was wrapped. `main/index.ts` composes the wrapper for the IPC adapter, while
+ * the loopback HTTP adapter that agents use dispatches straight through the
+ * registry in `main/service.ts`. So every event above was emitted for actions
+ * taken *in the window* and none for actions taken *by an agent* — including
+ * `outbox:changed`, whose own description above promised the opposite.
+ *
+ * Nothing failed, because both halves were individually correct: the window
+ * updated when the window acted. The agent surface is the one nobody watches, so
+ * "the board does not move when an agent does something" needed an agent, an
+ * open window, and someone looking at both at once.
+ *
+ * `afterDispatch` is therefore the single place that maps an operation to its
+ * event, and **both** paths call it.
  */
 
 export type PushChannel = (typeof PUSH_CHANNELS)[keyof typeof PUSH_CHANNELS]
@@ -41,6 +61,24 @@ export type Dispatch = (operation: string, payload: unknown) => Promise<unknown>
 export interface PushOptions {
   /** Every open window. Empty when the app is running with no UI, which is legal. */
   targets(): readonly PushTarget[]
+  /**
+   * Whether an operation changes anything, read from the registry.
+   *
+   * This is not decoration. Matching on the name prefix alone announces
+   * `sessions.list` — a **read** — as a change, and the renderer's response to
+   * the announcement is to refetch, which dispatches `sessions.list`, which
+   * announces a change. The first version of the session push did exactly that
+   * and produced hundreds of broadcasts from a single agent call.
+   *
+   * A predicate rather than a hardcoded list, so a mutating operation added
+   * later is covered without anyone remembering this file — the registry
+   * already carries the answer.
+   *
+   * Defaults to "everything mutates", which is the safe direction for a caller
+   * that has not wired it: a redundant refresh is a nuisance, a missing one is
+   * the bug this exists to fix. Callers that can loop must supply it.
+   */
+  mutates?: (operation: string) => boolean
   /** How often the clock-driven event fires. */
   freshnessIntervalMs?: number
   now?: () => Date
@@ -49,6 +87,15 @@ export interface PushOptions {
 export interface Push {
   syncProgress(progress: SyncProgress): void
   outboxChanged(): void
+  sessionsChanged(): void
+  /**
+   * Emit whatever this operation implies, having run.
+   *
+   * The one place the operation-to-event mapping lives, so the IPC path and the
+   * agent's HTTP path cannot drift apart — which is exactly what happened when
+   * only the first of them was wrapped.
+   */
+  afterDispatch(operation: string): void
   /** Starts the freshness clock. Returns the stop function. */
   start(): () => void
   /**
@@ -61,6 +108,7 @@ export interface Push {
 export function push(options: PushOptions): Push {
   const now = options.now ?? (() => new Date())
   const intervalMs = options.freshnessIntervalMs ?? 30_000
+  const mutates = options.mutates ?? ((): boolean => true)
 
   const broadcast = (channel: PushChannel, payload: unknown): void => {
     for (const target of options.targets()) target.send(channel, payload)
@@ -69,6 +117,25 @@ export function push(options: PushOptions): Push {
   const self: Push = {
     syncProgress: (progress) => broadcast(PUSH_CHANNELS.syncProgress, progress),
     outboxChanged: () => broadcast(PUSH_CHANNELS.outboxChanged, {}),
+    sessionsChanged: () => broadcast(PUSH_CHANNELS.sessionsChanged, {}),
+
+    afterDispatch(operation) {
+      // A read changes nothing, and announcing one is not merely wasteful — it
+      // is a loop. The renderer answers an announcement by refetching, the
+      // refetch is a read, and the read announces again.
+      if (!mutates(operation)) return
+
+      // Fired on failure as well as success, deliberately: a claim that threw
+      // may still have moved the row, and the renderer's job is to go and look
+      // rather than to infer.
+      if (operation.startsWith('outbox.')) self.outboxChanged()
+      // `sessions.heartbeat` included. It does not count as *activity* — the
+      // service is careful about that distinction — but it does change
+      // `sinceHeartbeatSec`, which is what turns a running session amber on the
+      // panel. A liveness display that only updates when the agent does real
+      // work cannot show an agent that has stopped doing any.
+      if (operation.startsWith('sessions.')) self.sessionsChanged()
+    },
 
     start() {
       const timer = setInterval(
@@ -90,10 +157,7 @@ export function push(options: PushOptions): Push {
           return await dispatch(operation, payload)
         } finally {
           if (connectionId !== undefined) self.syncProgress({ phase: 'finished', connectionId })
-          // Fired on failure as well as success, deliberately: a claim that
-          // threw may still have moved the row, and the renderer's job is to go
-          // and look rather than to infer.
-          if (operation.startsWith('outbox.')) self.outboxChanged()
+          self.afterDispatch(operation)
         }
       }
     },

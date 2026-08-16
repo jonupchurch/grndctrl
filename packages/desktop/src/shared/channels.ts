@@ -48,6 +48,7 @@ export const PUSH_CHANNELS = {
   syncProgress: 'grndctrl:push:sync-progress',
   freshnessTick: 'grndctrl:push:freshness-tick',
   outboxChanged: 'grndctrl:push:outbox-changed',
+  sessionsChanged: 'grndctrl:push:sessions-changed',
 } as const
 
 /**
