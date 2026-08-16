@@ -615,9 +615,35 @@ list below is what actually remains.
    and recognising it. That is a real gap, not a closed one, and it is recorded
    as deferred rather than met.
 
-**Nothing is published.** The repository is private and npm is untouched, and
-that should stay true until the client-reference gate has run on the final tree
-and the operator has read what it is publishing.
+**The repository is public as of 2026-08-16.** PR #1 was merged (rebased, so its
+six commits survive as individual records), the `ai-tools` toolkit was removed,
+and the release workflow was run as a **dry run on the merged tree** first: the
+client audit over tree and full history, the dependency audit, `npm run verify`,
+the Electron-ABI native fetch, the build, and all four tarballs packed. Then the
+repository was flipped, and the public result was re-audited **from a fresh
+clone** — 665 sources, tree and every ref, zero hits.
+
+`grndctrl-archive` is confirmed **still private**, which matters more now than
+it did yesterday: it holds the pre-scrub history.
+
+**npm is still untouched, and is blocked on something only the operator can do.**
+The npm organisation `grndctrl` **does not exist**, so `@grndctrl/core` and
+`@grndctrl/desktop` cannot be published at all. Verified with controls rather
+than inferred: `registry.npmjs.org/-/org/<name>/user` answers `200` for real
+organisations and `404` for `grndctrl` — the same as for a name invented on the
+spot.
+
+And **trusted publishing cannot do a first publish.** npm's documentation
+describes it as per-package, configured on an existing package's settings page
+("Each package can only have one trusted publisher configured at a time"), so
+version 0.1.0 has to reach the registry some other way before `release.yml`'s
+`id-token: write` path can take over. That is the workflow's *steady state*, not
+its bootstrap.
+
+**Do not publish any package individually to work around this.** `grndctrl-mcp`
+depends on `@grndctrl/core@0.1.0` and the launcher on `@grndctrl/desktop`;
+publishing a dependent before its dependency puts a permanently broken version
+on a registry that does not allow re-publishing. All four go together or none do.
 
 **T038–T040 are done, and the GitHub recording earned its keep immediately.**
 The Jira and git fixtures come from the operator's own machine. The GitHub one

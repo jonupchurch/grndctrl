@@ -76,6 +76,25 @@ release, everything lands under **[Unreleased]**.
 - **`fixtures/{jira,github,git}` gitignored** ahead of T038–T040, so recorded
   provider payloads stay on the machine that recorded them.
 
+### Changed
+
+- **The repository is public** (2026-08-16). Sequence, in this order and not
+  another: merge, then the full release workflow as a **dry run on the merged
+  tree** — client audit over tree and complete history, dependency audit,
+  verify, native module, build, four tarballs packed — then flip, then re-audit
+  the public result **from a fresh clone**: 665 sources, every ref, zero hits.
+
+  That last check nearly went wrong in an instructive way. Run from inside the
+  clone but pointed at the *original* script, it reported **98 occurrences** and
+  looked like a live leak. `run-audits.ts` sets `cwd: ROOT` from its own
+  location, so it had audited the local repository — which deliberately holds
+  the archive refs — and not the clone at all. Byte-identical output to an
+  earlier local run is what gave it away. **A tool that hardcodes its own repo
+  root cannot audit a different checkout**, and an alarming result deserves the
+  same scepticism as a reassuring one.
+
+  `grndctrl-archive` confirmed still private in the same pass.
+
 ### Removed
 
 - **The `ai-tools` agent toolkit** — `.claude/`, `.specify/`, `stacks/`,
