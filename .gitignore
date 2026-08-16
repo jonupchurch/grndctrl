@@ -67,6 +67,11 @@ prebuilds/
 # secret via GRNDCTRL_CLIENT_DENYLIST.
 .client-denylist
 
+# Packed tarballs. `release.yml` writes these in CI, and the same directory is
+# where the audited artifacts get downloaded for a manual first publish. They
+# are build output, and a stray `git add -A` should never sweep one in.
+dist-tarballs/
+
 # Recorded provider fixtures (T038-T040). Real payloads, scrubbed, kept local by
 # decision (2026-08-15) so nothing client-derived ever enters the tree. The
 # recorder is `packages/core/test/fixtures/record.ts`; tests that consume these
