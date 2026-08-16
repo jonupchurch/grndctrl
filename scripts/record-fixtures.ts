@@ -142,21 +142,73 @@ async function recordGitHub(connectionId: string): Promise<string> {
   return `${pullRequests.length} pull requests, ${branches.length} branches`
 }
 
+/**
+ * Local git, which needs no connection and no credential — only a checkout.
+ *
+ * What this adds over the hand-written porcelain in `git-windows.test.ts` is
+ * narrow and worth stating rather than overselling: the shapes nobody thought
+ * to write down. A detached head, a locked worktree, an `?`/`u` record ordering
+ * no fixture reproduces.
+ */
+async function recordGit(): Promise<string> {
+  const { gitRunner } = await import('@grndctrl/core')
+  const { localGitProvider } = await import('@grndctrl/core')
+  const { recordingGitRunner } = await import('../packages/core/test/fixtures/record-git.ts')
+
+  const repoPath = flag('path') ?? ROOT
+  const dir = join(ROOT, 'fixtures', 'git')
+  mkdirSync(dir, { recursive: true })
+
+  // A pre-pass, because the origin URL has to be *known* before anything is
+  // written — and it is the single most identifying string in git's output.
+  // Paths name a machine; a remote names the organisation whose code it is.
+  // Recording first and scrubbing after would mean the first fixture on disk
+  // already carried it.
+  const live = gitRunner()
+  const origin = await live.run(repoPath, ['remote', 'get-url', 'origin'])
+  const url = origin.failed ? '' : origin.stdout.trim()
+
+  const replacements: Record<string, string> = {
+    [repoPath]: '/repo',
+    [process.env['USERPROFILE'] ?? process.env['HOME'] ?? '~']: '/home/operator',
+  }
+
+  // `owner/repo`, however the remote spells it — https, ssh, with or without
+  // `.git`. Replaced as one unit so the canonical remote stays *consistent*
+  // across every fixture: correlation joins on it, and a repository that is
+  // `example/repo` in one file and something else in another cannot correlate.
+  const slug = /[/:]([^/:]+\/[^/:]+?)(?:\.git)?$/.exec(url)?.[1]
+  if (slug !== undefined) replacements[slug] = 'example/repo'
+
+  const runner = recordingGitRunner({ runner: live, dir, replacements })
+
+  const workspaces = await localGitProvider(runner).readWorkspaces({ repoPath })
+  return `${workspaces.length} workspaces from ${repoPath === ROOT ? 'this repository' : repoPath}`
+}
+
 const which = process.argv[2]
 const connectionId = flag('connection')
 
-if (which !== 'jira' && which !== 'github') {
-  console.error('usage: record-fixtures.ts <jira|github> --connection <id> [--owner o --repo r]')
+if (which !== 'jira' && which !== 'github' && which !== 'git') {
+  console.error('usage: record-fixtures.ts <jira|github|git> [options]')
+  console.error('  jira    --connection <id>')
+  console.error('  github  --connection <id> --owner <owner> --repo <repo>')
+  console.error('  git     [--path <checkout>]   (no credential needed)')
   process.exit(2)
 }
 
-if (connectionId === undefined || connectionId === '') {
-  console.error('--connection <id> is required. `grndctrl-cli connections` lists them.')
+if (which !== 'git' && (connectionId === undefined || connectionId === '')) {
+  console.error('--connection <id> is required for jira and github.')
   process.exit(2)
 }
 
 try {
-  const summary = which === 'jira' ? await recordJira(connectionId) : await recordGitHub(connectionId)
+  const summary =
+    which === 'git'
+      ? await recordGit()
+      : which === 'jira'
+        ? await recordJira(connectionId as string)
+        : await recordGitHub(connectionId as string)
   const dir = join(ROOT, 'fixtures', which)
   const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')) : []
 

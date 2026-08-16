@@ -3,7 +3,9 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { jiraProvider } from '../../src/providers/jira/index.js'
 import { githubProvider } from '../../src/providers/github/index.js'
+import { localGitProvider } from '../../src/providers/git/read.js'
 import { replayFetcher } from '../fixtures/record.js'
+import { replayGitRunner } from '../fixtures/record-git.js'
 
 /**
  * The providers, against payloads a real provider actually sent (T038–T040).
@@ -51,6 +53,7 @@ function recorded(kind: string): string[] | null {
 
 const jira = recorded('jira')
 const github = recorded('github')
+const git = recorded('git')
 
 describe('Jira, replayed from a recording', () => {
   it.skipIf(jira === null)('has fixtures that are actually fixtures', () => {
@@ -114,5 +117,44 @@ describe('GitHub, replayed from a recording', () => {
         expect(pull.reviewDecision).toMatch(/^(approved|changes-requested|review-required)$/)
       }
     }
+  })
+})
+
+describe('local git, replayed from a recording', () => {
+  it.skipIf(git === null)('has fixtures that are actually fixtures', () => {
+    expect(git ?? []).not.toHaveLength(0)
+  })
+
+  it.skipIf(git === null)('parses real porcelain into a workspace', async () => {
+    const provider = localGitProvider(replayGitRunner(join(ROOT, 'git')))
+
+    // The path is not the key. It was scrubbed on the way in, so a replay that
+    // had to match it would only ever work on the machine that recorded it.
+    const workspaces = await provider.readWorkspaces({ repoPath: '/repo' })
+
+    expect(workspaces.length).toBeGreaterThan(0)
+    for (const workspace of workspaces) {
+      // `ws:<canonicalRemote>#<branch>@<worktree>` — the natural key
+      // correlation joins on. Derived from the remote, so this is also the
+      // assertion that the scrub kept the remote coherent: a recording whose
+      // remote differs between two files produces workspaces that cannot be
+      // joined to anything.
+      expect(workspace.key).toMatch(/^ws:github\.com\/example\/repo#/)
+      expect(typeof workspace.branch).toBe('string')
+      // `null` means "never pushed" and is rendered as that rather than as
+      // zero, which is the distinction the renderer got wrong for weeks.
+      expect(
+        workspace.unpushedCommitCount === null ||
+          typeof workspace.unpushedCommitCount === 'number',
+      ).toBe(true)
+    }
+  })
+
+  it.skipIf(git === null)('refuses a command it never recorded, rather than answering empty', async () => {
+    // The property that makes every assertion above mean something. An empty
+    // stdout for an unrecorded command is how a parser test passes against
+    // output nobody ever produced.
+    const runner = replayGitRunner(join(ROOT, 'git'))
+    await expect(runner.run('/repo', ['log', '--oneline'])).rejects.toThrow(/No recorded git fixture/)
   })
 })
