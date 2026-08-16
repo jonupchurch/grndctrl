@@ -358,6 +358,25 @@ export function recordingFetcher(options: RecordOptions): Fetcher {
       return response
     }
 
+    // **Failures are not fixtures.** A recording run against the wrong
+    // repository, or with a token that cannot see it, still gets a
+    // well-formed JSON body back — and the first version of this wrote that
+    // body out under the same name as the real response, silently replacing a
+    // good fixture with an error payload. The replay test then failed against
+    // something nobody had ever successfully fetched.
+    //
+    // GraphQL is why the status code alone is not enough: an errored GraphQL
+    // response is a 200 with an `errors` array, so a check for `response.ok`
+    // would have recorded exactly the payload that caused this.
+    const errored =
+      !response.ok ||
+      (typeof payload === 'object' &&
+        payload !== null &&
+        Array.isArray((payload as { errors?: unknown }).errors) &&
+        (payload as { errors: unknown[] }).errors.length > 0)
+
+    if (errored) return response
+
     const record = {
       request: { method: init.method ?? 'GET', path: pathOf(url) },
       status: response.status,
