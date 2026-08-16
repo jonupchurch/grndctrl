@@ -28,6 +28,28 @@ superseded and should be treated as withdrawn. See below for what it was.
 
 ### Fixed
 
+- **The first screen a new user meets asked for a permission that does not
+  exist.** Settings → Connections told you to grant a fine-grained token read on
+  "Metadata, Contents, Pull requests, **Checks** and Commit statuses". GitHub's
+  fine-grained picker has no `Checks` entry — confirmed against GitHub's own
+  permission reference, and by an operator scrolling the list for it and not
+  finding it. The same wrong instruction was in `README.md` and `.env.example`,
+  so all three routes into the product agreed with each other and none agreed
+  with GitHub.
+
+  Verified the replacement rather than assuming it: a token holding only
+  Metadata, Contents, Pull requests and Commit statuses read this repository's
+  pull requests over GraphQL and returned **14 `CheckRun` nodes** on PR #3 —
+  matching the check count CI actually reported, which is what makes it a
+  control and not a coincidence. Every context came back as `CheckRun` rather
+  than `StatusContext`, which is the detail behind the confusion: Actions
+  produces check runs, and `Commit statuses` is the permission that governs the
+  other kind.
+
+  No test guards this. A test asserting a word is absent from prose could not
+  fail for the reason that matters — GitHub renaming a permission — and would be
+  counted as coverage it does not give.
+
 - **The board never noticed what an agent did.** The Agent Sessions panel says
   *"a session appears here the moment one starts, whether or not this window is
   open."* The second half was true; the first was not. An agent could start a

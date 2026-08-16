@@ -210,7 +210,7 @@ function AddConnection({ onAdded }: { onAdded(): void }): ReactElement {
         <span className="settings__hint">
           {kind === 'jira'
             ? 'From id.atlassian.com → Security → API tokens. Use a scoped, read-only token if you are offered one.'
-            : 'A fine-grained token, read-only on Metadata, Contents, Pull requests, Checks and Commit statuses. It is scoped to one owner, so pick the owner that holds the repositories you want.'}
+            : 'A fine-grained token, read-only on Metadata, Contents, Pull requests and Commit statuses. GitHub offers no “Checks” permission — CI results arrive with these. It is scoped to one owner, so pick the owner that holds the repositories you want.'}
         </span>
       </label>
 
