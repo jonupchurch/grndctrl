@@ -1,6 +1,6 @@
 {
   "name": "grndctrl-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Dev-only text board. Makes the correlation engine demonstrable before any UI exists.",
   "license": "MIT",

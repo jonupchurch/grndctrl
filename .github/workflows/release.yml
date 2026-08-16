@@ -1,0 +1,100 @@
+name: Release
+
+# Publishing is the one action here that cannot be taken back: npm does not
+# allow re-publishing a version, and unpublishing is restricted and rude. So it
+# never runs on a push. A tag is a deliberate act, and the gates below all run
+# *before* `npm publish` — including the client-reference audit, because the
+# moment these tarballs leave the machine they are public forever.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack and verify without publishing'
+        type: boolean
+        default: true
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing, so no long-lived NPM_TOKEN sits in the repository
+      # secrets waiting to be exfiltrated by a compromised dependency.
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The client-reference audit's history arm needs the whole history,
+          # and this is the last moment anything can be caught.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: npm ci
+
+      # Everything below is a gate. Order is deliberate: the cheap checks first,
+      # the irreversible step last.
+
+      - name: No client references in the tree or its history
+        run: node --experimental-strip-types scripts/run-audits.ts client
+        env:
+          GRNDCTRL_CLIENT_DENYLIST: ${{ secrets.GRNDCTRL_CLIENT_DENYLIST }}
+
+      - name: Nothing in the shipped tree reports anything
+        run: node --experimental-strip-types scripts/run-audits.ts deps
+
+      - name: Typecheck, lint, test
+        run: npm run verify
+
+      # The desktop package is useless without a native module matching the
+      # Electron ABI, and `files` includes `native/`. Building without this
+      # publishes a package that cannot describe itself, which the launcher then
+      # refuses to start — correctly, and far too late.
+      - name: Fetch the Electron-ABI native module
+        run: npm run native --workspace=@grndctrl/desktop
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify the tag matches the version being published
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG=$(node -p "require('./packages/launcher/package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag v$TAG does not match package version $PKG."
+            echo "A release whose tag and contents disagree is unfixable after the fact."
+            exit 1
+          fi
+
+      - name: Pack (always, so a dry run still proves the tarballs build)
+        run: |
+          mkdir -p dist-tarballs
+          for w in @grndctrl/core @grndctrl/desktop grndctrl-mcp grndctrl; do
+            npm pack --workspace "$w" --pack-destination dist-tarballs
+          done
+          ls -l dist-tarballs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs
+          path: dist-tarballs/
+
+      # Order matters: a package must be on the registry before something that
+      # depends on it, or the dependent installs against a version that does not
+      # exist yet. core -> desktop -> mcp -> launcher is the dependency order.
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/v') && inputs.dry_run != true
+        run: |
+          npm publish --workspace @grndctrl/core --access public
+          npm publish --workspace @grndctrl/desktop --access public
+          npm publish --workspace grndctrl-mcp --access public
+          npm publish --workspace grndctrl --access public

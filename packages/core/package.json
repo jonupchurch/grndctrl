@@ -1,7 +1,6 @@
 {
   "name": "@grndctrl/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "The service layer: providers, correlation, drift, stores, and the operation registry. No Electron. No UI. No display.",
   "license": "MIT",
   "type": "module",
@@ -31,5 +30,16 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11"
-  }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.tsbuildinfo",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonupchurch/grndctrl.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/jonupchurch/grndctrl#readme"
 }
