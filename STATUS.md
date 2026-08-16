@@ -649,6 +649,22 @@ unlock: the one Phase 0 finding that could not be verified (whether Jira's
 enhanced search endpoint honours `expand=changelog`), and the golden path in
 `quickstart.md` against real data rather than a seeded scenario.
 
-**Known gap:** `--f-brand` names Archivo, which is not bundled, so the wordmark
-falls back to the UI face. `font-src 'self'` already permits it; it needs the
-file.
+**~~Known gap:~~ closed.** Archivo is bundled — a 7.9 KB printable-ASCII subset
+at weight 600, OFL 1.1, licence shipped beside it. Emitted by esbuild as a
+*file* rather than a data URL specifically so `font-src 'self'` stays as it is,
+since inlining would have meant widening the CSP for every font-shaped thing on
+the page in order to serve one.
+
+Verified in the running application by `test/e2e/brand-font.spec.ts`, and the
+first version of that test was wrong in the way this project keeps finding:
+**`document.fonts.check()` returns `true` when no matching face exists at all.**
+It reports that nothing is unloaded, not that the font is present, so deleting
+the entire `@font-face` rule left all three assertions passing. It now reads
+`document.fonts` for a face in `loaded` state and measures advance widths
+against a deliberately absent family — with the rule removed, three of four
+tests fail.
+
+One thing that probe taught, worth keeping: a *missing font file* is an esbuild
+build error, not a silent fallback, so the first attempt at the probe never ran
+— the build failed and Playwright tested the previous `dist/`. That is the
+"build failed, this is not the gate firing" trap, hit for a third time.

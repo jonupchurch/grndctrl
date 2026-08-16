@@ -86,6 +86,13 @@ const configs = [
     // whether to ship its development warnings.
     define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"' },
     minify: !watch,
+    // The bundled Archivo subset. `file`, deliberately, not `dataurl`: the CSP
+    // in `main/security.ts` is `font-src 'self'`, and inlining the font as a
+    // data URL would have meant loosening it to `'self' data:` — widening the
+    // policy for every font-shaped thing on the page in order to ship one.
+    // Emitted next to `app.css`, where the rewritten relative URL resolves.
+    loader: { '.woff2': 'file' },
+    assetNames: '[name]',
   },
 ]
 

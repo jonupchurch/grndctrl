@@ -1,4 +1,36 @@
 /*
+ * Archivo, bundled rather than named.
+ *
+ * `--f-brand` named this font for weeks with nothing behind it, so the wordmark
+ * silently set in the UI face and the locked brand direction — 1a "Tracking",
+ * chosen on Archivo 600's letterforms — was never actually on screen. A token
+ * that names something nobody ships is the shape most of this project's bugs
+ * have taken.
+ *
+ * Subset to printable ASCII (U+20–7E) at the one weight the design uses: 7.9 KB.
+ * `--f-brand` is applied to two headings, and a heading is not somewhere a
+ * missing glyph should be discovered, so the subset covers the range rather than
+ * only the eleven letters of "Ground Control".
+ *
+ * `font-display: swap` because this is a *brand* face on a heading: a wordmark
+ * that is invisible for 100ms and then appears is worse than one that reflows,
+ * and the fallback metrics are close enough that the shift is small.
+ *
+ * Licensed under the SIL Open Font License 1.1 — see `../fonts/OFL.txt`, which
+ * ships beside it. `font-src 'self'` in `main/security.ts` already permits it;
+ * esbuild emits it as a file rather than a data URL specifically so that stays
+ * true, since a data URL would have meant loosening the CSP to serve a font.
+ */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/archivo-600-latin.woff2') format('woff2');
+  unicode-range: U+20-7E;
+}
+
+/*
  * The design system's tokens, ported verbatim from
  * `resources/design/Ground Control Design System.dc.html` (T129).
  *
