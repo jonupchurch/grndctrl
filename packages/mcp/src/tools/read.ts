@@ -46,6 +46,14 @@ export const readTools: readonly ToolBinding[] = [
     mutates: false,
   },
   {
+    tool: 'grndctrl_get_app_status',
+    operation: 'app.status',
+    description:
+      'Versions, platform, database schema versions, and the runtime ABI Ground Control is actually running against. Worth reading when something is failing to start or a native module is complaining about a version number — the ABI mismatch that breaks a packaged install names two numbers and no remedy, and this is where the real ones are.',
+    inputSchema: {},
+    mutates: false,
+  },
+  {
     tool: 'grndctrl_get_freshness',
     operation: 'sync.status',
     description:

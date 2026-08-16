@@ -1,0 +1,74 @@
+name: Packaging
+
+# The riskiest path in the project, because it fails on a *user's* machine and
+# not in CI (research R8). Until now the only evidence it worked was one person
+# on Windows watching a window appear -- and the last hand-run of it found a real
+# bug (GNU tar reading `C:\` as a remote host spec) that reading the code had
+# not.
+#
+# A runner is exactly what T166-T168 ask for: a clean machine with an empty
+# runtime cache. Nobody is watching it, so the app reports on itself through
+# GRNDCTRL_SMOKE and `scripts/verify-npx.mjs` reads the report.
+#
+# Not on every push: each job downloads a ~100MB Electron runtime, three times
+# over. On main, on pull requests that touch the packaging surface, and on
+# demand.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'packages/launcher/**'
+      - 'packages/desktop/**'
+      - 'scripts/verify-npx.mjs'
+      - '.github/workflows/packaging.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npx:
+    name: npx from a tarball (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never fail-fast here. "It works on Windows and not on Linux" is the most
+      # useful result this workflow can produce, and cancelling the other jobs
+      # the moment one goes red throws that information away.
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The workspace install builds the app. The *verification* deliberately
+      # installs from tarballs into a directory with no relationship to this
+      # one -- npm hoisting hides a missing dependency until a tarball is
+      # unpacked somewhere else, which is how `better-sqlite3` came to be
+      # missing from the shipped package while everything passed locally.
+      - name: Install workspace
+        run: npm ci
+
+      # Electron needs a display and a handful of shared libraries that the
+      # ubuntu image does not carry. Without this the app exits before it can
+      # report anything, and the failure reads like a packaging bug.
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1
+
+      - name: Verify npx (Linux, under xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum node scripts/verify-npx.mjs
+
+      - name: Verify npx
+        if: runner.os != 'Linux'
+        run: node scripts/verify-npx.mjs

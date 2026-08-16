@@ -24,6 +24,7 @@
  * the preload — which would need an Electron renderer to run in.
  */
 export const OPERATIONS = [
+  'app.status',
   'board.summary',
   'connections.list',
   'connections.remove',

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { CoreServices } from '../../runtime/services.js'
+import { appStatus } from '../../services/app.js'
 import { settingsSchema } from '../../services/settings.js'
 import { invalid } from '../errors.js'
 import type { Operation } from '../types.js'
@@ -37,6 +38,26 @@ import { defineOperation } from '../types.js'
  * `projects.list` stays open because an agent genuinely needs to know which
  * projects exist to make sense of a ticket key.
  */
+
+/**
+ * Mirrors `AppStatus` in `services/app.ts`.
+ *
+ * Written out rather than derived, because the output schema is the contract
+ * three adapters are checked against and a schema inferred from the type would
+ * agree with whatever the type happened to be.
+ */
+const appStatusSchema = z.object({
+  version: z.string(),
+  platform: z.string(),
+  osRelease: z.string(),
+  nodeVersion: z.string(),
+  dbVersions: z.object({ mirror: z.number().int(), authored: z.number().int() }),
+  runtimeAbi: z.object({
+    modules: z.string(),
+    electron: z.string().nullable(),
+    isElectron: z.boolean(),
+  }),
+})
 
 const connectionSchema = z.object({
   id: z.string(),
@@ -199,6 +220,23 @@ export function configOperations(services: CoreServices): Operation<never, never
         // lost here — the rows simply stop being shown under a project filter.
         removed: services.projects.remove(input.id),
       }),
+    }),
+
+    defineOperation({
+      name: 'app.status',
+      description: 'Versions, platform, database schema versions, and the runtime ABI.',
+      input: z.object({}),
+      output: appStatusSchema,
+      // `all`, unlike everything else in this module. It carries no
+      // configuration an agent could change and no account identity — versions,
+      // a platform string, two schema numbers and the ABI. An agent that has
+      // just failed to reach the app, or is reporting a problem on the
+      // operator's behalf, needs exactly this and nothing more.
+      exposure: 'all',
+      mutates: false,
+      providerDerived: false,
+      handler: async () =>
+        appStatus(services.databases.mirror, services.databases.authored),
     }),
 
     defineOperation({

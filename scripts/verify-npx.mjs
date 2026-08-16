@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -129,23 +129,32 @@ const env = {
   GRNDCTRL_DATA_DIR: data,
 }
 
-/** Run the installed bin through npx, capturing both streams. */
+/**
+ * Run the installed bin through npx, capturing both streams.
+ *
+ * `spawnSync` rather than `execFileSync`, and the distinction is the test.
+ * `execFileSync` returns stdout and hands back stderr only by throwing, so on a
+ * *successful* run there is no way to see what went to stderr — and the
+ * launcher's download progress goes to stderr. The first version of this used
+ * `execFileSync` and reported an empty stderr on every passing run, which made
+ * the "second run must be silent" assertion vacuous in the one direction that
+ * mattered: a second run that re-downloaded would still have looked silent.
+ */
 function launch(label) {
   step(label)
-  try {
-    const out = run('npx', ['--no-install', 'grndctrl'], {
-      cwd: sandbox,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 15 * 60_000,
-    })
-    return { ok: true, out, err: '' }
-  } catch (e) {
-    return {
-      ok: false,
-      out: String(e.stdout ?? ''),
-      err: String(e.stderr ?? e.message ?? ''),
-    }
+  const result = spawnSync('npx', ['--no-install', 'grndctrl'], {
+    cwd: sandbox,
+    env,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    shell: process.platform === 'win32',
+    timeout: 15 * 60_000,
+  })
+
+  return {
+    ok: result.status === 0,
+    out: result.stdout ?? '',
+    err: result.stderr ?? String(result.error ?? ''),
   }
 }
 
