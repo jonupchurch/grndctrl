@@ -10,6 +10,53 @@ release, everything lands under **[Unreleased]**.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`npx grndctrl` was broken on Windows and macOS in 0.1.0.** `@grndctrl/desktop`
+  shipped `native/better_sqlite3.node` inside the tarball. One tarball goes to
+  every platform, `release.yml` runs on `ubuntu-latest`, so **every user on every
+  operating system received a Linux x86-64 binary**. Windows answered
+  `ERR_DLOPEN_FAILED: … is not a valid Win32 application`.
+
+  The package's own `native/manifest.json` recorded `"platform": "linux"` the
+  whole time. Nothing read that field — the same shape as almost every defect
+  this project has found: written by one side, read by nobody.
+
+  **Why three green packaging jobs missed it.** The matrix built a tarball *on*
+  each platform and tested it *on that same platform*, so every job's binary
+  matched its machine by construction. The arrangement that actually ships — one
+  Linux-built tarball installed on Windows — was the single combination never
+  tried. The workflow now packs **once**, on Linux, and the matrix installs *that
+  artifact* everywhere.
+
+  **The fix.** A native addon is specific to (ABI, platform, arch); an npm
+  tarball is specific to none of them, so the binary stops travelling in the
+  package. `@grndctrl/desktop` now ships only `native/requirements.json` — the
+  Electron version, the ABI, and the `better-sqlite3` version, three facts true
+  on every machine — and the launcher fetches the matching prebuild for the
+  machine it is on, beside the Electron runtime it already downloads. The digest
+  of what it extracted is recorded and re-checked on every later launch; that
+  catches a truncated cache entry and, stated plainly because the distinction
+  matters, does not authenticate a first download — better-sqlite3 publishes no
+  checksum file to verify against.
+
+  Two guards added, both probed. `nativePlatformMismatch` reads the platform and
+  arch that were previously written and ignored, so a checkout whose binding was
+  built under WSL and launched from Windows gets a sentence instead of a dlopen
+  crash. And the packaging job fails if any `.node`, `.dll`, `.dylib` or `.so`
+  appears in the universal tarball — run against the shipped 0.1.0 artifact it
+  fires and names the file; against 0.1.1 it stays quiet over a listing verified
+  non-empty first, because a guard that "passes" on an unread archive is the
+  empty-versus-could-not-look trap wearing a different hat.
+
+  Verified end to end on Windows against a tarball containing no binary at all:
+  the binding downloaded for `win32-x64`, SQLite loaded, both databases
+  migrated, the renderer painted, and a second run downloaded nothing.
+
+  0.1.0 is deprecated on npm rather than unpublished — unpublishing every version
+  of a package blocks republishing that name for 24 hours, which would have held
+  the fix hostage.
+
 ### Security
 
 - **SC-010 re-verified properly** (T170). The claim previously rested on a

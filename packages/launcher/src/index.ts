@@ -12,7 +12,7 @@
  * entry behind when either fails.
  */
 
-export const LAUNCHER_VERSION = '0.1.0'
+export const LAUNCHER_VERSION = '0.1.1'
 
 export { abiMismatch, probeRuntime, type AbiCheck, type ProbeIo, type RuntimeIdentity } from './abi.js'
 export {
@@ -39,6 +39,17 @@ export {
   type RuntimeTarget,
 } from './runtime.js'
 export { extractorFor, unpackFailure, type Extractor } from './unpack.js'
+export {
+  ensureNative,
+  nativeAssetName,
+  nativeAssetUrl,
+  nativePlatformMismatch,
+  nativeSlot,
+  BETTER_SQLITE3_RELEASES,
+  type EnsureNativeRequest,
+  type NativeIo,
+  type NativeTarget,
+} from './native.js'
 export {
   helperIsUsable,
   refusal,

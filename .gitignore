@@ -98,7 +98,14 @@ Thumbs.db
 # The Electron-ABI build of better-sqlite3, fetched by
 # packages/desktop/scripts/fetch-native.mjs. A compiled binary, per-platform,
 # and reproducible from the two versions in package.json.
-packages/desktop/native/
+#
+# `manifest.json` is ignored with it: it describes that binary, naming the
+# platform and arch it was built for, and is true only on the machine that
+# fetched it. `requirements.json` is the opposite — what the app needs, true
+# everywhere — so it is committed, reviewable, and the only one published. v0.1.0
+# shipped the binary to every platform and that is exactly what broke it.
+packages/desktop/native/*
+!packages/desktop/native/requirements.json
 
 packages/desktop/test-results/
 packages/desktop/playwright-report/

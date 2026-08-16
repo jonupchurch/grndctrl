@@ -1,6 +1,6 @@
 {
   "name": "@grndctrl/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The Electron application: main, preload, and the React renderer.",
   "license": "MIT",
   "type": "module",
@@ -34,7 +34,7 @@
   },
   "files": [
     "dist",
-    "native",
+    "native/requirements.json",
     "README.md"
   ],
   "repository": {

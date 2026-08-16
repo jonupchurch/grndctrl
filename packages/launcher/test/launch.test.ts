@@ -44,6 +44,7 @@ interface Harness {
 function harness(options: { cached?: boolean; runtimeAbi?: string } = {}): Harness {
   const events: string[] = []
   const dirs = new Set<string>(options.cached ? [SLOT] : [])
+  const files = new Map<string, string>()
   let n = 0
 
   const io: LaunchIo = {
@@ -74,7 +75,17 @@ function harness(options: { cached?: boolean; runtimeAbi?: string } = {}): Harne
     // decision would become a refusal, and these tests would fail — which is
     // the behaviour worth having.
     fileOwner: () => null,
-    readSmallFile: () => null,
+    readSmallFile: () => files.get(join('read', 'small')) ?? null,
+
+    // The native-binding seam. `APP` declares no `betterSqlite3`, so the cases
+    // in this file never reach `ensureNative` — these record a call rather than
+    // returning something plausible, so that if the launch order ever started
+    // fetching unconditionally these tests would say so.
+    readBytes: () => null,
+    writeSmallFile: () => void events.push('writeSmallFile'),
+    sha256: () => 'not-a-digest',
+    untar: async () => void events.push('untar'),
+    find: () => null,
 
     text: async () => {
       events.push('checksums')
