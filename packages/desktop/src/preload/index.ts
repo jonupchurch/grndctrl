@@ -95,6 +95,7 @@ contextBridge.exposeInMainWorld('grndctrl', {
     syncProgress: subscribe(PUSH_CHANNELS.syncProgress),
     freshnessTick: subscribe(PUSH_CHANNELS.freshnessTick),
     outboxChanged: subscribe(PUSH_CHANNELS.outboxChanged),
+    sessionsChanged: subscribe(PUSH_CHANNELS.sessionsChanged),
   },
 })
 

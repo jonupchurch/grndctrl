@@ -42,12 +42,6 @@ import type { OperationDescriptor } from './ipc.js'
 
 export interface AppService {
   /**
-   * Run an operation. The only way anything in `main/` reaches core.
-   *
-   * Async and structured-clone-safe by construction, so this signature survives
-   * core moving out of the process.
-   */
-  /**
    * Store a provider credential.
    *
    * Deliberately outside `dispatch`: it is not an operation, it carries a
@@ -55,7 +49,25 @@ export interface AppService {
    * API and MCP as well as IPC. Synchronous because the keychain is.
    */
   addConnection(input: AddConnectionInput): Connection
+
+  /**
+   * Run an operation. The only way anything in `main/` reaches core.
+   *
+   * Async and structured-clone-safe by construction, so this signature survives
+   * core moving out of the process.
+   */
   dispatch(name: string, input: unknown, ctx: Omit<Ctx, 'now'>): Promise<unknown>
+
+  /**
+   * Whether an operation changes anything, straight from the registry.
+   *
+   * Exposed so `main/push.ts` can decide what to announce without keeping a list
+   * of its own. It kept one for about an hour: matching `sessions.` by prefix
+   * announced `sessions.list`, the renderer answered an announcement by
+   * refetching, the refetch *was* a `sessions.list`, and one agent call produced
+   * hundreds of broadcasts. The registry already knows which operations write.
+   */
+  mutates(operation: string): boolean
   /**
    * What the IPC adapter must expose, read from the registry rather than a list.
    *
@@ -75,6 +87,23 @@ export interface AppServiceOptions {
   /** Overridden in tests. Production uses the platform data directory. */
   dir?: string
   now?: () => Date
+  /**
+   * Called after every operation an **agent** dispatches over the loopback API,
+   * whether it succeeded or threw.
+   *
+   * This exists because the push events had a hole in exactly the shape of the
+   * agent surface. `main/index.ts` wraps the dispatch it hands the IPC adapter,
+   * so the window updated itself whenever the window acted; the loopback adapter
+   * below dispatches straight through the registry, so nothing the *agent* did
+   * ever reached the renderer. `outbox:changed` documented itself as firing "by
+   * this window or by an agent over MCP" and did not.
+   *
+   * Deliberately a notification and not a wrapper: this must never be able to
+   * change what an agent gets back, or to fail its call. A window that missed a
+   * refresh is a nuisance; an agent whose `outbox.claim` threw because a
+   * renderer was not listening is a defect.
+   */
+  onAgentDispatch?: (operation: string) => void
 }
 
 /**
@@ -143,7 +172,17 @@ export async function startAppService(options: AppServiceOptions = {}): Promise<
   })
 
   const registry = buildRegistry(services)
-  const loopback = await startLoopbackAdapter({ registry, now })
+
+  const loopback = await startLoopbackAdapter({
+    registry,
+    now,
+    // The agent's half of the push stream. The first attempt at this wrapped the
+    // registry here instead — which TypeScript refused, correctly: `Registry` is
+    // a class with a private field, so spreading it would have produced an
+    // object missing every prototype method. The hook belongs in the adapter,
+    // which is the thing that knows a dispatch happened.
+    ...(options.onAgentDispatch === undefined ? {} : { onDispatched: options.onAgentDispatch }),
+  })
 
   // Written last, once there is genuinely something on the other end of it. A
   // handshake file that exists before the port is listening is a race an agent
@@ -156,6 +195,11 @@ export async function startAppService(options: AppServiceOptions = {}): Promise<
 
   return {
     dispatch: (name, input, ctx) => registry.dispatch(name, input, { ...ctx, now }),
+
+    // Unknown operations answer `false`. Dispatching one fails anyway, and
+    // "announce a change for something that does not exist" is the wrong
+    // direction to guess in.
+    mutates: (operation) => registry.get(operation)?.mutates ?? false,
 
     operations: () =>
       registry.namesFor('ipc').map((name) => {

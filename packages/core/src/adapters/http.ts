@@ -37,6 +37,19 @@ export interface LoopbackOptions {
   /** 0 means "let the OS choose", which is what production wants. */
   port?: number
   now?: () => Date
+  /**
+   * Called after an operation ran here, whether it returned or threw.
+   *
+   * The host uses it to tell its UI that an agent changed something. Nothing on
+   * this surface did that before, so the desktop's push events fired only for
+   * what the *window* did — an agent starting a session or claiming an action
+   * left the board unchanged until an unrelated sync happened to refresh it.
+   *
+   * A notification, never a filter: it cannot alter the response and its
+   * failures are swallowed by the caller. An agent's request must not depend on
+   * whether anyone was listening.
+   */
+  onDispatched?: (operation: string) => void
 }
 
 export interface LoopbackServer extends AdapterDescriptor {
@@ -65,7 +78,7 @@ export async function startLoopbackAdapter(options: LoopbackOptions): Promise<Lo
   const now = options.now ?? (() => new Date())
 
   const server = createServer((req, res) => {
-    handle(req, res, options.registry, token, now).catch(() => {
+    handle(req, res, options.registry, token, now, options.onDispatched).catch(() => {
       // The handler already converts every operation failure into a response.
       // Reaching here means the response machinery itself failed, so there is
       // nothing useful to say and nothing to leak.
@@ -99,6 +112,7 @@ async function handle(
   registry: Registry,
   token: string,
   now: () => Date,
+  onDispatched?: (operation: string) => void,
 ): Promise<void> {
   if (req.method !== 'POST') {
     return send(res, 405, { ok: false, error: { code: 'invalid', message: 'POST only.' } })
@@ -170,6 +184,25 @@ async function handle(
         new OperationError('provider_unavailable', 'An unexpected internal error occurred.')
 
     send(res, STATUS[error.code], { ok: false, error: error.toJSON() })
+  } finally {
+    // `finally`, because a failed operation can still have changed a row — an
+    // `outbox.claim` that threw on the second half of its work is exactly the
+    // case where the board most needs to go and look.
+    //
+    // What makes this unable to affect the agent is the **ordering**, not the
+    // catch: `send` has already flushed the response by the time this runs. The
+    // catch was added first and a probe proved it does nothing — removing it
+    // changed no test, because a throw here reaches `startLoopbackAdapter`'s
+    // handler, which finds `headersSent` already true and does nothing either.
+    // It is kept because it names the concern where the concern is, and because
+    // it would start mattering the moment anyone moved `send` below this. The
+    // test that claimed to cover it was deleted rather than left passing on a
+    // guarantee it was not providing.
+    try {
+      onDispatched?.(name)
+    } catch {
+      // A host that cannot be told is not this request's problem.
+    }
   }
 }
 

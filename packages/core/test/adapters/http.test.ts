@@ -225,3 +225,94 @@ describe('the XII conformance gate, against a live server', () => {
     }
   })
 })
+
+/**
+ * Telling the host that an agent changed something.
+ *
+ * This seam did not exist, and its absence was invisible: the desktop derived
+ * its push events by wrapping the dispatch it handed the *IPC* adapter, so the
+ * window refreshed itself whenever the window acted. Nothing wrapped this
+ * surface, so an agent starting a session or claiming an action left an open
+ * board unchanged until an unrelated sync happened to refresh everything.
+ *
+ * Both halves were correct on their own. That is why 764 tests passed over it.
+ */
+describe('notifying the host after an agent dispatch', () => {
+  it('reports the operation that ran', async () => {
+    const seen: string[] = []
+    const local = tempServices()
+    const listening = await startLoopbackAdapter({
+      registry: local.registry,
+      token: TOKEN,
+      onDispatched: (operation) => seen.push(operation),
+    })
+
+    try {
+      await fetch(`http://127.0.0.1:${listening.port}/op/sessions.list`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+        body: '{}',
+      })
+      expect(seen).toEqual(['sessions.list'])
+    } finally {
+      await listening.close()
+      local.dispose()
+    }
+  })
+
+  it('reports an operation that failed, because a failed write can still have written', async () => {
+    const seen: string[] = []
+    const local = tempServices()
+    const listening = await startLoopbackAdapter({
+      registry: local.registry,
+      token: TOKEN,
+      onDispatched: (operation) => seen.push(operation),
+    })
+
+    try {
+      // Invalid input, so the operation rejects before doing anything useful.
+      const response = await fetch(`http://127.0.0.1:${listening.port}/op/sessions.start`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ agentId: '' }),
+      })
+      expect(response.ok).toBe(false)
+      expect(seen).toEqual(['sessions.start'])
+    } finally {
+      await listening.close()
+      local.dispose()
+    }
+  })
+
+  it('is not reached by a request that never became an operation', async () => {
+    const seen: string[] = []
+    const local = tempServices()
+    const listening = await startLoopbackAdapter({
+      registry: local.registry,
+      token: TOKEN,
+      onDispatched: (operation) => seen.push(operation),
+    })
+
+    try {
+      // Refused at the door: no token. Nothing dispatched, so nothing to report
+      // — a host told "something changed" on every unauthorised probe would
+      // refetch the board for an attacker.
+      await fetch(`http://127.0.0.1:${listening.port}/op/sessions.list`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
+      expect(seen).toEqual([])
+    } finally {
+      await listening.close()
+      local.dispose()
+    }
+  })
+
+  // A test asserting "a throwing listener does not break the agent's request"
+  // was here and has been removed. It could not fail: the response is flushed
+  // inside the `try`, so by the time the listener runs there is nothing left to
+  // break. It passed because of ordering, not because of the catch it claimed to
+  // exercise — a probe that mutated the catch away left it green. A test that
+  // cannot fail is worse than no test, because it is counted.
+})

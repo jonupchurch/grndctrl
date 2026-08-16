@@ -19,6 +19,48 @@ superseded and should be treated as withdrawn. See below for what it was.
 
 ### Fixed
 
+- **The board never noticed what an agent did.** The Agent Sessions panel says
+  *"a session appears here the moment one starts, whether or not this window is
+  open."* The second half was true; the first was not. An agent could start a
+  session, report activity and end it, and an open window showed none of it
+  until an unrelated provider sync happened to invalidate everything — or the
+  operator refreshed.
+
+  **The cause was one dispatch too few.** Push events are derived by wrapping a
+  dispatch, and `main/index.ts` wrapped the one it hands the **IPC** adapter.
+  The loopback adapter that agents use dispatches straight through the registry
+  and was wrapped by nothing. So every event fired for what the *window* did and
+  none for what an *agent* did — including `outbox:changed`, whose own comment
+  claimed it fired "by this window **or by an agent over MCP**."
+
+  Both halves were individually correct, which is why 764 tests passed over it.
+  Finding it needed an agent, an open window, and something watching both at
+  once — which is now `test/e2e/agent-push.spec.ts`.
+
+  The fix adds a fourth channel (`sessions:changed`) and, more importantly, an
+  `onDispatched` hook on the loopback adapter so **both** surfaces feed the same
+  `afterDispatch` mapping.
+
+- **A push loop, introduced by the above and caught only by running it.** The
+  first version matched `sessions.` by prefix, which also matches
+  `sessions.list` — a read. The renderer answers an announcement by refetching,
+  the refetch *is* a `sessions.list`, and one agent call produced **hundreds** of
+  broadcasts. Every unit test still passed.
+
+  So the rule no longer guesses from a name: `push` takes a `mutates` predicate
+  read from the registry, which already records which operations write. That
+  also closes the same latent loop on `outbox.list` and `outbox.pending`.
+
+  Probed: removing the agent wiring fails the end-to-end test; removing the
+  `sessions.` mapping fails it; a control edit that changes nothing keeps
+  passing. A unit test pins the read-does-not-announce rule directly.
+
+  One casualty worth recording: a test asserting "a throwing listener does not
+  break the agent's request" was deleted rather than kept. A probe showed it
+  could not fail — the response is flushed before the listener runs, so the
+  guarantee comes from ordering, not from the `try/catch` it claimed to
+  exercise. A test that cannot fail is worse than no test, because it is counted.
+
 - **`npx grndctrl` was broken on Windows and macOS in 0.1.0.** `@grndctrl/desktop`
   shipped `native/better_sqlite3.node` inside the tarball. One tarball goes to
   every platform, `release.yml` runs on `ubuntu-latest`, so **every user on every
