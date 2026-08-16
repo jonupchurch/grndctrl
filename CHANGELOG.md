@@ -78,6 +78,28 @@ release, everything lands under **[Unreleased]**.
 
 ### Fixed
 
+- **A replay assertion that was wrong and had never run** (T039). It required
+  `reviewDecision` to match kebab-case `review-required` / `changes-requested`.
+  Core has always emitted `reviewRequired` / `changesRequested`, and so does
+  every consumer — the type, the correlation engine, the renderer. The
+  assertion could only ever have passed on `approved`.
+
+  It survived because it was guarded by `if (pull.reviewDecision !== null)` and
+  the recording it ran against came from a repository with no reviewed pull
+  requests. Fifty iterations, zero executions of the assertion, a green test.
+  Re-recording against an active public repository made it fail on the first
+  run — which is the entire argument for recording fixtures from the wire
+  rather than writing them from belief.
+
+  The fix is not just the pattern. The test now counts how many pull requests
+  actually carried a decision and **fails if that count is zero**, so a future
+  recording cannot quietly return it to a test that cannot fail; and a second
+  test requires more than one distinct decision, since one value would satisfy
+  the count while proving a single branch of the normaliser. Probed by putting
+  the kebab-case spelling back (fires), making the loop body unreachable as the
+  old fixture did (fires), narrowing the set to a single decision (fires), and
+  a control edit that changes nothing (still passes).
+
 - **T166 ticked.** `npx` from a packed tarball on Windows was verified last
   session; the checkbox was missed. The task count in `STATUS.md` is corrected
   from a hand-tallied 162/175 to a counted 168/176.

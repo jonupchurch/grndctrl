@@ -235,17 +235,14 @@ Not asserted — run (T169–T171):
 - **Nothing in the shipped tree reports anything** (XI). 236 production
   packages, no reporter, no unexpected install script.
 
-**What is not built yet:** **T167 and T168** — npx verified on macOS and
-Linux, which needs those machines; **T163**, the prebuilds workflow (partly
-done: `scripts/fetch-native.mjs` solves the ABI problem locally from upstream
-prebuilds, but no workflow exists); **T172**, the quickstart run on all three
-platforms; and the actual recording of provider fixtures — **T038, T039 and
-T040 were ticked and are not done**. No `fixtures/jira/`, `fixtures/github/` or
-`fixtures/git/` has ever existed; every provider payload in the suite is
-hand-written inline, which is the precise weakness T037's recorder exists to
-remove. They are un-ticked again. Recording them needs a decision from the
-operator, because it writes scrubbed payloads from a real Jira into the
-repository.
+**~~What is not built yet~~ — superseded, 2026-08-16.** This paragraph listed
+T167, T168, T163, T172 and the provider fixtures T038–T040 as outstanding. All
+but T172 are now closed: npx is verified on all three platforms by CI, T163 is
+closed as not needed on the evidence that upstream prebuilds cover every shipped
+platform, and the fixtures are recorded and replaying. **T172 alone remains**,
+and the operator deferred it on 2026-08-16. Kept rather than deleted because the
+reasoning it recorded still holds: T038–T040 were **ticked without being done**,
+and that was found only because a later task needed them.
 
 **~~Blocked on someone else~~ — that blocker was stale, 2026-08-15.** It said
 work repositories needed an org-owned fine-grained token and that the current
@@ -599,31 +596,36 @@ verified by cloning it fresh and auditing the clone (634 sources, tree and
 history, zero hits). CI is green on all five jobs; packaging is green on all
 three platforms.
 
-**What is left, in order:**
+**What is left, as of 2026-08-16.** T038–T040, Archivo and T170 are done; the
+list below is what actually remains.
 
-1. **T038–T040** — make the fixture-consuming tests skip cleanly when the
-   gitignored directory is absent, then record from the live connections.
-2. **Archivo** — bundle a subset so `--f-brand` stops naming a font nobody ships.
-3. **T170** — the two egress captures, long and driven.
-4. **T172** — quickstart end to end on all three platforms.
-5. **Publish** — remove `"private": true` from the four packages, exclude the
-   `ai-tools` toolkit from the published tree, add the release workflow, and
-   flip the repository public. `grndctrl`, `@grndctrl/core` and
+1. **Publish** — merge PR #1, exclude the `ai-tools` toolkit from the published
+   tree, configure npm **trusted publishing** on npmjs.com (`release.yml` uses
+   `id-token: write`, so there is no long-lived token in repository secrets),
+   tag `v0.1.0`, flip the repository public. `grndctrl`, `@grndctrl/core` and
    `@grndctrl/desktop` are all free on npm.
+2. **T172** — **deferred by the operator, 2026-08-16.** CI proves the process
+   boots and `npx` works from a packed tarball on all three platforms; what is
+   still unverified is a person opening the board on a Mac or a Linux desktop
+   and recognising it. That is a real gap, not a closed one, and it is recorded
+   as deferred rather than met.
 
 **Nothing is published.** The repository is private and npm is untouched, and
 that should stay true until the client-reference gate has run on the final tree
 and the operator has read what it is publishing.
 
-**Two things need the operator, not me.** T167 and T168 are the npx verification
-on macOS and Linux, which needs those machines — everything they test is written
-and unit-tested, but the last one found a real bug that only running it could
-find, so they should not be ticked on the strength of the Windows result.
+**T038–T040 are done, and the GitHub recording earned its keep immediately.**
+The Jira and git fixtures come from the operator's own machine. The GitHub one
+was re-recorded 2026-08-16 from an **active public repository**, using a
+fine-grained token scoped to public repositories read-only and stored under its
+own connection id (`github-fixtures`) so the operator's working credential was
+never overwritten — the recorder reads the keychain by connection and never
+touches the connections table for GitHub, which is what makes that possible.
 
-And T038–T040: T037's recorder is built and tested, and pointing it at the live
-Jira connection would produce scrubbed payloads derived from real client
-tickets. Worth doing — hand-written fixtures agree with whatever the person who
-wrote them believed — but **that is the operator's call, not mine.**
+It failed on its first run, against an assertion that had passed for a week
+without ever executing. See the Fixed entry in `CHANGELOG.md`. The remaining
+uncovered value is `CHANGES_REQUESTED`, which no pull request in the recording
+carried; it is still hand-written.
 
 T153 and T155 were pulled forward and are complete, on the evidence that
 2026-08-15 produced eight real bugs in code that was marked done and had passing
