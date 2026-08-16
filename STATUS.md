@@ -335,12 +335,17 @@ byte of any file in the data directory (SC-011).
 
 ## What exists
 
-- The `ai-tools` toolkit — ten process rules, Spec-Kit engine, subagents,
-  slash commands. `MANIFEST.md` is the routable catalog.
-- **Constitution v4.0.0** — Part I process principles (I–X), Part II product
-  and architecture gates (XI–XVIII), checked at every `speckit-plan`.
-- **`stacks/electron.md`** — process boundaries, IPC, React renderer, SQLite
-  and native-module handling, keychain, `shell.openExternal`, npx delivery.
+- ~~The `ai-tools` toolkit~~ — **removed from this repository 2026-08-16.** It
+  now lives only at `github.com/jonupchurch/ai-tools`, which is where a toolkit
+  meant to travel into other codebases can actually do so. A month of
+  improvements made during this build were backported there first — principle
+  X, the ten rules, and `stacks/electron.md`, which did not exist there.
+  Everything is still in this repository's history and in `grndctrl-archive`.
+- **Constitution v4.0.0 — now `docs/constitution.md`.** Part I process
+  principles (I–X), Part II product and architecture gates (XI–XVIII). It moved
+  rather than left with the toolkit: Part II is Ground Control's own design
+  gates, cited by the conformance tests, the specs and the source in 47 files.
+  A product document that happened to live in a toolkit directory.
 - **`resources/design/`** — three Design Canvas files, reviewed:
   - *Brand* — three wordmark directions; **1a "Tracking" is locked** (Archivo
     600, tracking-ring mark, accent held back from status and project sets).
@@ -599,8 +604,8 @@ three platforms.
 **What is left, as of 2026-08-16.** T038–T040, Archivo and T170 are done; the
 list below is what actually remains.
 
-1. **Publish** — merge PR #1, exclude the `ai-tools` toolkit from the published
-   tree, configure npm **trusted publishing** on npmjs.com (`release.yml` uses
+1. **Publish** — merge PR #1 (the toolkit is now out of the tree), configure npm
+   **trusted publishing** on npmjs.com (`release.yml` uses
    `id-token: write`, so there is no long-lived token in repository secrets),
    tag `v0.1.0`, flip the repository public. `grndctrl`, `@grndctrl/core` and
    `@grndctrl/desktop` are all free on npm.

@@ -221,9 +221,10 @@ npm run verify        # typecheck, lint, unit tests
 npm run test:e2e -w @grndctrl/desktop
 ```
 
-The rules this project is built under are in [AGENTS.md](AGENTS.md), and the
-design gates behind them are in `.specify/memory/constitution.md`. Two are worth
-knowing before you change anything:
+The design gates this project is built under are in
+[docs/constitution.md](docs/constitution.md) — Part I is process, Part II is the
+product non-negotiables the tests actually enforce. Two are worth knowing before
+you change anything:
 
 - **The engine builds and tests with Electron uninstalled.** `packages/core` is
   the whole service layer; the shell, the loopback API and the MCP server are

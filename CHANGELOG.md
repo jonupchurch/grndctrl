@@ -76,6 +76,31 @@ release, everything lands under **[Unreleased]**.
 - **`fixtures/{jira,github,git}` gitignored** ahead of T038–T040, so recorded
   provider payloads stay on the machine that recorded them.
 
+### Removed
+
+- **The `ai-tools` agent toolkit** — `.claude/`, `.specify/`, `stacks/`,
+  `MANIFEST.md`, `AGENTS.md`, `CLAUDE.md`. 41 files. A toolkit whose purpose is
+  to travel into other codebases cannot do that from inside a product
+  repository, so it now lives only at `github.com/jonupchurch/ai-tools`.
+
+  **Backported before removing, not after.** That copy was a month stale — nine
+  rules where this one had ten, and no `stacks/electron.md` at all. Only five
+  files genuinely differed; the other 36 were identical once line endings were
+  ignored, so they were left alone rather than rewritten wholesale. Principle X
+  went back into the reference constitution as 2.1.0, generalised on the way:
+  the Electron pack no longer names this product, and its Part II citations now
+  state the rule they cite, so a project without a Part II can still read them.
+
+  Nothing is lost either way — every file remains in this repository's history
+  and in `grndctrl-archive`.
+
+- **`.specify/memory/constitution.md` moved to `docs/constitution.md`** rather
+  than leaving with the toolkit. Part II is Ground Control's own design gates,
+  cited in 47 files including `packages/cli/src/index.ts`, the conformance
+  tests and the specs — deleting it would have removed the definition of gates
+  the code enforces. Exactly one reference named it by path, in `README.md`.
+  It was a product document that happened to live in a toolkit directory.
+
 ### Fixed
 
 - **A replay assertion that was wrong and had never run** (T039). It required
