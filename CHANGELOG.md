@@ -12,6 +12,20 @@ release, everything lands under **[Unreleased]**.
 
 ### Security
 
+- **SC-010 re-verified properly** (T170). The claim previously rested on a
+  capture of a few minutes against a spec that asks for thirty. It now rests on
+  two: a **35-minute idle run** with the poll scheduler live on real
+  credentials, and a **driven pass** over every path that can egress — Jira
+  auth, search, bulk changelog; GitHub auth, repository read, branch
+  comparison. The duration catches anything on a timer; the driven pass catches
+  what an idle window never touches. Neither substitutes for the other. Both
+  reached `api.github.com` and the configured Jira site and nothing else, across
+  five recorder-loaded processes.
+
+  Probed by stripping the loader marker from a capture: it fails, because
+  "nothing was contacted" and "nothing was watching" are the same empty list and
+  opposite facts.
+
 - **The repository was public for a day with the employer named in it.**
   Discovered by running `gh repo view` instead of assuming — it reported
   `PUBLIC`, created 2026-08-14. Exposed: the employer's name and Jira site in

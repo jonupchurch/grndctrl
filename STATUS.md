@@ -218,8 +218,20 @@ Not asserted — run (T169–T171):
   directory, both live credentials, several encodings including the
   `base64(email:token)` form a Jira `Authorization: Basic` header leaves behind.
   Zero hits.
-- **No egress but the operator's own providers** (SC-010). A live session
-  reached `api.github.com` and the configured Jira site. Nothing else.
+- **No egress but the operator's own providers** (SC-010). **Two captures, not
+  one**, because they catch different things and neither substitutes for the
+  other. A **35-minute idle run** with the poll scheduler live, on real
+  credentials — the duration is the point, since it is what would catch
+  something firing on a timer, an update check or a ping at startup+N. And a
+  **driven pass** deliberately exercising Jira auth, search and bulk changelog,
+  GitHub auth, repository read and branch comparison — the paths an idle window
+  never touches. Both reached `api.github.com` and the configured Jira site and
+  **nothing else**, across five recorder-loaded processes. The earlier result
+  rested on a few minutes and is superseded.
+
+  Probed: a capture stripped of its loader marker **fails** — "a capture nobody
+  took is not a clean capture" — so an empty host list can never be mistaken for
+  a clean one.
 - **Nothing in the shipped tree reports anything** (XI). 236 production
   packages, no reporter, no unexpected install script.
 
