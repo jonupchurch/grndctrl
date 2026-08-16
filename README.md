@@ -117,8 +117,13 @@ token goes to your OS keychain; the connection row stores a lookup handle.
 ### 2. Connect GitHub
 
 A fine-grained personal access token with **read** access to the repositories
-you care about. `Contents: Read`, `Pull requests: Read`, `Metadata: Read`,
-`Checks: Read` are enough.
+you care about. `Metadata: Read`, `Contents: Read`, `Pull requests: Read` and
+`Commit statuses: Read` are enough.
+
+> Do not go looking for a `Checks` permission — GitHub's fine-grained picker has
+> none, and CI results come through on the four above. Earlier revisions of this
+> README asked for one, which sent people scrolling the list for a checkbox that
+> was never there.
 
 > If the repositories belong to an organisation, the token's **resource owner**
 > must be that organisation, and an org owner has to approve it. A token owned
