@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Nothing has been released yet — v1 is still in specification. Until the first
 release, everything lands under **[Unreleased]**.
 
+## [0.1.1] — 2026-08-16
+
+First working release. `npx grndctrl` runs on Windows, macOS and Linux.
+
+`0.1.0` was published the same day and is broken on Windows and macOS; it is
+superseded and should be treated as withdrawn. See below for what it was.
+
 ## [Unreleased]
 
 ### Fixed

@@ -626,24 +626,35 @@ clone** — 665 sources, tree and every ref, zero hits.
 `grndctrl-archive` is confirmed **still private**, which matters more now than
 it did yesterday: it holds the pre-scrub history.
 
-**npm is still untouched, and is blocked on something only the operator can do.**
-The npm organisation `grndctrl` **does not exist**, so `@grndctrl/core` and
-`@grndctrl/desktop` cannot be published at all. Verified with controls rather
-than inferred: `registry.npmjs.org/-/org/<name>/user` answers `200` for real
-organisations and `404` for `grndctrl` — the same as for a name invented on the
-spot.
+**Published, 2026-08-16.** All four packages are on npm and `latest` is **0.1.1**
+everywhere: `grndctrl`, `@grndctrl/core`, `@grndctrl/desktop`, `grndctrl-mcp`.
+`npx grndctrl` works on Windows, macOS and Linux.
 
-And **trusted publishing cannot do a first publish.** npm's documentation
-describes it as per-package, configured on an existing package's settings page
-("Each package can only have one trusted publisher configured at a time"), so
-version 0.1.0 has to reach the registry some other way before `release.yml`'s
-`id-token: write` path can take over. That is the workflow's *steady state*, not
-its bootstrap.
+**0.1.0 is on the registry and is broken on Windows and macOS.** It shipped a
+Linux-only native module to every platform; see the Fixed entry in
+`CHANGELOG.md`. It cannot be replaced — npm never permits re-publishing a
+version — and it is **not** unpublished, because unpublishing every version of a
+package blocks republishing that name for 24 hours and would have held the fix.
+It should be deprecated instead.
 
-**Do not publish any package individually to work around this.** `grndctrl-mcp`
-depends on `@grndctrl/core@0.1.0` and the launcher on `@grndctrl/desktop`;
-publishing a dependent before its dependency puts a permanently broken version
-on a registry that does not allow re-publishing. All four go together or none do.
+Three things that cost time and are worth not rediscovering:
+
+- **A scoped package on a brand-new organisation takes minutes to become
+  readable.** Both unscoped packages appeared instantly and both `@grndctrl/*`
+  answered 404 for several minutes — with every publish having returned
+  `PUT 200` and `exit 0`. It looked exactly like two of four having failed.
+- **`npm publish dist-tarballs/x.tgz` is not a path.** npm reads `a/b` with no
+  `./` as a GitHub `owner/repo` shorthand and goes looking over SSH. The leading
+  `./` is required.
+- **Publishing needs an authenticator code**, so it cannot be done from a
+  non-interactive session at all. The operator runs it; chain the four with `&&`
+  so a failure cannot leave a dependent published without its dependency.
+
+**Still to do on npmjs.com:** configure trusted publishing on each of the four
+packages. Until then `release.yml`'s `id-token: write` path has nothing to
+authenticate against. And **do not tag `v0.1.0` or `v0.1.1`** — both versions are
+already on the registry, so the tag-triggered workflow would fail at its publish
+step. The first tag-driven release is `v0.1.2`.
 
 **T038–T040 are done, and the GitHub recording earned its keep immediately.**
 The Jira and git fixtures come from the operator's own machine. The GitHub one
