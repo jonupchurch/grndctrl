@@ -67,6 +67,32 @@ verifies.
 
 Requires **Node 22 or newer**. On Linux it also needs `unzip`.
 
+### Linux: one command, on some distributions
+
+Chromium will not run without a sandbox, and it has two. The first uses a setuid
+helper that must be owned by root — which an `npx` install cannot arrange,
+because npm unpacks as you. The second, the user-namespace sandbox, needs no
+root at all, and Ground Control falls back to it automatically and tells you it
+has.
+
+On **Ubuntu 24.04 and later** the fallback is disabled by default too, through
+AppArmor. If both are unavailable Ground Control refuses to start and prints the
+two ways out; the easier one is:
+
+```
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+```
+
+(add it to `/etc/sysctl.d/` to make it persist). The alternative, if you would
+rather grant the stronger sandbox than relax a system setting, is to `chown
+root:root` and `chmod 4755` the `chrome-sandbox` file — the refusal message
+names the exact path.
+
+**Ground Control will not start itself with the sandbox turned off.** The window
+renders ticket and pull request titles fetched from the network, and the sandbox
+is what stands between those and the rest of your machine. That is why this is a
+refusal you have to answer rather than a warning it prints while carrying on.
+
 ### From a checkout
 
 ```

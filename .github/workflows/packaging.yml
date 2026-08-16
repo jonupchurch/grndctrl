@@ -65,6 +65,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 libgbm1
 
+      # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor, so
+      # out of the box *neither* Chromium sandbox is available to an npx install:
+      # the setuid helper is not root-owned and the namespace fallback is denied.
+      # The launcher refuses to start in that state, on purpose, and prints the
+      # two one-line fixes -- so a red job here without this step is the product
+      # behaving correctly, not a bug.
+      #
+      # This applies one of the fixes it prints, which is what a Linux user on
+      # 24.04 has to do once. The job then verifies the path they actually get:
+      # the namespace sandbox. The refusal branch itself is covered by
+      # `packages/launcher/test/sandbox.test.ts`, which can produce all three
+      # states -- something no single machine can.
+      - name: Allow unprivileged user namespaces (what a 24.04 user must do once)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Verify npx (Linux, under xvfb)
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum node scripts/verify-npx.mjs
