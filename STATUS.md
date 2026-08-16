@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-16 (0.1.2 published from a tag) · **Stage:** released · **On npm:** 0.1.2 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-16 (0.1.3 cut; the tag publishes it) · **Stage:** released · **On npm:** 0.1.2 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.1.2 is the first release published by the workflow rather than by hand.**
 Trusted publishing is configured per package, so a release is now: bump, commit,

@@ -9,6 +9,13 @@ Released versions are summarised at the top, newest first. **[Unreleased]** belo
 them holds the accumulated detail of the v1 build, including everything that
 shipped in the first releases — it is the working record, not a backlog.
 
+## [0.1.3] — 2026-08-16
+
+The setup screen no longer asks for a GitHub permission that does not exist.
+Settings → Connections, `README.md` and `.env.example` all told new users to
+grant a fine-grained token read on "Checks"; GitHub's picker has no such entry.
+All three agreed with each other and none agreed with GitHub. See below.
+
 ## [0.1.2] — 2026-08-16
 
 The board now updates when an **agent** acts, not only when the window does. In
