@@ -220,10 +220,6 @@ export function App(): ReactElement {
               <ConnectionNotice onOpenSettings={() => setShowSettings(true)} />
             </LaneBoundary>
 
-            <LaneBoundary lane="Attention">
-              <Attention findings={findings} questions={nudges} onDispatch={setConfirming} />
-            </LaneBoundary>
-
             <div className="board__columns">
               <div className="board__main">
                 <LaneBoundary lane="Tickets">
@@ -233,6 +229,25 @@ export function App(): ReactElement {
                     freshness={ticketFreshness}
                     notes={notes}
                   />
+                </LaneBoundary>
+
+                {/*
+                  Under the tickets rather than above them, at the operator's
+                  request.
+
+                  It sat above all three lanes because drift is the one thing on
+                  this board no other tool reports, and the top is where that
+                  argument leads. What the argument missed is that the panel is
+                  *tall* — one strip carries both sides of the evidence and its
+                  age — so a board with three findings on it opened on the
+                  disagreements and pushed the work itself below the fold. The
+                  tickets are what the operator came for; the drift is what they
+                  stay for. It keeps its place in the main column, immediately
+                  after the lane whose rows it is usually about, and the
+                  "Drifting" tile still reports the count from the top.
+                */}
+                <LaneBoundary lane="Attention">
+                  <Attention findings={findings} questions={nudges} onDispatch={setConfirming} />
                 </LaneBoundary>
 
                 <LaneBoundary lane="Pull requests">
