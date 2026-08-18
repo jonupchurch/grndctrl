@@ -1,6 +1,11 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-16 (0.1.3 published from a tag) · **Stage:** released · **On npm:** 0.1.3 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-18 (0.2.0 cut, not yet tagged) · **Stage:** released · **On npm:** 0.1.3 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.2.0 is bumped in the tree and not on the registry.** Four manifests and two
+version constants say `0.2.0`; nothing is tagged, so nothing is published. The
+release is one command — `git tag v0.2.0 && git push origin v0.2.0` — and it must
+be run from `main` after `005-priority-and-points` merges.
 
 **0.1.2 is the first release published by the workflow rather than by hand.**
 Trusted publishing is configured per package, so a release is now: bump, commit,
@@ -14,6 +19,62 @@ than one session out of date. Historical detail belongs in `CHANGELOG.md`; this
 file describes only the present and the immediate next step.
 
 ## Where we are
+
+### 0.2.0: two ticket columns, headings, and the drift panel moved down
+
+Three changes the operator asked for, and one defect found while making them.
+
+**The ticket lane carries priority and story points.** Priority is the tracker's
+own word, unmapped — the same discipline `statusCategory` already encodes, and
+without even a category to fall back on, because Jira's priority field carries a
+name and an icon and nothing that orders them. Story points needed a lookup:
+there is **no fixed field id**, since `Story Points` and `Story point estimate`
+are different custom fields numbered per site. The provider reads
+`/rest/api/3/field` once per sync, prefers the company-managed field when both
+exist, and refuses `timeestimate` — numeric, not custom, and worth 57,600 points
+on a two-day ticket. A failed lookup loses the column and not the lane.
+
+`mirror.db` is at **migration 2**. Two nullable columns, no `DEFAULT`: a
+`DEFAULT 0` would have told the operator that every ticket they had ever synced
+was estimated at zero.
+
+**Unknown is never `0`.** `Number(null)`, `?? 0` and `|| 0` all produce one, all
+typecheck, and all put an estimate on a row that nobody made. Store and row keep
+a genuine zero-point estimate distinct from an absent one.
+
+**All three lanes now name their columns**, per lane — a ticket has a summary, a
+pull request has a title, a branch has a ticket. The two ticket columns exist on
+the ticket lane only: a column that can never hold anything is noise rather than
+the meaningful absence the row's other placeholders carry.
+
+**The Attention panel moved below the tickets.** It was above all three lanes
+because drift is the one thing on this board that nothing else reports. The
+argument missed that the panel is *tall*, so a board with three findings opened
+on the disagreements and pushed the work below the fold.
+
+**The defect the headings exposed: columns did not line up down a lane.** The
+row's last two grid tracks were `auto`, and the note badge is `+` on one row and
+`12` on the next. Each row is its own grid container, so the wider badge came out
+of the flexible title column and shifted every column after it on that row alone.
+The claim at the top of `Row.tsx` — that the eye reads a column rather than
+re-parsing each row — had been quietly false. Both tracks are pinned now, and two
+end-to-end tests assert the pixel offsets. **Both were made to fail before being
+relied on.**
+
+Second lesson from the same change: the heading was written as `row row--head`,
+which made it a row to everything that looks for one. `perf.spec.ts` counts
+`.row` to assert SC-013's two hundred items and read 302. It is `lane__headings`
+now — it borrows the grid and takes none of the identity.
+
+**Not fixed, and not mine: `greyscale.spec.ts` fails on `main`.** Three of its
+five tests cannot find a `good` severity on the board. `every-severity.json`
+carries absolute timestamps from 2026-08-14, and severity is derived partly from
+staleness — so past the three-day threshold the scenario no longer produces the
+severity it is named for, and the file ages out of its own purpose. Confirmed by
+running it on a clean checkout with none of this session's changes. The fix is a
+scenario whose timestamps are relative to the run, which is a change to how
+seeding works rather than a line edit.
+
 
 ### The repository was public, and it named the employer
 

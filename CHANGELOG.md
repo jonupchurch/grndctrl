@@ -9,6 +9,13 @@ Released versions are summarised at the top, newest first. **[Unreleased]** belo
 them holds the accumulated detail of the v1 build, including everything that
 shipped in the first releases — it is the working record, not a backlog.
 
+## [0.2.0] — 2026-08-18
+
+The ticket lane now shows **priority** and **story points**, all three lanes name
+their columns, and the drift panel has moved **below** the tickets rather than
+above them. A minor rather than a patch because the mirror gains a schema
+migration and `Ticket` gains two fields.
+
 ## [0.1.3] — 2026-08-16
 
 The setup screen no longer asks for a GitHub permission that does not exist.
@@ -33,7 +40,85 @@ superseded and should be treated as withdrawn. See below for what it was.
 
 ## [Unreleased]
 
+### Added
+
+- **Priority and story points on the ticket lane**, with column headings on all
+  three lanes.
+
+  Priority is stored and shown **exactly as the tracker spells it** — `Highest`,
+  `P2 - Major`, `Blocker` — and is not mapped onto a band of ours. Status already
+  taught this lesson: teams rename these, and a normalisation would produce a
+  confident wrong word. Unlike status there is no `statusCategory` to fall back
+  on, because Jira's priority field carries a name and an icon and nothing that
+  orders them.
+
+  Story points needed a lookup rather than a field name. There is **no fixed
+  field id**: `Story Points` and `Story point estimate` are different custom
+  fields, numbered per site, so the provider reads `/rest/api/3/field` once per
+  sync and resolves the id — preferring the company-managed field when a site
+  that has migrated project types carries both, refusing `timeestimate` (which
+  is numeric, is not custom, and would render a two-day ticket as a
+  57,600-point one), and refusing any field declaring itself as something other
+  than a number.
+
+  **A failed lookup loses the column, not the lane.** Story points are one
+  column; the ticket search is the lane, so a site that answers 403 on the field
+  list still gets its tickets. And the id is only named in the search when it
+  was actually resolved — Jira rejects a whole search that mentions a field the
+  site does not have.
+
+  Unknown is drawn as an en dash and **never as `0`**. `Number(null)`, `?? 0`
+  and `|| 0` all produce a zero, all typecheck, and all put an estimate on a row
+  that nobody made; the store keeps a genuine 0-point estimate distinct from an
+  absent one, and there is a test for exactly that pair.
+
+  `mirror.db` migration **2**, adding two nullable columns with no `DEFAULT`. A
+  `DEFAULT 0` would have told the operator that every ticket they had ever
+  synced was estimated at zero, by the migration, on their behalf.
+
+- **Column headings**, per lane and named per lane. The third column is a
+  ticket's summary, a pull request's title and a branch's ticket, so one shared
+  heading would have to be vague enough to be true of all three. The two ticket
+  columns exist only on the ticket lane: a pull request has no priority and a
+  branch is not estimated, and a column that can never hold anything is noise
+  rather than the meaningful absence the row's other placeholders carry.
+
+  The headings are `aria-hidden`. A screen reader does not read this layout as a
+  grid, so they would arrive as eight bare nouns before the list and never
+  again; the cells that need naming carry a `title` instead.
+
+### Changed
+
+- **The Attention panel now sits below the ticket lane**, at the operator's
+  request. It was above all three lanes because drift is the one thing on this
+  board that no other tool reports. What that argument missed is that the panel
+  is *tall* — each strip carries both sides of the evidence and its age — so a
+  board with three findings opened on the disagreements and pushed the work
+  itself below the fold. The "Drifting" tile still reports the count from the
+  top.
+
 ### Fixed
+
+- **Columns did not line up down a lane once any row had a note.** The row's
+  last two grid tracks were `auto`, which sizes to content — and the note badge
+  is `+` on a row with no notes and `12` on a row with twelve. Every row is its
+  own grid container, so the wider badge came out of the flexible title column
+  and shifted *every column after it* on that row alone. The claim at the top of
+  `Row.tsx`, that the eye can read a column rather than re-parse each row, was
+  quietly false the whole time.
+
+  Found by adding the headings, which have neither badge nor severity mark and
+  so collapsed both tracks to zero and sat 26px out of step with everything
+  below — visible immediately, where the row-to-row version had been invisible
+  for months. Both tracks are now pinned, and two end-to-end tests assert the
+  pixel offsets: one that the headings sit over their columns, one that the row
+  the golden path writes a note on still lines up with the row below it. Both
+  were made to fail before being relied on.
+
+  The heading also **is not a `.row`**. Written as `row row--head` first, it was
+  a row to everything that looks for one — the performance test counts
+  `.row` to assert SC-013's two hundred items, and read 302. It borrows the
+  grid and takes none of the identity.
 
 - **The first screen a new user meets asked for a permission that does not
   exist.** Settings → Connections told you to grant a fine-grained token read on
