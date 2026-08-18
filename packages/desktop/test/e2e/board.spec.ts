@@ -96,6 +96,111 @@ test('an absent correlation is drawn, not omitted', async () => {
   expect(badges.find((b) => b.kind === 'branch')?.present).toBe('false')
 })
 
+test('the ticket lane carries priority and story points, and names its columns', async () => {
+  const tickets = it.window.getByRole('region', { name: 'Tickets' })
+
+  await expect(tickets.getByText('Priority', { exact: true })).toBeVisible()
+  await expect(tickets.getByText('Points', { exact: true })).toBeVisible()
+
+  const row = await it.window.evaluate(() => {
+    const el = [...document.querySelectorAll('.row')].find((r) =>
+      r.querySelector('.row__id')?.textContent?.includes('MERC-1184'),
+    )
+    return {
+      priority: el?.querySelector('.row__priority')?.textContent ?? null,
+      points: el?.querySelector('.row__points')?.textContent ?? null,
+    }
+  })
+
+  expect(row.priority).toBe('High')
+  expect(row.points).toBe('5')
+})
+
+/**
+ * Unknown is drawn as absent, never as a number.
+ *
+ * MERC-1190 is estimated by nobody. `0` would be a claim about the ticket that
+ * the tracker never made, and it is one coercion away at every layer between
+ * Jira and this cell — `Number(null)`, `?? 0` and `|| 0` all produce it and all
+ * typecheck.
+ */
+test('an unestimated ticket shows a placeholder rather than zero points', async () => {
+  const points = await it.window.evaluate(() => {
+    const el = [...document.querySelectorAll('.row')].find((r) =>
+      r.querySelector('.row__id')?.textContent?.includes('MERC-1190'),
+    )
+    return el?.querySelector('.row__points')?.textContent ?? null
+  })
+
+  expect(points).not.toBe('0')
+  expect(points?.trim()).toBe('–')
+})
+
+/**
+ * The headings sit over the columns they name.
+ *
+ * Each row is its own CSS grid sharing one template, so alignment is a property
+ * of the *tracks* rather than of the markup — and two of them used to be
+ * `auto`. That sizes a track to its content, which here is not constant: a note
+ * badge reading `12` is wider than one reading `+`, and the heading row has
+ * neither. Every column after the flexible title track then sat several pixels
+ * off.
+ *
+ * Asserted in pixels because there is no other way to see it. Nothing about the
+ * markup changes when this breaks; the board simply stops lining up, which is
+ * the one property the row primitive exists to provide.
+ */
+test('the column headings line up with the cells beneath them', async () => {
+  const offsets = await it.window.evaluate(() => {
+    const lane = document.querySelector('section.lane[data-metrics="true"]')
+    const left = (row: Element | null, slot: string): number | null => {
+      const cell = row?.querySelector(slot) ?? null
+      return cell === null ? null : Math.round(cell.getBoundingClientRect().left)
+    }
+
+    const head = lane?.querySelector('.lane__headings') ?? null
+    const row = lane?.querySelector('.row') ?? null
+
+    return [
+      '.row__id',
+      '.row__title',
+      '.row__status',
+      '.row__priority',
+      '.row__points',
+      '.row__correlation',
+      '.row__court',
+      '.row__age',
+    ].map((slot) => ({ slot, head: left(head, slot), row: left(row, slot) }))
+  })
+
+  // The heading row is drawn only over rows, so an empty result here means the
+  // lane rendered nothing and the loop below would pass by checking nothing.
+  expect(offsets).toHaveLength(8)
+
+  for (const { slot, head, row } of offsets) {
+    expect(head, `no heading cell for ${slot}`).not.toBeNull()
+    expect(row, `no row cell for ${slot}`).not.toBeNull()
+    expect(
+      Math.abs((head ?? 0) - (row ?? 0)),
+      `the ${slot} heading is not over its column`,
+    ).toBeLessThanOrEqual(1)
+  }
+})
+
+/**
+ * The two lanes that are not tickets do not carry the two ticket columns.
+ *
+ * A pull request has no priority and a branch is not estimated, so a column
+ * there could only ever be empty — and a permanently empty column is noise
+ * rather than the meaningful absence the row's other placeholders carry.
+ */
+test('the pull request lane has no priority or points column', async () => {
+  const pulls = it.window.getByRole('region', { name: 'Pull requests' })
+
+  await expect(pulls.getByText('Priority', { exact: true })).toHaveCount(0)
+  await expect(pulls.locator('.row__points')).toHaveCount(0)
+})
+
 test('the operator court tile filters the whole board', async () => {
   const tile = it.window.getByRole('button', { name: /Your court/ })
 
