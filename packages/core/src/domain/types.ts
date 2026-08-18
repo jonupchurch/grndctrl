@@ -74,6 +74,31 @@ export interface Ticket {
   statusName: string
   statusCategory: StatusCategory
   isBlocked: boolean
+  /**
+   * The tracker's own priority name — `Highest`, `P1`, `Blocker` — verbatim.
+   *
+   * Not normalised to a band. Every team renames these, the same way they
+   * rename statuses, and the lesson `statusCategory` already encodes is that
+   * mapping somebody's vocabulary onto ours produces a label that is confidently
+   * wrong. Unlike status there is no category to fall back on: the issue field
+   * carries a name and an icon and nothing that orders them. So the name is what
+   * is stored and the name is what is shown.
+   *
+   * `null` means the field is unset or absent from this project's screen — never
+   * "lowest". An unprioritised ticket and a trivial one are different facts.
+   */
+  priority: string | null
+  /**
+   * Story points, if the connection has a field for them.
+   *
+   * `null` is unestimated **or** unavailable, and the two cannot be told apart
+   * per ticket: story points are a Jira custom field with a per-site id, so a
+   * site where the field could not be resolved reports null on every row. That
+   * conflation is confined to this field and does not reach a conclusion — the
+   * row renders null as an absence and never as `0`, because "nobody estimated
+   * it" and "it is a zero-point ticket" are different answers.
+   */
+  storyPoints: number | null
   createdAt: Timestamp
   /** Displayed, never used for staleness — automation moves it (FR-027). */
   updatedAt: Timestamp

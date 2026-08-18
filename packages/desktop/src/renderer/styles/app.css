@@ -154,13 +154,57 @@ body {
 
 /* ── The row ─────────────────────────────────────────────────────────────── */
 
-.row {
-  display: grid;
+/*
+ * The lane owns the column template; the row inherits it.
+ *
+ * Two lanes have ten columns and one has twelve — priority and story points
+ * exist on a ticket and on nothing else (see `Row.tsx`). Declaring the template
+ * on `.lane` and reading it from `.row` means the heading row and its rows
+ * cannot come from different definitions, which is the one way a header can end
+ * up naming the wrong column.
+ */
+.lane {
   /* Fixed slots, in the design's order: staleness, project, id, title, status,
      correlation, ball in court, age, trailing, severity. Only the title is
      flexible — everything else holds its column down the whole lane. */
-  grid-template-columns:
-    var(--stale-w) 46px 82px minmax(0, 1fr) 96px 68px 62px 56px auto auto;
+  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 68px 62px 56px
+    var(--trailing-w) var(--mark-w);
+}
+
+/* Priority and points, inserted after status: both are facts about the ticket,
+   so they belong beside the one the tracker already reports. */
+.lane[data-metrics='true'] {
+  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 74px 44px 68px 62px 56px
+    var(--trailing-w) var(--mark-w);
+}
+
+/*
+ * The last two tracks are pinned, and they used to be `auto`.
+ *
+ * `auto` sizes to content, and the two things in these tracks do not have
+ * constant content: the note badge is `+` on a row with no notes and `· 12` on
+ * one with twelve. Every row is its own grid container, so a wider badge made
+ * that row's `1fr` title narrower — and *every column after the title* sat a few
+ * pixels left of the same column on the row above. The claim at the top of
+ * `Row.tsx`, that the eye can read a column rather than re-parse each row, was
+ * quietly false for any lane where some rows had notes and others did not.
+ *
+ * The heading row made it visible rather than caused it: with both slots empty
+ * it collapsed them to zero and sat 26px out of step with everything below.
+ *
+ * `--trailing-w` fits `· 999`. `--mark-w` is `StatusMark`'s default `size`,
+ * which is set in TypeScript and cannot be read from here — `board.spec.ts`
+ * asserts the two rows actually line up, so a change to either side fails
+ * loudly instead of drifting a column.
+ */
+.lane {
+  --trailing-w: 40px;
+  --mark-w: 10px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--row-columns);
   align-items: center;
   gap: 0 var(--gutter);
   width: 100%;
@@ -246,6 +290,7 @@ body {
 }
 
 .row__status,
+.row__priority,
 .row__age {
   font-size: var(--t-meta);
   color: var(--ink-3);
@@ -257,6 +302,64 @@ body {
 .row__age {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Right-aligned and tabular, so a column of estimates can be read down rather
+   than across — the same reason the age column is. */
+.row__points {
+  font-size: var(--t-meta);
+  color: var(--ink-2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Where a value would be. Quiet enough not to be mistaken for one, present
+   enough that the column still reads as a column (see `Absent` in `Row.tsx`). */
+.row__absent {
+  color: var(--ink-3);
+  opacity: 0.45;
+}
+
+/*
+ * The column headings.
+ *
+ * Not a row, and not `.row--head` either: it borrows the grid and takes none of
+ * the identity. A modifier class would still have matched `.row`, which is what
+ * the performance test counts and what the greyscale test searches for severity
+ * marks — so a heading written that way is an extra row on the board to
+ * everything that ever asks how many there are.
+ *
+ * Everything it needs from `.row` is restated here, which is four declarations.
+ * No hover, no severity wash, no covering button, and a heavier rule beneath so
+ * the eye takes it as the top of the list rather than as the first entry in it.
+ */
+.lane__headings {
+  display: grid;
+  grid-template-columns: var(--row-columns);
+  align-items: center;
+  gap: 0 var(--gutter);
+  width: 100%;
+  min-height: 20px;
+  padding: 4px 12px 4px 0;
+  background: var(--sunken);
+  border-bottom: 1px solid var(--line-strong);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* One weight and one colour across the whole heading — a heading that inherited
+   its slot's own emphasis would compete with the values under it. */
+/* No `text-align` here on purpose: the points and age headings must keep the
+   right alignment their slots give them, or they stop sitting over the numbers
+   they name. */
+.lane__headings > * {
+  color: inherit;
+  font-weight: inherit;
+  font-size: inherit;
 }
 
 .row__correlation {
@@ -288,6 +391,10 @@ body {
 .row__trailing {
   display: flex;
   align-items: center;
+  /* Right-aligned inside a track that is now wider than the badge, so the badge
+     stays against the severity mark exactly where it sat when the track was
+     sized to it. */
+  justify-content: flex-end;
   gap: 6px;
   min-width: 0;
   /* Above `.row__open`, which spans the whole row. That button no longer takes

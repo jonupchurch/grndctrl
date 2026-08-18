@@ -25,6 +25,12 @@ import type { TicketProvider } from '../seam.js'
  *   that. Staleness and three drift rules rest on this, and `updated` is the
  *   field FR-027 exists to distrust, so falling back to it would turn "we could
  *   not fetch the history" into a confident wrong answer.
+ *
+ *   **Story points have no field id.** They are a custom field whose id differs
+ *   per site — `customfield_10016` on one, `customfield_10004` on the next — so
+ *   there is nothing to hard-code and a guess would read some other field's
+ *   number. The id is looked up once per provider instance and cached; see
+ *   `storyPointFieldId`.
  */
 
 export interface JiraOptions {
@@ -53,9 +59,20 @@ interface JiraIssue {
     status?: { name?: string; statusCategory?: { key?: string } }
     assignee?: JiraUser | null
     reporter?: JiraUser | null
+    priority?: { name?: string } | null
     created?: string
     updated?: string
+    /** Story points arrive under a `customfield_*` key that varies per site. */
+    [customField: string]: unknown
   }
+}
+
+/** One entry of `/rest/api/3/field`. Everything on it is optional in practice. */
+interface JiraFieldDescriptor {
+  id?: string
+  name?: string
+  custom?: boolean
+  schema?: { type?: string }
 }
 
 interface JiraUser {
@@ -89,6 +106,29 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
     ...(options.connectionId === undefined ? {} : { connectionId: options.connectionId }),
   })
 
+  /**
+   * The site's story point field id, resolved once and reused.
+   *
+   * Memoised on the promise rather than on its result, so the several pages of
+   * one search share a single lookup instead of racing to make the same call.
+   * Providers are rebuilt per sync, so this is one extra GET per sync and a
+   * transient failure is not remembered past it.
+   *
+   * **A failure resolves to `null` rather than throwing.** The lookup needs no
+   * permission the ticket search does not already have, but if it fails anyway
+   * the honest outcome is a board with no points on it -- not a board with no
+   * tickets on it. Story points are a column; the search is the lane.
+   */
+  let pointsFieldLookup: Promise<string | null> | undefined
+
+  const storyPointsField = (): Promise<string | null> => {
+    pointsFieldLookup ??= client
+      .get<JiraFieldDescriptor[]>('/rest/api/3/field')
+      .then(storyPointFieldId)
+      .catch(() => null)
+    return pointsFieldLookup
+  }
+
   return {
     async viewer(): Promise<ViewerIdentity> {
       const me = await client.get<JiraUser>('/rest/api/3/myself')
@@ -96,10 +136,24 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
     },
 
     async searchIssues({ jql, pageSize, pageToken }) {
+      const pointsField = await storyPointsField()
+
       const response = await client.post<JiraSearchResponse>('/rest/api/3/search/jql', {
         jql,
         maxResults: pageSize ?? 100,
-        fields: ['summary', 'status', 'assignee', 'reporter', 'created', 'updated'],
+        fields: [
+          'summary',
+          'status',
+          'assignee',
+          'reporter',
+          'priority',
+          'created',
+          'updated',
+          // Only when the site actually has one. Naming a field id that does not
+          // exist is not ignored -- Jira rejects the whole search, which would
+          // take the ticket lane down over a column.
+          ...(pointsField === null ? [] : [pointsField]),
+        ],
         // Omitted entirely on the first call. The endpoint rejects a null token
         // rather than treating it as "start from the beginning".
         ...(pageToken === undefined ? {} : { nextPageToken: pageToken }),
@@ -107,7 +161,7 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
 
       const fetchedAt = now().toISOString()
       const tickets = (response.issues ?? []).map((issue) =>
-        toTicket(issue, options.site, options.connectionId ?? '', fetchedAt),
+        toTicket(issue, options.site, options.connectionId ?? '', fetchedAt, pointsField),
       )
 
       return {
@@ -197,7 +251,13 @@ export function toStatusCategory(categoryKey: string | undefined): StatusCategor
   }
 }
 
-function toTicket(issue: JiraIssue, site: string, connectionId: string, fetchedAt: string): Ticket {
+function toTicket(
+  issue: JiraIssue,
+  site: string,
+  connectionId: string,
+  fetchedAt: string,
+  pointsField: string | null,
+): Ticket {
   const fields = issue.fields ?? {}
   const statusName = fields.status?.name ?? 'Unknown'
 
@@ -211,6 +271,10 @@ function toTicket(issue: JiraIssue, site: string, connectionId: string, fetchedA
     statusName,
     statusCategory: toStatusCategory(fields.status?.statusCategory?.key),
     isBlocked: /blocked|impediment/i.test(statusName),
+    // Jira's own word for it, unmapped. An unset priority is null, never the
+    // bottom of a scale this code does not know the shape of.
+    priority: nonEmpty(fields.priority?.name),
+    storyPoints: pointsField === null ? null : toPoints(fields[pointsField]),
     createdAt: fields.created ?? fetchedAt,
     updatedAt: fields.updated ?? fetchedAt,
     // Filled in from the changelog, which is a separate call. Null until then,
@@ -220,6 +284,73 @@ function toTicket(issue: JiraIssue, site: string, connectionId: string, fetchedA
     url: `https://${site}/browse/${issue.key}`,
     fetchedAt,
   }
+}
+
+/**
+ * Which of a site's fields holds story points.
+ *
+ * There is no stable id to hard-code. Jira Cloud ships two different fields
+ * depending on how the project was created — `Story Points` on company-managed
+ * projects, `Story point estimate` on team-managed ones — and both are custom
+ * fields whose numeric id is assigned per site. A site can have both, when a
+ * team has migrated between project types, and then the company-managed one is
+ * the one that carries the historical estimates.
+ *
+ * The match is on the **name**, anchored at the start, and the result is
+ * required to be a custom numeric field:
+ *
+ * - `custom: false` rules out `timeestimate`, which is seconds of work and
+ *   would render as an eight-thousand-point ticket.
+ * - a declared schema type other than `number` rules out a text field somebody
+ *   named "Story points (old)". A field that declares no schema is allowed
+ *   through, because absence is not a contradiction, and `toPoints` will refuse
+ *   a value that turns out not to be numeric anyway.
+ *
+ * Returns `null` when nothing matches, which is a real answer: plenty of Jira
+ * sites do not estimate in points at all.
+ */
+export function storyPointFieldId(fields: unknown): string | null {
+  if (!Array.isArray(fields)) return null
+
+  const candidates = (fields as JiraFieldDescriptor[]).filter((field) => {
+    if (typeof field?.id !== 'string' || typeof field.name !== 'string') return false
+    if (field.custom === false) return false
+    if (field.schema?.type !== undefined && field.schema.type !== 'number') return false
+    return /^story point/i.test(field.name.trim())
+  })
+
+  const named = (want: string): string | undefined =>
+    candidates.find((f) => (f.name ?? '').trim().toLowerCase() === want)?.id
+
+  return named('story points') ?? named('story point estimate') ?? candidates[0]?.id ?? null
+}
+
+/**
+ * A custom field's value as a number, or nothing.
+ *
+ * Jira sends these as JSON numbers, but a field id resolved by name is still a
+ * field this code did not choose, so a non-numeric value is refused rather than
+ * coerced — `Number(null)` is 0, and a zero-point estimate the operator never
+ * made is exactly the kind of confident wrong number this project keeps finding.
+ * `0` itself passes through: a ticket really can be estimated at zero.
+ */
+export function toPoints(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+
+  // Some Jira configurations return a numeric custom field as a string. Only a
+  // string that is entirely a number is taken; `''` and `'TBD'` are not zero.
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+/** A present, non-blank string, or null. `''` from a provider is not a value. */
+function nonEmpty(value: string | undefined): string | null {
+  const trimmed = (value ?? '').trim()
+  return trimmed === '' ? null : trimmed
 }
 
 function toIdentity(user: JiraUser | null | undefined): ViewerIdentity | null {

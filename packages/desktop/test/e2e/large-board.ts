@@ -71,6 +71,11 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
       statusName: i % 4 === 0 ? 'In Review' : 'In Progress',
       statusCategory: 'indeterminate',
       isBlocked: false,
+      // Cycled rather than constant, and every fifth ticket carries neither —
+      // the wide ticket grid has to be measured with its placeholders in it,
+      // because those are the rows a real backlog is mostly made of.
+      priority: ['Highest', 'High', 'Medium', 'Low', null][i % 5] ?? null,
+      storyPoints: [1, 2, 3, 5, null][i % 5] ?? null,
       createdAt: '2026-08-01T09:00:00Z',
       updatedAt: ACTIVITY,
       lastRealActivityAt: ACTIVITY,

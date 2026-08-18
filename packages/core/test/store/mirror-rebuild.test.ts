@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ticketKey } from '../../src/domain/keys.js'
 import { openAuthored, openMirror } from '../../src/store/open.js'
 import { mirrorDbPath } from '../../src/store/paths.js'
+import { MIRROR_MIGRATIONS } from '../../src/store/mirror/migrations.js'
 
 /**
  * SC-007 and constitution XIII: delete the entire mirror, rebuild it from
@@ -154,15 +155,22 @@ describe('deleting the mirror', () => {
   })
 
   it('reports a clean migration on a fresh mirror', () => {
+    // Read from the chain rather than written down, so adding a migration does
+    // not need this test edited -- a literal here would have to be bumped by
+    // hand every time, which makes it a record of somebody's diligence rather
+    // than of the schema.
+    const latest = Math.max(...MIRROR_MIGRATIONS.map((m) => m.version))
+
     const first = openMirror({ dir })
     expect(first.migration.from).toBe(0)
-    expect(first.migration.to).toBe(1)
+    expect(first.migration.to).toBe(latest)
+    expect(first.migration.applied).toHaveLength(MIRROR_MIGRATIONS.length)
     first.db.close()
 
     // Reopening is not a re-migration.
     const second = openMirror({ dir })
     expect(second.migration.applied).toEqual([])
-    expect(second.migration.to).toBe(1)
+    expect(second.migration.to).toBe(latest)
     second.db.close()
   })
 })

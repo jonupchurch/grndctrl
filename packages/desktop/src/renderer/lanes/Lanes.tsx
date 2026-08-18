@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { EmptyState } from '../components/EmptyState.js'
 import { LaneStatus } from '../components/LaneStatus.js'
-import { Row } from '../components/Row.js'
+import { Row, RowHeadings } from '../components/Row.js'
 import { paletteIndexOf } from '../components/ProjectChip.js'
 import type { Severity } from '../components/StatusMark.js'
 import { launch } from '../launch.js'
@@ -21,6 +21,11 @@ import type { Project, WorkItem } from '../types.js'
  * The thresholds differ because the lanes measure different things: a ticket
  * untouched for three days is normal in most teams, a pull request untouched for
  * twenty-four hours is someone waiting.
+ *
+ * They also keep **their own column headings**, for the same reason: the third
+ * column is a ticket's summary, a pull request's title, and a branch's ticket —
+ * one heading across all three would have to be vague enough to be true of all
+ * of them, which is a heading that tells the operator nothing.
  */
 
 interface LaneShellProps {
@@ -29,6 +34,17 @@ interface LaneShellProps {
   count: number
   freshness: FreshnessView | null
   resource: string
+  /** What this lane calls its id, title and status columns. */
+  columns: { identifier: string; title: string; status: string }
+  /**
+   * Whether the rows carry priority and story points.
+   *
+   * One flag drives both the heading and `data-metrics` on the section, which
+   * is what widens the grid in CSS. The rows are handed their own `metrics`
+   * separately, so the two could in principle disagree — this is the reason
+   * the ticket lane is the only place that sets either.
+   */
+  metrics?: boolean
   children: ReactElement | ReactElement[] | null
   empty: ReactElement
   now?: Date
@@ -40,19 +56,30 @@ function Lane({
   count,
   freshness,
   resource,
+  columns,
+  metrics = false,
   children,
   empty,
   now,
 }: LaneShellProps): ReactElement {
   return (
-    <section className="lane" aria-label={title}>
+    <section className="lane" aria-label={title} data-metrics={metrics}>
       <header className="lane__head">
         <span>{title}</span>
         <span className="lane__count">{count}</span>
         <span className="lane__threshold">{threshold}</span>
         <LaneStatus freshness={freshness} resource={resource} {...(now === undefined ? {} : { now })} />
       </header>
-      {count === 0 ? empty : children}
+      {/* Only over rows. Headings above an empty state would label columns that
+          are not there, which reads as a lane that failed to load. */}
+      {count === 0 ? (
+        empty
+      ) : (
+        <>
+          <RowHeadings {...columns} metrics={metrics} />
+          {children}
+        </>
+      )}
     </section>
   )
 }
@@ -131,6 +158,8 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
       count={withTickets.length}
       freshness={freshness}
       resource="Tickets"
+      columns={{ identifier: 'Ticket', title: 'Summary', status: 'Status' }}
+      metrics
       {...(now === undefined ? {} : { now })}
       empty={
         <EmptyState title="No tickets">
@@ -155,6 +184,15 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
             agent: item.sessions.length > 0,
           }}
           {...(item.ticket === null ? {} : { status: item.ticket.statusName })}
+          // Always passed on this lane, because the lane is what declares the
+          // columns: a row that omitted them would leave two tracks empty and
+          // slide its own correlation badges under the "Priority" heading.
+          // `withTickets` has already excluded the null ticket; the fallback is
+          // here so a change to that filter cannot silently misalign the grid.
+          metrics={{
+            priority: item.ticket?.priority ?? null,
+            points: item.ticket?.storyPoints ?? null,
+          }}
           {...slot(item.projectId, projects)}
           {...noteSlot(notes, item.ticket?.key ?? item.key, item.ticket?.issueKey ?? item.key)}
           {...(now === undefined ? {} : { now })}
@@ -185,6 +223,7 @@ export function PullRequests({
       count={rows.length}
       freshness={freshness}
       resource="Pull requests"
+      columns={{ identifier: 'PR', title: 'Title', status: 'Review' }}
       {...(now === undefined ? {} : { now })}
       empty={
         <EmptyState title="No open pull requests">
@@ -229,6 +268,7 @@ export function Branches({ items, projects, freshness, notes, now }: LaneProps):
       count={rows.length}
       freshness={freshness}
       resource="Branches"
+      columns={{ identifier: 'Branch', title: 'Ticket', status: 'Local state' }}
       {...(now === undefined ? {} : { now })}
       empty={
         <EmptyState title="No open branches">

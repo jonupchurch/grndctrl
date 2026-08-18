@@ -46,7 +46,17 @@ export type Project = Pick<
 
 export type Ticket = Pick<
   CoreTicket,
-  'key' | 'issueKey' | 'summary' | 'statusName' | 'statusCategory' | 'isBlocked' | 'lastRealActivityAt'
+  | 'key'
+  | 'issueKey'
+  | 'summary'
+  | 'statusName'
+  | 'statusCategory'
+  | 'isBlocked'
+  // Both are nullable in the domain and null means *unknown* in both cases —
+  // the ticket lane draws a placeholder for either, and never a zero.
+  | 'priority'
+  | 'storyPoints'
+  | 'lastRealActivityAt'
 >
 
 export type PullRequest = Pick<

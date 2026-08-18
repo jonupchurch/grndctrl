@@ -3,6 +3,8 @@ import {
   applyActivity,
   classifyAuthor,
   jiraProvider,
+  storyPointFieldId,
+  toPoints,
   toStatusCategory,
 } from '../../src/providers/jira/index.js'
 import type { Fetcher } from '../../src/providers/http.js'
@@ -26,6 +28,29 @@ function recorded(routes: Record<string, unknown>, status = 200, headers: Record
   }
 
   return { fetcher, calls }
+}
+
+/**
+ * A fetcher that answers the search and refuses the field list.
+ *
+ * `recorded` gives every route the same status, and the case worth covering here
+ * is precisely the one where they differ: a credential that can read issues and
+ * cannot read field metadata.
+ */
+function failingFieldLookup(search: unknown): Fetcher {
+  return async (url) => {
+    if (new URL(url).pathname === '/rest/api/3/field') {
+      return new Response(JSON.stringify({ errorMessages: ['forbidden'] }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify(search), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
 }
 
 const provider = (routes: Record<string, unknown>, extra: Parameters<typeof recorded>[1] = 200) => {
@@ -107,8 +132,12 @@ describe('searching issues', () => {
     const { jira, calls } = provider({ '/rest/api/3/search/jql': searchResponse })
     await jira.searchIssues({ jql: 'project = MERC' })
 
-    expect(calls[0]?.url).toContain('/rest/api/3/search/jql')
-    expect(calls[0]?.url).not.toMatch(/\/rest\/api\/3\/search$/)
+    // Found rather than indexed: the field lookup that resolves story points
+    // goes out first, and pinning this to `calls[0]` would make it a test of
+    // call ordering rather than of which search endpoint is used.
+    const search = calls.find((c) => c.url.includes('/search'))
+    expect(search?.url).toContain('/rest/api/3/search/jql')
+    expect(search?.url).not.toMatch(/\/rest\/api\/3\/search$/)
   })
 
   it('survives an issue with missing fields rather than throwing', async () => {
@@ -117,6 +146,234 @@ describe('searching issues', () => {
 
     expect(tickets[0]?.summary).toBe('')
     expect(tickets[0]?.statusCategory).toBe('indeterminate')
+  })
+})
+
+/**
+ * Priority and story points (the ticket lane's two newest columns).
+ *
+ * Story points are the awkward one, and the reason most of this block exists.
+ * There is no fixed field id -- `Story Points` and `Story point estimate` are
+ * separate custom fields, numbered per site -- so the provider has to look the
+ * id up, and every failure mode of that lookup ends as a number on a row.
+ */
+describe('priority and story points', () => {
+  const FIELDS = [
+    { id: 'summary', name: 'Summary', custom: false, schema: { type: 'string' } },
+    { id: 'timeestimate', name: 'Remaining Estimate', custom: false, schema: { type: 'number' } },
+    {
+      id: 'customfield_10016',
+      name: 'Story point estimate',
+      custom: true,
+      schema: { type: 'number' },
+    },
+  ]
+
+  const issue = (fields: Record<string, unknown>) => ({
+    issues: [
+      {
+        id: '10001',
+        key: 'MERC-1184',
+        fields: {
+          summary: 'Reconcile worktree state',
+          status: { name: 'In Review', statusCategory: { key: 'indeterminate' } },
+          ...fields,
+        },
+      },
+    ],
+    isLast: true,
+  })
+
+  it('reads the priority name exactly as the tracker spells it', async () => {
+    const { jira } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({ priority: { name: 'Highest' } }),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+    expect(tickets[0]?.priority).toBe('Highest')
+  })
+
+  // A team using `P1`/`P2`, or Bugzilla's `Blocker`, must arrive intact. There
+  // is no category to map onto the way there is for status, and inventing one
+  // produces a confident wrong word.
+  it('does not normalise an unfamiliar priority scheme', async () => {
+    const { jira } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({ priority: { name: 'P2 - Major' } }),
+    })
+
+    expect((await jira.searchIssues({ jql: 'x' })).tickets[0]?.priority).toBe('P2 - Major')
+  })
+
+  it('reports an unset priority as null rather than as the bottom of the scale', async () => {
+    const { jira } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({ priority: null }),
+    })
+
+    expect((await jira.searchIssues({ jql: 'x' })).tickets[0]?.priority).toBeNull()
+  })
+
+  it('asks for the story point field it resolved, and reads the answer', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({ customfield_10016: 5 }),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    const search = calls.find((c) => c.url.includes('/search'))
+    expect((search?.body as { fields: string[] }).fields).toContain('customfield_10016')
+    expect(tickets[0]?.storyPoints).toBe(5)
+  })
+
+  // The lookup is per provider instance, and a provider is built per sync. Doing
+  // it per page would spend a request on every hundred tickets for an answer
+  // that cannot change mid-sync.
+  it('looks the field up once across several pages', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({ customfield_10016: 5 }),
+    })
+
+    await jira.searchIssues({ jql: 'x' })
+    await jira.searchIssues({ jql: 'x', pageToken: 'page-2' })
+
+    expect(calls.filter((c) => c.url.endsWith('/rest/api/3/field'))).toHaveLength(1)
+  })
+
+  /**
+   * The whole reason the lookup is wrapped in a catch.
+   *
+   * Story points are a column; the search is the lane. A site that answers 403
+   * on the field list must lose the column, not the tickets.
+   */
+  it('still returns tickets when the field lookup fails', async () => {
+    const jira = jiraProvider({
+      site: 'acme.atlassian.net',
+      email: 'jon@example.com',
+      apiToken: 'token',
+      connectionId: 'jira-1',
+      fetcher: failingFieldLookup(issue({ customfield_10016: 5 })),
+      now: () => NOW,
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    expect(tickets).toHaveLength(1)
+    expect(tickets[0]?.issueKey).toBe('MERC-1184')
+    // Null because nothing was asked for, not because nobody estimated it. The
+    // row draws a placeholder either way; what must not happen is a zero.
+    expect(tickets[0]?.storyPoints).toBeNull()
+  })
+
+  // Naming a field id the site does not have is not ignored -- Jira rejects the
+  // whole search, which would take the ticket lane down over a column.
+  it('names no story point field when the site has none', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': [FIELDS[0]],
+      '/rest/api/3/search/jql': issue({}),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    const search = calls.find((c) => c.url.includes('/search'))
+    expect((search?.body as { fields: string[] }).fields).toEqual([
+      'summary',
+      'status',
+      'assignee',
+      'reporter',
+      'priority',
+      'created',
+      'updated',
+    ])
+    expect(tickets[0]?.storyPoints).toBeNull()
+  })
+})
+
+describe('resolving the story point field', () => {
+  const field = (over: Record<string, unknown>): Record<string, unknown> => ({
+    id: 'customfield_10016',
+    name: 'Story Points',
+    custom: true,
+    schema: { type: 'number' },
+    ...over,
+  })
+
+  it('prefers the company-managed field when a site carries both', () => {
+    // A site that has migrated project types has both, and the company-managed
+    // one is where the historical estimates are.
+    expect(
+      storyPointFieldId([
+        field({ id: 'customfield_10016', name: 'Story point estimate' }),
+        field({ id: 'customfield_10004', name: 'Story Points' }),
+      ]),
+    ).toBe('customfield_10004')
+  })
+
+  it('takes the team-managed field when that is the only one', () => {
+    expect(storyPointFieldId([field({ name: 'Story point estimate' })])).toBe('customfield_10016')
+  })
+
+  // Seconds of remaining work, not points. It is numeric, it is not custom, and
+  // reading it would render a two-day ticket as a 57,600-point one.
+  it('refuses a built-in time field even when the name matches', () => {
+    expect(
+      storyPointFieldId([
+        { id: 'timeestimate', name: 'Story Points', custom: false, schema: { type: 'number' } },
+      ]),
+    ).toBeNull()
+  })
+
+  it('refuses a field that declares itself as something other than a number', () => {
+    expect(
+      storyPointFieldId([field({ name: 'Story points (old)', schema: { type: 'string' } })]),
+    ).toBeNull()
+  })
+
+  it('allows a matching field that declares no schema at all', () => {
+    // Absence is not a contradiction, and `toPoints` refuses the value later if
+    // it turns out not to be numeric after all.
+    const noSchema = field({})
+    delete noSchema['schema']
+    expect(storyPointFieldId([noSchema])).toBe('customfield_10016')
+  })
+
+  it('is null rather than a guess when nothing matches', () => {
+    expect(storyPointFieldId([field({ name: 'Business Value' })])).toBeNull()
+    expect(storyPointFieldId([])).toBeNull()
+    // A site that answered with something other than a list. Never throw here:
+    // this runs inside the sync.
+    expect(storyPointFieldId({ error: 'nope' })).toBeNull()
+  })
+})
+
+describe('reading a story point value', () => {
+  it('keeps a zero, which is an estimate somebody made', () => {
+    expect(toPoints(0)).toBe(0)
+  })
+
+  it('keeps a half point', () => {
+    expect(toPoints(0.5)).toBe(0.5)
+  })
+
+  it('parses a number sent as a string, which some configurations do', () => {
+    expect(toPoints('8')).toBe(8)
+  })
+
+  // `Number(null)` is 0 and `Number('')` is 0. Either would put an estimate
+  // nobody made onto the row -- the exact shape of defect this codebase keeps
+  // finding, arriving through a coercion rather than through a schema.
+  it('refuses everything that is not a number rather than coercing it to zero', () => {
+    expect(toPoints(null)).toBeNull()
+    expect(toPoints(undefined)).toBeNull()
+    expect(toPoints('')).toBeNull()
+    expect(toPoints('   ')).toBeNull()
+    expect(toPoints('TBD')).toBeNull()
+    expect(toPoints({})).toBeNull()
+    expect(toPoints(Number.NaN)).toBeNull()
+    expect(toPoints(Number.POSITIVE_INFINITY)).toBeNull()
   })
 })
 
@@ -261,10 +518,14 @@ describe('paging', () => {
     await jira.searchIssues({ jql: 'x' })
     await jira.searchIssues({ jql: 'x', pageToken: 'abc' })
 
+    // Filtered to the searches: the field lookup that resolves story points is
+    // a GET with no body, and it goes out ahead of the first page.
+    const searches = calls.filter((c) => c.url.includes('/search'))
+
     // Absent, not null: the endpoint rejects an explicit null token rather than
     // reading it as "start at the beginning".
-    expect(calls[0]?.body).not.toHaveProperty('nextPageToken')
-    expect(calls[1]?.body).toMatchObject({ nextPageToken: 'abc' })
+    expect(searches[0]?.body).not.toHaveProperty('nextPageToken')
+    expect(searches[1]?.body).toMatchObject({ nextPageToken: 'abc' })
   })
 })
 

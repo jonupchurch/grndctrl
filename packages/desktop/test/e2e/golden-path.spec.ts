@@ -172,6 +172,50 @@ test('5 · a note written from the board is on the row when the dialog closes', 
   await expect(tickets.getByRole('button', { name: '1 note on MERC-1184' })).toBeVisible()
 })
 
+/**
+ * The note that step 5 wrote must not have moved MERC-1184's columns.
+ *
+ * This is the reason the row's last two grid tracks are pinned rather than
+ * `auto`. A badge reading `1` is wider than the `+` on MERC-1190 below it, and
+ * while the track sized itself to its content that difference came out of the
+ * flexible title column — pushing status, court and age left on the row with
+ * notes and not on the row without.
+ *
+ * It has to live here rather than in `board.spec.ts` because it needs a board
+ * where one row has notes and another does not, and no scenario seeds notes.
+ * Asserted after the note exists, which is what makes it a real comparison
+ * rather than two identical rows agreeing.
+ */
+test('5b · the row that gained a note still lines up with the one that did not', async () => {
+  const columns = await it.window.evaluate(() => {
+    const of = (id: string): Record<string, number> => {
+      const row = [...document.querySelectorAll('.row')].find((r) =>
+        r.querySelector('.row__id')?.textContent?.includes(id),
+      )
+
+      const out: Record<string, number> = {}
+      for (const slot of ['.row__status', '.row__priority', '.row__court', '.row__age']) {
+        const cell = row?.querySelector(slot) ?? null
+        if (cell !== null) out[slot] = Math.round(cell.getBoundingClientRect().left)
+      }
+      return out
+    }
+
+    return { withNote: of('MERC-1184'), without: of('MERC-1190') }
+  })
+
+  // Both rows have to have been found, or the loop compares nothing and passes.
+  expect(Object.keys(columns.withNote)).toHaveLength(4)
+  expect(Object.keys(columns.without)).toHaveLength(4)
+
+  for (const slot of Object.keys(columns.withNote)) {
+    expect(
+      Math.abs((columns.withNote[slot] ?? 0) - (columns.without[slot] ?? 0)),
+      `${slot} moved between a row with notes and a row without`,
+    ).toBeLessThanOrEqual(1)
+  }
+})
+
 test('6 · editing that note against a current revision succeeds', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
   await tickets.getByRole('button', { name: '1 note on MERC-1184' }).click()

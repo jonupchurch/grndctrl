@@ -24,6 +24,15 @@ import { CorrelationBadge, StatusMark, type CorrelationKind, type Severity } fro
  * content sits in the grid beneath it as static text, and the badge sits above
  * it. Nothing about the row's appearance or keyboard behaviour changes.
  *
+ * **Two slots are opt-in, and that is a departure worth naming.** Priority and
+ * story points exist on a ticket and nowhere else — a branch has no priority and
+ * a pull request is not estimated. Every other slot is unconditional because an
+ * empty one is a *fact* about that row ("no branch yet"); these two would be a
+ * fact about the lane, and two columns that can never hold anything are noise
+ * rather than absence. So a lane either has them for all its rows or has them
+ * for none, `.lane[data-metrics]` widens the grid to match, and one prop decides
+ * both — which is what stops the markup and the column count disagreeing.
+ *
  * Height comes from `--row-h`, which density switches between 34px and 28px
  * (T131). Nothing here knows which.
  */
@@ -53,6 +62,16 @@ export interface RowProps {
   /** Provider status text — "In Review", "checks failing". */
   status?: string | undefined
   /**
+   * The ticket-only columns, or nothing at all.
+   *
+   * One optional object rather than two optional fields, because the two travel
+   * together: the lane's grid has both columns or neither, and a row that
+   * rendered one of them would put every slot after it in the wrong column.
+   * `null` inside it is an ordinary value — unknown — and renders as a
+   * placeholder. `0` points is not unknown and renders as `0`.
+   */
+  metrics?: { priority: string | null; points: number | null } | undefined
+  /**
    * Notes on **this row's own subject** (T150).
    *
    * Deliberately not `WorkItem.noteCount`, which is the total across the whole
@@ -72,6 +91,90 @@ export interface RowProps {
   now?: Date
 }
 
+/**
+ * An en dash where a value would be, hidden from assistive technology.
+ *
+ * The same discipline as the correlation placeholders and the empty project
+ * chip: the column has to hold its width or every row below it stops lining up.
+ * It is `aria-hidden` because the slot's `title` already says "not set" — a
+ * screen reader announcing a dash would be reading the ruling, not the data.
+ */
+function Absent(): ReactElement {
+  return (
+    <span className="row__absent" aria-hidden="true">
+      –
+    </span>
+  )
+}
+
+/**
+ * The column headings, on the row's own grid (T134).
+ *
+ * A separate component rather than a `<th>` row, because the lane is not a
+ * `<table>` — it is a list of rows each carrying a button, and turning it into
+ * a table to gain a header would change how every row is announced.
+ *
+ * It is **`aria-hidden`, deliberately**. A screen reader does not read this
+ * layout as a grid, so the headings would arrive as eight bare nouns before the
+ * list and then never again — no more use than reading the ruled lines. Every
+ * cell that needs naming is named where it sits: the row's button spells out
+ * what it opens, and the court, priority and points slots carry a `title`.
+ *
+ * It carries **`lane__headings` and not `row`**, which is not cosmetic. It was
+ * `row row--head` first, and that made it a row to everything that looks for
+ * one: `document.querySelectorAll('.row')` is how the performance test counts
+ * the board and how the greyscale test finds severity marks, and a two-hundred
+ * item board suddenly had two hundred and two rows in it. It borrows the row's
+ * *grid* — the one thing it genuinely shares — and none of its identity.
+ *
+ * The labels are passed in because the same three columns mean different things
+ * per lane — a ticket has a summary, a pull request has a title, and "Status" on
+ * a branch is what local git can see.
+ */
+export interface RowHeadingsProps {
+  identifier: string
+  title: string
+  status: string
+  /** Draws the two ticket-only headings. Must match the rows' `metrics`. */
+  metrics?: boolean
+}
+
+export function RowHeadings({
+  identifier,
+  title,
+  status,
+  metrics = false,
+}: RowHeadingsProps): ReactElement {
+  return (
+    <div className="lane__headings" aria-hidden="true">
+      {/* Two empty tracks: the staleness bar and the project chip are marks
+          rather than columns, and naming them would label a colour. */}
+      <span />
+      <span />
+
+      <span className="row__id">{identifier}</span>
+      <span className="row__title">{title}</span>
+      <span className="row__status">{status}</span>
+
+      {metrics && (
+        <>
+          <span className="row__priority">Priority</span>
+          <span className="row__points">Points</span>
+        </>
+      )}
+
+      <span className="row__correlation">Links</span>
+      <span className="row__court">Court</span>
+      <span className="row__age">Age</span>
+
+      {/* The trailing slot holds the note control, and the severity mark closes
+          the row. Both are their own labels; neither takes a heading. */}
+      <span />
+      <span />
+    </div>
+  )
+}
+
 export function Row({
   identifier,
   title,
@@ -82,6 +185,7 @@ export function Row({
   correlations,
   project,
   status,
+  metrics,
   noteCount,
   hasOpenQuestion,
   onOpenNotes,
@@ -138,6 +242,30 @@ export function Row({
       <span className="row__id">{identifier}</span>
       <span className="row__title">{title}</span>
       <span className="row__status">{status ?? ''}</span>
+
+      {metrics !== undefined && (
+        <>
+          {/*
+            The tracker's own word, unmapped — see `Ticket.priority` in core.
+            `title` carries the column's name because the heading row is
+            decorative: it tells a screen reader what "Highest" is a Highest of.
+          */}
+          <span className="row__priority" title={`Priority: ${metrics.priority ?? 'not set'}`}>
+            {metrics.priority ?? <Absent />}
+          </span>
+
+          {/*
+            Never `metrics.points || …` — that renders a genuine zero-point
+            ticket as unestimated. Only null is the placeholder.
+          */}
+          <span
+            className="row__points"
+            title={metrics.points === null ? 'Not estimated' : `${metrics.points} story points`}
+          >
+            {metrics.points === null ? <Absent /> : metrics.points}
+          </span>
+        </>
+      )}
 
       <span className="row__correlation">
         {CORRELATION_ORDER.map((kind) => (

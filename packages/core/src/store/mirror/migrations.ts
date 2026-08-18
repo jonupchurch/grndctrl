@@ -161,4 +161,30 @@ export const MIRROR_MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_workspaces_remote_branch ON local_workspaces(canonical_remote, branch);
     `,
   },
+  {
+    version: 2,
+    name: 'ticket-priority-and-points',
+    /**
+     * Two columns the ticket lane now shows.
+     *
+     * Added rather than folded into `init`, even though this file is the
+     * disposable store and a rebuild would produce the same schema. An installed
+     * copy of 0.1.3 has a `mirror.db` at version 1 on disk, and editing version 1
+     * would leave that database at "version 1" describing a schema it does not
+     * have — every ticket write would fail on an unknown column, on the one
+     * launch where nothing had changed for the user.
+     *
+     * Both are nullable with no default, and that is the whole point. Rows that
+     * predate the migration answer NULL, which the domain type already defines as
+     * "not known" for both fields; a `DEFAULT 0` on story points would tell every
+     * ticket ever synced that somebody estimated it at zero.
+     */
+    up: `
+      ALTER TABLE tickets ADD COLUMN priority TEXT;
+      -- REAL, not INTEGER: Jira's story point fields are numeric and half-point
+      -- estimates are ordinary. Rounding them at the storage layer would make
+      -- 0.5 and 1 the same ticket.
+      ALTER TABLE tickets ADD COLUMN story_points REAL;
+    `,
+  },
 ]

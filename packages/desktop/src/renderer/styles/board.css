@@ -212,10 +212,18 @@
 
 /* ── Attention ───────────────────────────────────────────────────────────── */
 
+/*
+ * No `margin-bottom` here any more, and its absence is the point.
+ *
+ * It had one while the panel sat directly under `.board`, which lays its
+ * children out with margins. The panel now lives inside `.board__main`, a flex
+ * column with `gap: 16px` — a margin there is added *to* the gap rather than
+ * instead of it, so the panel would have sat 32px clear of the lane beneath it
+ * and looked detached from the column it belongs to.
+ */
 .attention {
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  margin-bottom: 16px;
 }
 
 .attention__head {

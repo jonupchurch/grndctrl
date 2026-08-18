@@ -46,6 +46,8 @@ function ticket(url: string): Ticket {
     statusName: 'In Review',
     statusCategory: 'indeterminate',
     isBlocked: false,
+    priority: null,
+    storyPoints: null,
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-10T00:00:00.000Z',
     lastRealActivityAt: null,
