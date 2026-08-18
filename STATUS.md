@@ -1,11 +1,19 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-18 (0.2.0 cut, not yet tagged) · **Stage:** released · **On npm:** 0.1.3 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-18 (0.2.0 published from a tag) · **Stage:** released · **On npm:** 0.2.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
-**0.2.0 is bumped in the tree and not on the registry.** Four manifests and two
-version constants say `0.2.0`; nothing is tagged, so nothing is published. The
-release is one command — `git tag v0.2.0 && git push origin v0.2.0` — and it must
-be run from `main` after `005-priority-and-points` merges.
+**0.2.0 is on the registry**, published 2026-08-18 by the tag `v0.2.0`, each
+package carrying SLSA provenance — read back from `registry.npmjs.org` directly
+rather than through `npm view`, which caches. Third release cut from a tag.
+
+**The dry run is worth keeping as a habit.** `release.yml` takes a
+`workflow_dispatch` with `dry_run: true`, which runs every gate and packs all
+four tarballs without publishing. Run against the branch before tagging, it
+proved the whole release path — including the client-reference audit over full
+history, which is the arm that cannot be exercised locally. That also settled a
+false alarm: the audit reports hits in this checkout's `--scope history` from
+**unreachable dangling objects** left by the pre-scrub rebuild. A fresh CI clone
+sees none. Check reachability before believing a history finding.
 
 **0.1.2 is the first release published by the workflow rather than by hand.**
 Trusted publishing is configured per package, so a release is now: bump, commit,
