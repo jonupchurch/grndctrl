@@ -71,6 +71,8 @@ export function ticket(over: Partial<Ticket> & { issueKey?: string } = {}): Tick
     statusName: 'In Progress',
     statusCategory: 'indeterminate',
     isBlocked: false,
+    priority: 'Medium',
+    storyPoints: 3,
     createdAt: hoursAgo(200),
     updatedAt: hoursAgo(1),
     lastRealActivityAt: hoursAgo(2),
