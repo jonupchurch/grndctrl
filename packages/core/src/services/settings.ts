@@ -30,6 +30,10 @@ export const DEFAULT_SETTINGS: Settings = {
   // Off by default. A window that puts itself over everything else without
   // being asked is the behaviour people disable an application over.
   alwaysOnTop: false,
+  // Nothing folded away. See the type: only collapsed regions are stored, so an
+  // empty map is both "fresh install" and "everything open", which are the same
+  // board.
+  collapsedRegions: {},
 }
 
 const geometrySchema = z.object({
@@ -57,6 +61,25 @@ export const settingsSchema = z.object({
   mineOnly: z.boolean(),
   windowGeometry: geometrySchema.nullable(),
   alwaysOnTop: z.boolean(),
+  /**
+   * Any key, boolean value.
+   *
+   * Deliberately not an enum of the known region ids. This schema is the
+   * boundary for `settings.get` and `settings.update` as well as the store, and
+   * core has no business knowing what regions the one screen has — an enum here
+   * would mean adding a region to the renderer required a change in the service
+   * layer, and would turn a stale key from a harmless leftover into a settings
+   * row that fails to parse and falls back to defaults, silently discarding
+   * every other preference with it.
+   *
+   * **There is no migration for this key and none is needed.** `read` merges the
+   * stored payload over `DEFAULT_SETTINGS`, so a row written by 0.4.0 arrives
+   * with `collapsedRegions: {}` — which is exactly what a board nobody has
+   * folded should read as. A migration that wrote `{}` into every existing
+   * payload would touch the operator's only un-backed-up file to achieve
+   * nothing.
+   */
+  collapsedRegions: z.record(z.boolean()),
 })
 
 export interface SettingsStore {

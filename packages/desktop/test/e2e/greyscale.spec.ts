@@ -71,6 +71,11 @@ test('all four severities are on the board, so this is testing something', async
   // committed some rows and not others. Every other assertion here is inside a
   // Playwright matcher, which retries; this one had opted out of that.
   await expect.poll(severitiesOnScreen).toEqual(['critical', 'good', 'serious', 'warning'])
+
+  // And nothing is folded away (T106). A folded region renders no children, so
+  // a collapsed ticket lane would leave this file checking the shapes of an
+  // empty set — which "all distinct" is trivially true of.
+  await expect(it.window.locator('[data-collapsed="true"]')).toHaveCount(0)
 })
 
 test('every severity says its name, even when the word is not drawn', async () => {

@@ -62,6 +62,24 @@ async function timeToPaint(selector: string): Promise<number> {
 const rowCount = (): Promise<number> =>
   it.window.evaluate(() => document.querySelectorAll('.row').length)
 
+/**
+ * Nothing is folded away (T106).
+ *
+ * Every count in this file is of elements on the page, and a folded region
+ * renders none of its own — deliberately, because `querySelectorAll` cannot tell
+ * a hidden element from a visible one and the alternative would have left this
+ * budget measuring rows the operator had asked not to be drawn. The consequence
+ * is that a collapsed region makes these counts *smaller* rather than making
+ * them wrong, which is the failure that would read as "the board got faster".
+ *
+ * So the premise is asserted rather than assumed. Collapse is off by default and
+ * this suite launches a fresh data directory, so this should never fire — and if
+ * it does, the number below means something other than what it says.
+ */
+async function nothingIsFolded(): Promise<void> {
+  await expect(it.window.locator('[data-collapsed="true"]')).toHaveCount(0)
+}
+
 test('the board really is the size SC-013 names', async () => {
   // The guard, and it asserts the **literal numbers from the criterion** rather
   // than `board.items` — which is what the first version did, and which made it
@@ -69,6 +87,7 @@ test('the board really is the size SC-013 names', async () => {
   // twelve items passed: twelve items and eighteen rows are internally
   // consistent, every timing below got faster, and nothing failed.
   await expect(it.window.getByRole('region', { name: 'Tickets' })).toBeVisible()
+  await nothingIsFolded()
 
   expect(board.items).toBe(200)
   expect(board.projects).toBe(6)

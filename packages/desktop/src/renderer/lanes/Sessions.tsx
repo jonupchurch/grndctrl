@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { EmptyState } from '../components/EmptyState.js'
+import { Section } from '../components/Section.js'
 import { formatAge } from '../components/StaleBar.js'
 import { StatusMark, type Severity } from '../components/StatusMark.js'
 import type { AgentSession, SessionState } from '../types.js'
@@ -44,14 +45,12 @@ export function Sessions({ sessions, now }: SessionsProps): ReactElement {
   const live = sessions.filter((s) => s.state === 'running' || s.state === 'needs-you').length
 
   return (
-    <section className="lane" aria-label="Agent sessions">
-      <header className="lane__head">
-        <span>Agent sessions</span>
-        <span className="lane__count">
-          {live} of {sessions.length}
-        </span>
-      </header>
-
+    <Section
+      id="sessions"
+      title="Agent sessions"
+      className="lane"
+      count={`${live} of ${sessions.length}`}
+    >
       {sessions.length === 0 ? (
         <EmptyState title="No agent sessions">
           Agents report themselves through <code>grndctrl-mcp</code> — start, heartbeat, activity,
@@ -75,7 +74,7 @@ export function Sessions({ sessions, now }: SessionsProps): ReactElement {
           )
         })
       )}
-    </section>
+    </Section>
   )
 }
 

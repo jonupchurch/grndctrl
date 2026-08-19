@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { Section } from './Section.js'
 import type { BallInCourt as Court, WorkItem } from '../types.js'
 
 /**
@@ -44,12 +45,7 @@ export function BallInCourt({ items, onSelect, selected }: BallInCourtProps): Re
   for (const item of items) counts[item.ballInCourt] += 1
 
   return (
-    <section className="court" aria-label="Ball in court">
-      <header className="lane__head">
-        <span>Ball in court</span>
-        <span className="lane__count">{items.length}</span>
-      </header>
-
+    <Section id="court" title="Ball in court" className="court" count={items.length}>
       <div className="court__rows">
         {COURT.map((court) => (
           <div
@@ -72,6 +68,6 @@ export function BallInCourt({ items, onSelect, selected }: BallInCourtProps): Re
           </div>
         ))}
       </div>
-    </section>
+    </Section>
   )
 }

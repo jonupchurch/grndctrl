@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { Section } from './Section.js'
 import { StatusMark } from './StatusMark.js'
 
 /**
@@ -46,35 +47,45 @@ export function StatTiles({
   onToggleMine,
 }: StatTilesProps): ReactElement {
   return (
-    <div className="tiles">
-      <button
-        type="button"
-        className="tile tile--toggle"
-        aria-pressed={mineOnly}
-        onClick={onToggleMine}
-      >
-        <span className="tile__label">Your court</span>
-        <span className="tile__value">{yourCourt}</span>
-        <span className="tile__sub">
-          {mineOnly ? 'showing only yours — press to show all' : 'press to show only yours'}
-        </span>
-      </button>
+    <Section id="summary" title="Summary" className="tiles-section">
+      {/*
+        The toggle stays the *first* button inside `.tiles`.
+        `perf.spec.ts` times the court filter with the selector `.tiles button`,
+        which takes the first match — so a collapse control rendered inside this
+        grid would have been the thing it measured, and the measurement would
+        have gone on passing while testing nothing. The region's own control is
+        in the header, outside `.tiles`.
+      */}
+      <div className="tiles">
+        <button
+          type="button"
+          className="tile tile--toggle"
+          aria-pressed={mineOnly}
+          onClick={onToggleMine}
+        >
+          <span className="tile__label">Your court</span>
+          <span className="tile__value">{yourCourt}</span>
+          <span className="tile__sub">
+            {mineOnly ? 'showing only yours — press to show all' : 'press to show only yours'}
+          </span>
+        </button>
 
-      <Figure
-        label="Stalled"
-        value={stalled}
-        sub="no real activity in 3 days"
-        severity={stalled === 0 ? 'good' : 'serious'}
-      />
+        <Figure
+          label="Stalled"
+          value={stalled}
+          sub="no real activity in 3 days"
+          severity={stalled === 0 ? 'good' : 'serious'}
+        />
 
-      <Figure
-        label="Agents live"
-        value={agentsLive}
-        sub={`of ${totalSessions} session${totalSessions === 1 ? '' : 's'}`}
-        severity="good"
-        accent
-      />
-    </div>
+        <Figure
+          label="Agents live"
+          value={agentsLive}
+          sub={`of ${totalSessions} session${totalSessions === 1 ? '' : 's'}`}
+          severity="good"
+          accent
+        />
+      </div>
+    </Section>
   )
 }
 

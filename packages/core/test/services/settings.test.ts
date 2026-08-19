@@ -102,6 +102,56 @@ describe('settings', () => {
     expect(settingsStore(db).get()).toEqual(DEFAULT_SETTINGS)
   })
 
+  /**
+   * The collapsed-region map (007/T102).
+   *
+   * The reason this has a test of its own is the failure it would otherwise
+   * have: `settingsSchema` is a Zod object, so it **strips** keys it does not
+   * declare. A `collapsedRegions` added to the type and the defaults but not to
+   * the schema would round-trip through `update` losing the value silently, and
+   * the symptom is a fold that survives until the next settings write of any
+   * kind — a theme change, a project chip — and then quietly reverts.
+   */
+  it('stores which regions are folded, and reads them back', () => {
+    const store = settingsStore(db)
+
+    expect(store.get().collapsedRegions).toEqual({})
+
+    store.update({ collapsedRegions: { prompts: true, court: true } })
+    expect(store.get().collapsedRegions).toEqual({ prompts: true, court: true })
+
+    // A write of something else must not disturb it. This is the assertion the
+    // stripping failure above would break.
+    store.update({ appearance: 'dark' })
+    expect(store.get().collapsedRegions).toEqual({ prompts: true, court: true })
+  })
+
+  it('takes a region id it has never heard of, because core does not know the screen', () => {
+    // Deliberately not an enum of the known ids. Core has no business knowing
+    // what regions the one screen has, and an enum here would turn a renamed
+    // region into a settings row that fails to parse — which falls back to
+    // defaults and takes every other preference with it.
+    const store = settingsStore(db)
+    store.update({ collapsedRegions: { 'a-region-that-does-not-exist': true } })
+
+    const settings = store.get()
+    expect(settings.collapsedRegions).toEqual({ 'a-region-that-does-not-exist': true })
+    expect(settings.appearance).toBe(DEFAULT_SETTINGS.appearance)
+  })
+
+  it('reads a row written before the key existed as nothing folded', () => {
+    // 0.4.0's payload has no `collapsedRegions`. The read merges over the
+    // defaults, so it arrives as `{}` — which is exactly what a board nobody has
+    // folded should be. This is why there is no migration for the key.
+    db.prepare('INSERT INTO settings (id, payload) VALUES (1, ?)').run(
+      JSON.stringify({ appearance: 'dark', density: 'compact' }),
+    )
+
+    const settings = settingsStore(db).get()
+    expect(settings.collapsedRegions).toEqual({})
+    expect(settings.appearance).toBe('dark')
+  })
+
   it('keeps exactly one settings row', () => {
     const store = settingsStore(db)
     store.update({ appearance: 'dark' })

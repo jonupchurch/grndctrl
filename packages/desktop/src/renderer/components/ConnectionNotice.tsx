@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { Section } from './Section.js'
 import { useOperation } from '../query.js'
 
 /**
@@ -56,8 +57,18 @@ export function ConnectionNotice({ onOpenSettings }: { onOpenSettings(): void })
     return `Jira · ${connection.siteOrHost} (${connection.accountLabel})`
   }
 
+  // The count stays in the header when this region is folded, and it is the case
+  // FR-145 is really about: folding a warning must not fold away the fact that
+  // there is one. A notice whose gap count vanished when tidied out of the way
+  // would turn a fold into a way of not being told the board cannot refresh.
   return (
-    <section className="notice" role="status" aria-label="Connections that cannot refresh">
+    <Section
+      id="connections"
+      title="Connections that cannot refresh"
+      className="notice"
+      role="status"
+      count={gaps.length}
+    >
       <p className="notice__lead">
         {keychainDown ? (
           <>
@@ -89,6 +100,6 @@ export function ConnectionNotice({ onOpenSettings }: { onOpenSettings(): void })
       <button type="button" className="ghost" onClick={onOpenSettings}>
         Manage connections
       </button>
-    </section>
+    </Section>
   )
 }

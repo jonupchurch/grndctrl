@@ -141,6 +141,91 @@
   min-width: 0;
 }
 
+/* ── Regions ───────────────────────────────────────────────────────── */
+
+/*
+ * Every region on the board folds, and folding removes it from the tree.
+ *
+ * `display: contents` on the body is what makes that cost nothing structurally:
+ * the wrapper carries the id that `aria-controls` names and takes no part in
+ * layout, so `.lane`, `.court` and `.notice` each keep the box model they had
+ * before there was a wrapper at all. Without it, `.notice` — a flex column —
+ * would collapse its three children into one flex item, and the ball-in-court
+ * rows would lose their shared border.
+ *
+ * There is no rule here that hides anything. That is deliberate and is the
+ * decision `Section.tsx` explains at length: a folded region renders no
+ * children, because `document.querySelectorAll` cannot tell a hidden row from a
+ * visible one and two of this suite's counts depend on it.
+ */
+.section__body {
+  display: contents;
+}
+
+/*
+ * The header's title is a button now.
+ *
+ * A button resets font, colour and letter-spacing, all of which `.lane__head`
+ * sets and every region relied on inheriting. Everything below is restoring what
+ * the `<span>` had, plus the affordance a control needs.
+ */
+.section__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.section__toggle:hover {
+  color: var(--ink);
+}
+
+.section__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * A shape, not a rotation.
+ *
+ * The marker is the only visual difference between a folded region and an open
+ * one whose contents happen to be empty, so it is two different glyphs rather
+ * than one turned by a transform: a rotation is invisible to a screenshot
+ * comparison, and it disappears entirely under `prefers-reduced-motion` styles
+ * that disable transforms. Fixed width so the title does not shift as it flips.
+ */
+.section__marker {
+  width: 9px;
+  color: var(--ink-3);
+}
+
+/*
+ * The tile row is a region too, and the header above it is not a lane header:
+ * no border under it, no fixed height, and nothing to separate from because the
+ * tiles have their own margin.
+ */
+.tiles-section .lane__head {
+  height: auto;
+  padding: 0 0 6px;
+  border-bottom: 0;
+}
+
+/* The notice keeps its flex column; the header is the one child that is not
+   part of it. */
+.notice .lane__head {
+  height: auto;
+  padding: 0;
+  border-bottom: 0;
+}
+
 /* ── Tiles ───────────────────────────────────────────────────────────────── */
 
 .tiles {

@@ -313,6 +313,26 @@ export interface Settings {
    * only `BrowserWindow.setAlwaysOnTop` can.
    */
   alwaysOnTop: boolean
+  /**
+   * Which regions of the board the operator has folded away (FR-143).
+   *
+   * **Only the collapsed ones are stored**, and that is the whole reason this is
+   * a sparse map rather than a flag per region. Storing `false` too would put a
+   * key in here for every region the operator has ever *expanded* again, so the
+   * map would grow with interaction rather than with state, and a region that
+   * was renamed would leave a dead entry behind forever. Absent means expanded,
+   * which is also the default and the state a fresh install is in.
+   *
+   * Keys are the region ids, which are **stable literals in the renderer**,
+   * never generated — a generated id changes between builds and would silently
+   * unfold everything the operator had put away.
+   *
+   * An unrecognised key is ignored rather than an error. Core knows nothing
+   * about what regions exist; it stores what the one screen tells it, and a
+   * board that refused to load because a region was renamed would be a poor
+   * trade for a preference.
+   */
+  collapsedRegions: Record<string, boolean>
 }
 
 // ---------------------------------------------------------------------------

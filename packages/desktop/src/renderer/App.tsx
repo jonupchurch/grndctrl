@@ -6,6 +6,7 @@ import { NoProjects } from './components/EmptyState.js'
 import { NotesModal } from './components/NotesModal.js'
 import { StatTiles } from './components/StatTiles.js'
 import { filterSessions, filterWork, summarise, useFilter } from './filter.js'
+import { RegionsProvider, useRegionState } from './regions.js'
 import { Tickets, type NotesAccess } from './lanes/Lanes.js'
 import { LaneBoundary } from './lanes/LaneBoundary.js'
 import { Sessions } from './lanes/Sessions.js'
@@ -107,6 +108,7 @@ export function App(): ReactElement {
     activeProjectId: string | null
     mineOnly: boolean
     alwaysOnTop: boolean
+    collapsedRegions: Record<string, boolean>
   }>('settings.get')
 
   const writeSettings = useCallback(
@@ -122,6 +124,23 @@ export function App(): ReactElement {
     ...(settings.data === undefined
       ? {}
       : { saved: { activeProjectId: settings.data.activeProjectId, mineOnly: settings.data.mineOnly } }),
+    persist: writeSettings,
+  })
+
+  /**
+   * Which regions are folded away (T102, T103).
+   *
+   * **The ids are literals, here and in each component that names one**:
+   * `summary`, `connections`, `tickets`, `sessions`, `court`. They are the keys
+   * of a stored preference, so a generated one would change between builds and
+   * quietly unfold everything the operator had put away — and would leave a dead
+   * key behind each time. There is no registry of them and there deliberately is
+   * not: a region whose id is wrong shows up immediately as a fold that does not
+   * survive a restart, and a list to keep in step is a second place to get it
+   * wrong.
+   */
+  const regions = useRegionState({
+    ...(settings.data === undefined ? {} : { saved: settings.data.collapsedRegions }),
     persist: writeSettings,
   })
 
@@ -190,7 +209,7 @@ export function App(): ReactElement {
         }
 
   return (
-    <>
+    <RegionsProvider value={regions}>
       <Titlebar
         projects={known}
         filter={filter}
@@ -269,7 +288,6 @@ export function App(): ReactElement {
           onClose={() => setNotesFor(null)}
         />
       )}
-
-    </>
+    </RegionsProvider>
   )
 }

@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import { EmptyState } from '../components/EmptyState.js'
 import { LaneStatus } from '../components/LaneStatus.js'
+import { Section } from '../components/Section.js'
 import { Row, RowHeadings } from '../components/Row.js'
 import { paletteIndexOf } from '../components/ProjectChip.js'
 import { launch } from '../launch.js'
@@ -38,6 +39,8 @@ import {
  */
 
 interface LaneShellProps {
+  /** The persisted region id. A stable literal, never derived from the title. */
+  id: string
   title: string
   threshold: string
   count: number
@@ -66,6 +69,7 @@ interface LaneShellProps {
 }
 
 function Lane({
+  id,
   title,
   threshold,
   count,
@@ -79,13 +83,21 @@ function Lane({
   now,
 }: LaneShellProps): ReactElement {
   return (
-    <section className="lane" aria-label={title} data-metrics={metrics}>
-      <header className="lane__head">
-        <span>{title}</span>
-        <span className="lane__count">{count}</span>
-        <span className="lane__threshold">{threshold}</span>
-        <LaneStatus freshness={freshness} resource={resource} {...(now === undefined ? {} : { now })} />
-      </header>
+    <Section
+      id={id}
+      title={title}
+      className="lane"
+      metrics={metrics}
+      count={count}
+      meta={threshold}
+      status={
+        <LaneStatus
+          freshness={freshness}
+          resource={resource}
+          {...(now === undefined ? {} : { now })}
+        />
+      }
+    >
       {/* Only over rows. Headings above an empty state would label columns that
           are not there, which reads as a lane that failed to load. */}
       {count === 0 ? (
@@ -96,7 +108,7 @@ function Lane({
           {children}
         </>
       )}
-    </section>
+    </Section>
   )
 }
 
@@ -218,6 +230,7 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
 
   return (
     <Lane
+      id="tickets"
       title="Tickets"
       threshold="stale past 3d"
       count={items.length}
