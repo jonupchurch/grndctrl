@@ -23,7 +23,7 @@ const SHAPES: Record<Severity, { clip: string; label: string; use: string }> = {
   good: {
     clip: 'circle(50% at 50% 50%)',
     label: 'Good',
-    use: 'Merged, checks green, nothing owed',
+    use: 'Moving, nothing owed',
   },
   warning: {
     clip: 'polygon(50% 0%, 100% 100%, 0% 100%)',
@@ -33,12 +33,12 @@ const SHAPES: Record<Severity, { clip: string; label: string; use: string }> = {
   serious: {
     clip: 'inset(0)',
     label: 'Serious',
-    use: 'Stalled, behind main, agent silent',
+    use: 'Stalled, or an agent has gone silent',
   },
   critical: {
     clip: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
     label: 'Critical',
-    use: 'Failing checks, drift, provider down',
+    use: 'Blocked, abandoned, or the provider is down',
   },
 }
 
@@ -71,23 +71,26 @@ export function StatusMark({
 /**
  * Correlation badges: outlined, where status marks are filled.
  *
- * "Fill means state; outline means fact" — a PR either exists or it does not,
- * and that is not a severity. They share the shape vocabulary so the eye learns
- * one alphabet: circle is a pull request, square a branch, diamond an agent,
- * triangle CI.
+ * "Fill means state; outline means fact" — an agent either has a session on this
+ * ticket or it does not, and that is not a severity. It shares the shape
+ * vocabulary with `StatusMark` so the eye learns one alphabet, and it keeps the
+ * diamond it has always had.
  *
  * An absent badge is information. "Assigned to me, nothing started" is a row
- * with three empty slots, drawn as hairline placeholders rather than omitted —
- * omitting them would let the remaining badges slide left and break the columns
- * the lane reads down.
+ * with an empty slot, drawn as a hairline placeholder rather than omitted —
+ * omitting it would let the court column slide left and break the alignment the
+ * lane is read down.
+ *
+ * **There were four kinds**: branch, pull request, CI check, agent. Three of them
+ * described a code host and a local checkout, and 006 removed both providers. The
+ * type is a one-member union rather than a boolean because the *slot* is the
+ * abstraction — presence marks in a fixed grid — and that survives its contents
+ * being one thing.
  */
-export type CorrelationKind = 'branch' | 'pull-request' | 'agent' | 'check'
+export type CorrelationKind = 'agent'
 
 const BADGES: Record<CorrelationKind, { clip: string; label: string }> = {
-  branch: { clip: 'inset(0)', label: 'branch' },
-  'pull-request': { clip: 'circle(50% at 50% 50%)', label: 'PR' },
   agent: { clip: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', label: 'agent' },
-  check: { clip: 'polygon(50% 0%, 100% 100%, 0% 100%)', label: 'CI' },
 }
 
 export interface CorrelationBadgeProps {

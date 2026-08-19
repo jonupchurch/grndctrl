@@ -81,12 +81,13 @@ test('the board really is the size SC-013 names', async () => {
   // Six projects plus "All".
   expect(chips).toBe(7)
 
-  // 200 ticket rows plus a pull request row for every other item. The Open
-  // branches lane contributes nothing here, and that is not an oversight: it
-  // renders local **workspaces** — what git says is checked out on this machine
-  // — not the remote branches the code host reports. The fixture has no
-  // checkouts, so the third lane is legitimately empty on a 200-item board.
-  expect(await rowCount()).toBe(300)
+  // 200 ticket rows, and only ticket rows: 006 removed the pull request lane
+  // (which contributed one row per other item, for 300) and the branch lane
+  // (which contributed none, because it rendered local checkouts and the
+  // fixture has no paths). The generator still *builds* pull requests and
+  // branches until M5 (T053) narrows it; nothing renders them, which is
+  // exactly what this number now asserts.
+  expect(await rowCount()).toBe(200)
 })
 
 test('selecting a project updates the page within the budget', async () => {

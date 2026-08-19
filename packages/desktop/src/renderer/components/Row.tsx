@@ -1,12 +1,12 @@
 import type { ReactElement, ReactNode } from 'react'
 import { ProjectChip } from './ProjectChip.js'
-import { StaleBar, formatAge } from './StaleBar.js'
+import { StaleBar } from './StaleBar.js'
 import type { StalenessBand } from './StaleBar.js'
 import { CorrelationBadge, StatusMark, type CorrelationKind, type Severity } from './StatusMark.js'
 import type { SortColumn, SortState } from '../lanes/sort.js'
 
 /**
- * One 34px primitive, serving all three lanes (T134).
+ * One 34px primitive, serving every lane (T134).
  *
  * The slots are **fixed-width and always present**, and that is the design
  * decision the whole lane rests on. Columns align down the lane, so the eye
@@ -26,22 +26,23 @@ import type { SortColumn, SortState } from '../lanes/sort.js'
  * it. Nothing about the row's appearance or keyboard behaviour changes.
  *
  * **Three slots are opt-in, and that is a departure worth naming.** Sprint,
- * priority and story points exist on a ticket and nowhere else — a branch has no
- * priority and a pull request is not in a sprint. Every other slot is
- * unconditional because an empty one is a *fact* about that row ("no branch
- * yet"); these three would be a fact about the lane, and a column that can never
+ * priority and story points exist on a ticket and nowhere else. Every other slot
+ * is unconditional because an empty one is a *fact* about that row ("no agent on
+ * it"); these three would be a fact about the lane, and a column that can never
  * hold anything is noise rather than absence. So a lane either has them for all
  * its rows or has them for none, `.lane[data-metrics]` widens the grid to match,
  * and one prop decides all three — which is what stops the markup and the column
  * count disagreeing.
  *
- * **The age slot is opt-out, for the same reason in reverse.** Three added
- * columns do not fit the ticket lane at any width the rest of the board can
- * spare, and age is the one with a stand-in: the staleness bar at the head of
- * every row is derived from the same timestamp and states it, coloured, with the
- * exact age in its `title`. Dropping the number costs the operator a sort key on
- * that lane and nothing else. It stays on the pull request and branch lanes,
- * where there is room and where "stale past 24h" is the whole point.
+ * **There is no age column any more**, and it did not go quietly. It was opt-out
+ * — dropped on the ticket lane to pay for the sprint column, kept on the pull
+ * request and branch lanes where "stale past 24h" was the whole point. 006
+ * removed both of those lanes, so the flag had exactly one setting left and the
+ * column had no caller: a prop whose only remaining value is `false` is a
+ * capability nothing can reach, and this file already carries two comments about
+ * fields that were declared on both sides and wired on neither. The fact is not
+ * lost — the staleness bar in the leftmost track is derived from the same
+ * timestamp, states it in colour, and carries the exact age in its `title`.
  *
  * Height comes from `--row-h`, which density switches between 34px and 28px
  * (T131). Nothing here knows which.
@@ -56,7 +57,17 @@ const COURT: Record<BallInCourt, { glyph: string; label: string }> = {
   agent: { glyph: '◆', label: 'Agent' },
 }
 
-const CORRELATION_ORDER: CorrelationKind[] = ['branch', 'pull-request', 'check', 'agent']
+/**
+ * What can be correlated with a ticket, which is now one thing.
+ *
+ * It was four — branch, pull request, CI check, agent — and three of them came
+ * from the code host and the local checkout that 006 removes. Kept as a list of
+ * one rather than collapsed into a bare conditional, because the slot's value is
+ * that it is a *fixed grid of presence marks*: an absent badge is a hairline
+ * placeholder holding its column, not a gap. One entry still renders that way,
+ * and a second is one line away if there is ever another thing to correlate.
+ */
+const CORRELATION_ORDER: CorrelationKind[] = ['agent']
 
 export interface RowProps {
   /** Identifier shown in the id slot — `MERC-1184`, `#482`, a branch name. */
@@ -81,13 +92,6 @@ export interface RowProps {
    * placeholder. `0` points is not unknown and renders as `0`.
    */
   metrics?: { sprint: string | null; priority: string | null; points: number | null } | undefined
-  /**
-   * Whether the age column is drawn. Must match the lane's `age`.
-   *
-   * Defaulted on, so the two lanes that keep it say nothing and the one that
-   * gave it up for the sprint column says so explicitly at the call site.
-   */
-  age?: boolean
   /**
    * Notes on **this row's own subject** (T150).
    *
@@ -159,8 +163,6 @@ export interface RowHeadingsProps {
   status: string
   /** Draws the three ticket-only headings. Must match the rows' `metrics`. */
   metrics?: boolean
-  /** Draws the age heading. Must match the rows' `age`. */
-  age?: boolean
   /**
    * What this lane can be sorted by, and how it currently is.
    *
@@ -182,7 +184,6 @@ export function RowHeadings({
   title,
   status,
   metrics = false,
-  age = true,
   sort,
 }: RowHeadingsProps): ReactElement {
   /**
@@ -254,13 +255,18 @@ export function RowHeadings({
         </>
       )}
 
+      {/* "Links" when it named four systems; the column holds one presence mark
+          now and is named for what that mark is about. The court column beside
+          it can also read "Agent", and the two are different questions: this one
+          is *has an agent been on this ticket*, that one is *who is it stopped
+          on right now* — a ticket with an agent on it and an unanswered question
+          is a diamond here and `● You` there. */}
       <span className="row__correlation" aria-hidden="true">
-        Links
+        Agent
       </span>
       <span className="row__court" aria-hidden="true">
         Court
       </span>
-      {age && heading('age', 'Age')}
 
       {/* The trailing slot holds the note control, and the severity mark closes
           the row. Both are their own labels; neither takes a heading. */}
@@ -281,7 +287,6 @@ export function Row({
   project,
   status,
   metrics,
-  age = true,
   noteCount,
   hasOpenQuestion,
   onOpenNotes,
@@ -308,8 +313,8 @@ export function Row({
         selection but makes the row's primary action a non-interactive element
         with an onClick, and the button then exists only for keyboard. One real
         button beats a div that behaves like one, so the selection goes. The
-        title is still selectable wherever it appears outside a row: the
-        Attention strips, and the confirmation dialog.
+        title is still selectable wherever it appears outside a row — the
+        notes dialog shows the subject label as ordinary text.
       */}
       <button
         type="button"
@@ -383,12 +388,6 @@ export function Row({
         <span aria-hidden="true">{court.glyph}</span>
         <span className="row__court-label">{court.label}</span>
       </span>
-
-      {/* Dropped only where the sprint column took its width. The staleness bar
-          at the head of the row is derived from this same timestamp and carries
-          the exact age in its `title`, so the fact is still on the row — the
-          number is what goes. */}
-      {age && <span className="row__age">{formatAge(lastRealActivityAt, now)}</span>}
 
       {/*
         Decision 18, settled: the note badge takes the **trailing slot**, which

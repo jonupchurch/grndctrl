@@ -85,23 +85,22 @@ test('a refresh that could not happen is reported as a failure, not a success', 
   expect(failed.map((r) => r.connectionId).sort()).toEqual(['gh-1', 'jira-1', 'local'])
 })
 
-test('every lane keeps its data and its own reading', async () => {
+test('the lane keeps its data and its own reading', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
-  const pulls = it.window.getByRole('region', { name: 'Pull requests' })
 
-  const branches = it.window.getByRole('region', { name: 'Open branches' })
-
-  // The rows are still there — all three lanes, with all three providers
-  // unusable. XV in one assertion: a lane degrades, it does not blank, because
-  // what it last fetched is still the best answer available.
+  // The rows are still there with the provider unusable. XV in one assertion: a
+  // lane degrades, it does not blank, because what it last fetched is still the
+  // best answer available.
+  //
+  // This test demonstrated the property across *three* lanes and now has one to
+  // demonstrate it on, which is weaker — the interesting version was one
+  // provider failing while another rendered. T054 rewrites this file at M5 to
+  // demonstrate the ticket lane failing while the session lane, the panels and
+  // this notice still render, which is the shape the guarantee takes with a
+  // single provider. Until then it is narrowed rather than dropped.
   await expect(tickets.getByText('MERC-1184')).toBeVisible()
-  await expect(pulls.getByText('#451')).toBeVisible()
-  // The branch lane is the one that regressed: an unreadable checkout wrote an
-  // empty set over the cached workspaces, so this lane emptied itself while
-  // reporting a failure nobody reads as "your branches are still there".
-  await expect(branches.getByText('feature/MERC-1190')).toBeVisible()
 
-  // And each lane reports its own state rather than a board-wide verdict.
+  // And the lane reports its own state rather than a board-wide verdict.
   // "not authenticated" rather than "refused": nothing was refused, because no
   // credential was ever sent — and `ConnectionNotice` above says which of the
   // two it is, so the two sentences on screen agree with each other.
@@ -147,12 +146,6 @@ test('the board is still fully interactive', async () => {
     dialog.getByRole('list', { name: 'Notes on this item' }).getByText('Token was revoked'),
   ).toBeVisible()
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-
-  // Attention still reasons over the cached data: drift is a disagreement
-  // between two records, and both records are still on hand.
-  await expect(
-    it.window.getByRole('region', { name: 'Attention' }).getByText(/MERC-1184 is In Review/),
-  ).toBeVisible()
 })
 
 test('the notice routes to where the credential is fixed', async () => {

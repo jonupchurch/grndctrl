@@ -175,8 +175,14 @@ describe('ordering rows', () => {
   })
 
   it('leaves the rows alone when the lane cannot sort by that column', () => {
+    // `status` is a real column and this fixture's accessors deliberately do not
+    // supply it — which is the case a lane hits whenever its headings and its
+    // accessors disagree. It used to be `age`, a column that existed in the
+    // union and in no lane; 006 removed the union member with the two lanes that
+    // drew it, so the case had to be re-pointed at a live column rather than
+    // deleted. Deleting it would have taken the guarantee with it.
     const rows = [ticket({ id: 'b' }), ticket({ id: 'a' })]
-    expect(applySort(rows, { column: 'age', direction: 'asc' }, ACCESSORS)).toBe(rows)
+    expect(applySort(rows, { column: 'status', direction: 'asc' }, ACCESSORS)).toBe(rows)
   })
 })
 

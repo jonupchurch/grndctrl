@@ -151,7 +151,7 @@ test('the correlation badges are a second alphabet, and it is consistent', async
    * difference deliberately deleted, because the shapes never matched to begin
    * with. Found by probing, not by reading.
    */
-  const kind = 'pull-request'
+  const kind = 'agent'
   const present = await it.window
     .locator(`.row .badge[data-kind="${kind}"][data-present="true"] .badge__shape`)
     .first()
@@ -163,7 +163,7 @@ test('the correlation badges are a second alphabet, and it is consistent', async
 
   expect(
     present.toString('base64'),
-    'a present and an absent pull-request badge are indistinguishable without colour',
+    'a present and an absent agent badge are indistinguishable without colour',
   ).not.toBe(absent.toString('base64'))
 
   // And each carries its own word, so the row is readable without any of it.

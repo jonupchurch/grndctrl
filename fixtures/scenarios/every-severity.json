@@ -1,5 +1,5 @@
 {
-  "description": "One work item at each severity, so the greyscale check (SC-015) has all four shapes on screen at once. Severity is derived, never declared: MERC-2001 is blocked (critical), MERC-2002 has changes requested (serious), MERC-2003 is a draft awaiting review (warning), and MERC-2004 is in progress, approved, with a required check green (good) — its status must not match /review|qa|verify|waiting/, which alone would make it a warning.",
+  "description": "One work item at each severity, so the greyscale check (SC-015) has all four shapes on screen at once. Severity is derived, never declared: MERC-2001 is blocked (critical), MERC-2002 has changes requested (serious), MERC-2003 is a draft awaiting review (warning), and MERC-2004 is in progress, approved, with a required check green (good) \u2014 its status must not match /review|qa|verify|waiting/, which alone would make it a warning.",
   "now": "2026-08-14T12:00:00Z",
   "freshness": [
     {
@@ -54,7 +54,23 @@
     "openQuestionSubjects": [],
     "comparisons": [],
     "workspaces": [],
-    "sessions": [],
+    "sessions": [
+      {
+        "key": "session:claude-code/01K2ZZ",
+        "agentId": "claude-code",
+        "sessionId": "01K2ZZ",
+        "projectId": "p-merc",
+        "workItemKey": "jira:acme.atlassian.net/MERC-2001",
+        "workspaceKey": null,
+        "reportedStatus": "Tracing the retry path through the webhook handler",
+        "startedAt": "2026-08-14T06:00:00Z",
+        "lastHeartbeatAt": "2026-08-14T06:40:00Z",
+        "lastRealActivityAt": "2026-08-14T06:38:00Z",
+        "endedAt": null,
+        "outcome": null,
+        "heartbeatIntervalSec": 60
+      }
+    ],
     "tickets": [
       {
         "key": "jira:acme.atlassian.net/MERC-2001",

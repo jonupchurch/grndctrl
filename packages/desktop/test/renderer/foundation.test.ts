@@ -2,12 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { formatAge } from '../../src/renderer/components/StaleBar.js'
 import { PALETTE_SIZE, paletteIndexOf } from '../../src/renderer/components/ProjectChip.js'
 import { worstFreshness, type Envelope, type FreshnessView } from '../../src/renderer/query.js'
-import {
-  describePull,
-  describeWorkspace,
-  severityOfPull,
-} from '../../src/renderer/lanes/Lanes.js'
-import type { Comparison, PullRequest, Workspace } from '../../src/renderer/types.js'
 
 /**
  * The parts of the renderer foundation that are decisions rather than markup.
@@ -36,13 +30,13 @@ const envelope = (freshness: Record<string, FreshnessView>): Envelope<unknown> =
 
 describe('the freshness a header reports', () => {
   it('takes the worst, not the average', () => {
-    // A header that averaged would say "mostly fine" about a board whose pull
-    // requests have not refreshed since a token expired (XV).
+    // A header that averaged would say "mostly fine" about a board one of whose
+    // resources has not refreshed since a token expired (XV).
     const worst = worstFreshness(
       envelope({
         tickets: view({ state: 'fresh' }),
-        pulls: view({ state: 'failed', failureReason: 'auth' }),
-        branches: view({ state: 'stale' }),
+        sessions: view({ state: 'failed', failureReason: 'auth' }),
+        projects: view({ state: 'stale' }),
       }),
     )
 
@@ -123,104 +117,5 @@ describe('the age in a row', () => {
   // ordinary. "in 4 seconds" on a board about lateness is not.
   it('clamps a future timestamp instead of counting backwards', () => {
     expect(formatAge(ago(-5000), now)).toBe('now')
-  })
-})
-
-/**
- * The two status strings the lanes compute.
- *
- * Both were wrong in the same way and neither could fail: the renderer kept a
- * hand-written copy of the domain types, and it had drifted. `describeWorkspace`
- * read ahead/behind off the workspace, where core has never put them, and
- * printed "in sync" for a branch 83 commits behind. `describePull` compared
- * against GitHub's raw `CHANGES_REQUESTED` when the provider normalises to
- * `changesRequested`, so every pull request rendered "In review".
- *
- * The types are derived with `Pick` now, so a field core does not have is a
- * compile error. These cover the values, which `Pick` cannot.
- */
-
-/** `NaturalKey` is branded, so a fixture cannot hand over a bare string. */
-const key = <T,>(s: string): T => s as T
-
-const workspace = (over: Partial<Workspace> = {}): Workspace => ({
-  key: key<Workspace['key']>('repo:github.com/acme/mercury#main'),
-  branch: 'main',
-  canonicalRemote: 'github.com/acme/mercury',
-  hasUncommittedChanges: false,
-  unpushedCommitCount: 0,
-  ...over,
-})
-
-const comparison = (aheadBy: number | null, behindBy: number | null): Comparison => ({
-  branchKey: key<Comparison['branchKey']>('repo:github.com/acme/mercury#main'),
-  aheadBy,
-  behindBy,
-})
-
-describe('describeWorkspace', () => {
-  it('says the answer is unknown when the host has no comparison', () => {
-    // Never "in sync". FR-018: a branch the code host has not seen is unknown,
-    // and reporting it as zero is the one thing that requirement forbids.
-    expect(describeWorkspace(workspace(), undefined)).toBe('unknown vs base')
-  })
-
-  it('says unknown when the host answered that it does not know', () => {
-    expect(describeWorkspace(workspace(), comparison(null, null))).toBe('unknown vs base')
-  })
-
-  it('reports ahead and behind from the comparison', () => {
-    expect(describeWorkspace(workspace(), comparison(0, 83))).toBe('83 behind')
-    expect(describeWorkspace(workspace(), comparison(2, 3))).toBe('2 ahead · 3 behind')
-  })
-
-  it('only says in sync when the host actually said zero and zero', () => {
-    expect(describeWorkspace(workspace(), comparison(0, 0))).toBe('in sync')
-  })
-
-  it('distinguishes no upstream from nothing to push', () => {
-    // core uses null for "there is no upstream". Typed as a plain number, the
-    // old renderer compared `null > 0`, got false, and said nothing at all.
-    expect(describeWorkspace(workspace({ unpushedCommitCount: null }), comparison(0, 0))).toBe(
-      'no upstream',
-    )
-    expect(describeWorkspace(workspace({ unpushedCommitCount: 2 }), comparison(0, 0))).toBe(
-      '2 unpushed',
-    )
-  })
-
-  it('reports uncommitted work alongside the comparison', () => {
-    expect(describeWorkspace(workspace({ hasUncommittedChanges: true }), comparison(0, 5))).toBe(
-      'uncommitted · 5 behind',
-    )
-  })
-})
-
-describe('describePull', () => {
-  const pull = (over: Partial<PullRequest> = {}): PullRequest => ({
-    key: key<PullRequest['key']>('pr:github.com/acme/mercury#1'),
-    number: 1,
-    title: 'Reconcile worktree state',
-    headBranch: 'MERC-1',
-    state: 'open',
-    isDraft: false,
-    reviewDecision: null,
-    unresolvedThreadCount: 0,
-    lastRealActivityAt: null,
-    ...over,
-  })
-
-  it('recognises core’s normalised review decisions', () => {
-    expect(describePull(pull({ reviewDecision: 'changesRequested' }))).toBe('Changes requested')
-    expect(describePull(pull({ reviewDecision: 'approved' }))).toBe('Approved')
-  })
-
-  it('escalates severity when changes were requested', () => {
-    expect(severityOfPull(pull({ reviewDecision: 'changesRequested' }), 'good')).toBe('serious')
-    expect(severityOfPull(pull({ unresolvedThreadCount: 2 }), 'good')).toBe('warning')
-  })
-
-  it('prefers draft over everything else', () => {
-    expect(describePull(pull({ isDraft: true, reviewDecision: 'approved' }))).toBe('Draft')
   })
 })

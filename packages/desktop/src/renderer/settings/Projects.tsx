@@ -3,26 +3,29 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BridgeError, call } from '../bridge.js'
 
 /**
- * Projects: one ticket project, one repository, and the local checkouts
- * (FR-001 to FR-003).
+ * Projects: a name, a ticket project, and a documentation link (FR-001 to FR-003).
  *
- * Every binding is optional and that is deliberate, not laxity. A project with a
- * ticket project and no repository is how the board works before an
- * organisation has approved a code-host token; one with a repository and no
- * ticket project is how it works for code nobody files tickets against. Per
- * provider degradation is a first-class state (XV), so the absent half reports
- * as absent rather than as empty.
+ * **This screen used to bind three things**: a ticket project, a repository, and
+ * the local paths the repository was checked out to. Two of them are gone with
+ * the providers behind them, and with them goes the argument this file used to
+ * open with — that every binding is optional because a project with tickets and
+ * no repository is a legitimate shape. There is one binding now, so it is not
+ * optional: a project that names no ticket project has nothing to show, and
+ * `projects.upsert` refuses it by name rather than letting SQLite refuse it by
+ * constraint.
  *
- * The ticket-key pattern defaults from the bound project key and stays editable
- * (FR-003). It is shown rather than hidden because it is the single setting most
- * likely to be wrong in a way nothing else explains: a repository whose branches
- * read `feature/ACME-12` under a project keyed `ACM` correlates nothing, and the
- * symptom is a board of tickets with no code beside them.
+ * **The ticket-key pattern went too**, and it is worth saying why here rather
+ * than only in the changelog. It existed to answer one question — *does this
+ * branch or pull request name a ticket?* — asked by `correlation/match.ts`,
+ * which 006 deletes. It was the setting most likely to be wrong in a way nothing
+ * else explained; it is now the setting most likely to be *read* in a way nothing
+ * else honours, which is worse. A field the operator can carefully get right and
+ * which changes nothing is a lie the interface tells slowly.
  */
 
 interface Connection {
   id: string
-  kind: 'jira' | 'github'
+  kind: 'jira'
   siteOrHost: string
   accountLabel: string
 }
@@ -34,12 +37,7 @@ interface Project {
   colorIndex: number | null
   jiraConnectionId: string | null
   jiraProjectKey: string | null
-  githubConnectionId: string | null
-  repoOwner: string | null
-  repoName: string | null
   documentationUrl: string | null
-  ticketKeyPattern: string
-  checkoutPaths: string[]
   statusOverrides: Record<string, 'blocked' | 'terminal' | 'in-progress' | 'backlog'>
 }
 
@@ -65,9 +63,8 @@ export function Projects(): ReactElement {
     <section className="settings__section" aria-labelledby="projects-heading">
       <h2 id="projects-heading">Projects</h2>
       <p className="settings__note">
-        A project joins a ticket project to a repository and the places you have it checked out.
-        Either half may be left empty — the board reports the missing side as absent rather than
-        pretending it is empty.
+        A project names one ticket project in Jira. Everything on the board is grouped by it, and
+        the chip on every row is its short code.
       </p>
 
       {projects.data?.length === 0 && (
@@ -81,16 +78,20 @@ export function Projects(): ReactElement {
               <strong>
                 {project.code} · {project.name}
               </strong>
+              {/*
+                One line where there were three. The other two reported the
+                repository and the local checkouts, and the checkout line carried
+                a warning — "no local checkout, branches and uncommitted work
+                will not appear" — about two lanes that no longer exist.
+
+                `no ticket project` stays reachable, and that is deliberate. New
+                projects cannot be saved without one, but a database written by
+                0.3.0 can hold a repository-only project, and 006 keeps that row
+                rather than deleting the operator's data to satisfy a new rule.
+                It has to render as something, and what it renders is the truth.
+              */}
               <span className="settings__meta">
-                {project.jiraProjectKey ?? 'no ticket project'} ·{' '}
-                {project.repoOwner === null
-                  ? 'no repository'
-                  : `${project.repoOwner}/${project.repoName}`}
-              </span>
-              <span className="settings__meta">
-                {project.checkoutPaths.length === 0
-                  ? 'no local checkout — branches and uncommitted work will not appear'
-                  : project.checkoutPaths.join(' · ')}
+                {project.jiraProjectKey ?? 'no ticket project — nothing to show for this one'}
               </span>
             </div>
 
@@ -131,34 +132,17 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
   const [code, setCode] = useState(project?.code ?? '')
   const [name, setName] = useState(project?.name ?? '')
   const [jiraProjectKey, setJiraProjectKey] = useState(project?.jiraProjectKey ?? '')
-  const [repo, setRepo] = useState(
-    project?.repoOwner === null || project?.repoOwner === undefined
-      ? ''
-      : `${project.repoOwner}/${project.repoName}`,
-  )
-  const [checkouts, setCheckouts] = useState(project?.checkoutPaths.join('\n') ?? '')
   const [documentationUrl, setDocumentationUrl] = useState(project?.documentationUrl ?? '')
-  const [pattern, setPattern] = useState(project?.ticketKeyPattern ?? '')
   const [error, setError] = useState<string | null>(null)
 
   const jira = connections.filter((c) => c.kind === 'jira')
-  const github = connections.filter((c) => c.kind === 'github')
 
   const [jiraConnectionId, setJiraConnectionId] = useState(
     project?.jiraConnectionId ?? jira[0]?.id ?? '',
   )
-  const [githubConnectionId, setGithubConnectionId] = useState(
-    project?.githubConnectionId ?? github[0]?.id ?? '',
-  )
-
-  // FR-003: the pattern defaults from the bound key. Only while the operator has
-  // not typed one — overwriting an override on every keystroke of the key would
-  // make the field impossible to edit.
-  const effectivePattern =
-    pattern !== '' ? pattern : jiraProjectKey === '' ? '' : `(${escapeRegex(jiraProjectKey)}-\\d+)`
 
   const save = useMutation({
-    mutationFn: (input: Project) => call('projects.upsert', input),
+    mutationFn: (input: Project & { ticketKeyPattern: string }) => call('projects.upsert', input),
     onSuccess: () => onSaved(),
     onError: (e: Error) =>
       setError(e instanceof BridgeError ? e.message : 'Could not save that project.'),
@@ -168,9 +152,11 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
     event.preventDefault()
     setError(null)
 
-    const parsed = parseRepo(repo)
-    if (repo !== '' && parsed === null) {
-      setError('That repository should read owner/name, or be a GitHub URL.')
+    if (jiraProjectKey.trim() === '') {
+      // Also enforced by `projects.upsert`, and that is the one that matters —
+      // this one is here so the operator finds out while their hands are still
+      // on the form rather than after a round trip.
+      setError('A project needs a ticket project key. Without one there is nothing to show.')
       return
     }
 
@@ -179,18 +165,16 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
       code: code.trim(),
       name: name.trim() === '' ? code.trim() : name.trim(),
       colorIndex: project?.colorIndex ?? null,
-      jiraConnectionId: jiraProjectKey === '' ? null : (jiraConnectionId === '' ? null : jiraConnectionId),
-      jiraProjectKey: jiraProjectKey === '' ? null : jiraProjectKey.trim(),
-      githubConnectionId: parsed === null ? null : (githubConnectionId === '' ? null : githubConnectionId),
-      repoOwner: parsed?.owner ?? null,
-      repoName: parsed?.name ?? null,
+      jiraConnectionId: jiraConnectionId === '' ? null : jiraConnectionId,
+      jiraProjectKey: jiraProjectKey.trim(),
       documentationUrl: documentationUrl.trim() === '' ? null : documentationUrl.trim(),
-      ticketKeyPattern: effectivePattern === '' ? `(${escapeRegex(code.trim() || 'X')}-\\d+)` : effectivePattern,
-      // One per line. A path is allowed to contain almost anything including a
-      // comma, so a separator that cannot appear in the value is the only one
-      // that parses back correctly on Windows.
-      checkoutPaths: checkouts.split('\n').map((p) => p.trim()).filter((p) => p !== ''),
       statusOverrides: project?.statusOverrides ?? {},
+      // Still sent, and no longer shown. The column is `NOT NULL` and the
+      // operation still requires it until M4 drops both; sending a derived value
+      // keeps this screen working across the intermediate commits without
+      // putting a field back on the form that nothing reads. It goes with the
+      // column, in the same change.
+      ticketKeyPattern: `(${escapeRegex(jiraProjectKey.trim())}-\\d+)`,
     })
   }
 
@@ -215,10 +199,14 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
           value={jiraProjectKey}
           onChange={(e) => setJiraProjectKey(e.target.value)}
           placeholder="MERC"
+          required
         />
+        <span className="settings__hint">
+          The key Jira puts in front of every issue number in this project.
+        </span>
       </label>
 
-      {jira.length > 1 && jiraProjectKey !== '' && (
+      {jira.length > 1 && (
         // Only when there is a choice to make. FR-002 binds a project to a
         // specific account rather than a global one, but a picker with one entry
         // is a question with one answer.
@@ -235,43 +223,6 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
       )}
 
       <label>
-        Repository
-        <input
-          value={repo}
-          onChange={(e) => setRepo(e.target.value)}
-          placeholder="acme/mercury"
-        />
-        <span className="settings__hint">owner/name, or paste the URL from your browser.</span>
-      </label>
-
-      {github.length > 1 && repo !== '' && (
-        <label>
-          GitHub account
-          <select value={githubConnectionId} onChange={(e) => setGithubConnectionId(e.target.value)}>
-            {github.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.siteOrHost} — {c.accountLabel}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <label>
-        Local checkouts
-        <textarea
-          value={checkouts}
-          onChange={(e) => setCheckouts(e.target.value)}
-          rows={3}
-          placeholder={'D:\\work\\mercury'}
-        />
-        <span className="settings__hint">
-          One path per line. Read only — Ground Control never modifies your working tree, index or
-          branches, and never runs a git command that touches the network.
-        </span>
-      </label>
-
-      <label>
         Documentation link
         <input
           value={documentationUrl}
@@ -279,19 +230,6 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
           placeholder="https://…"
         />
         <span className="settings__hint">Stored and linked only. Never fetched or polled.</span>
-      </label>
-
-      <label>
-        Ticket key pattern
-        <input
-          value={effectivePattern}
-          onChange={(e) => setPattern(e.target.value)}
-          spellCheck={false}
-        />
-        <span className="settings__hint">
-          How a branch or pull request names its ticket. Defaults from the key above; edit it if
-          your branches read differently. It needs one capture group around the key.
-        </span>
       </label>
 
       {error !== null && (
@@ -312,17 +250,6 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
       </div>
     </form>
   )
-}
-
-/** Accepts `owner/name`, a browser URL, a clone URL, or an SSH remote. */
-function parseRepo(raw: string): { owner: string; name: string } | null {
-  const trimmed = raw.trim()
-  if (trimmed === '') return null
-
-  const match = /(?:^|[/:])([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/.exec(trimmed)
-  const owner = match?.[1]
-  const name = match?.[2]
-  return owner === undefined || name === undefined ? null : { owner, name }
 }
 
 function escapeRegex(s: string): string {

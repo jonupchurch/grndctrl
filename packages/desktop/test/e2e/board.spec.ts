@@ -4,13 +4,17 @@ import { expect, test } from '@playwright/test'
 import { launch, type LaunchedApp } from './app.js'
 
 /**
- * The board, over the canonical drift scenario.
+ * The board, over the canonical scenario.
  *
  * This is the same fixture `quickstart.md` names and the correlation engine is
- * tested against: MERC-1184 sits In Review while its pull request merged three
- * days ago. Everything asserted below travelled the whole path — mirror,
- * correlation, drift rules, freshness envelope, registry, IPC, React — so a
- * regression anywhere in it lands here.
+ * tested against. Everything asserted below travelled the whole path — mirror,
+ * correlation, freshness envelope, registry, IPC, React — so a regression
+ * anywhere in it lands here.
+ *
+ * The scenario is still named for a correlation this application no longer
+ * makes; M5 (T049) rebuilds and renames it. Until then the extra pull requests
+ * and branches in it are simply data nothing reads, which is the intended state
+ * of the whole engine between M1 and M3.
  *
  * It is deliberately about *what the operator can see*, not about component
  * internals. A test that asserted a class name would pass through a redesign
@@ -38,62 +42,91 @@ test.afterAll(async () => {
   await it.close()
 })
 
-test('the drift finding names both sides and when each was true', async () => {
-  const attention = it.window.getByRole('region', { name: 'Attention' })
+/**
+ * What 006 took off the board, asserted as absent.
+ *
+ * Every absence here is paired with a presence in the same query, because an
+ * absence assertion passes trivially when the selector is wrong — and a suite
+ * full of those is worse than no suite, since it reports confidence. If the
+ * region lookup were broken, the ticket lane would come back missing too.
+ */
+test('the pull request lane, the branch lane and the Attention region are gone', async () => {
+  await expect(it.window.getByRole('region', { name: 'Pull requests' })).toHaveCount(0)
+  await expect(it.window.getByRole('region', { name: 'Open branches' })).toHaveCount(0)
+  await expect(it.window.getByRole('region', { name: 'Attention' })).toHaveCount(0)
 
-  await expect(attention.getByText('MERC-1184 is In Review, but PR #451 merged')).toBeVisible()
-
-  // Both halves of the evidence. A strip saying only "MERC-1184 is drifting"
-  // would send the operator to check the same two systems the application
-  // already checked.
-  await expect(attention.getByText('status is In Review')).toBeVisible()
-  await expect(attention.getByText(/pull request/)).toBeVisible()
+  // The same lookup, against the region that stayed. Without this the three
+  // above would pass on a page that failed to render at all.
+  await expect(it.window.getByRole('region', { name: 'Tickets' })).toHaveCount(1)
 })
 
-test('every lane carries its own count and its own threshold', async () => {
+/**
+ * The DRIFTING tile, likewise.
+ *
+ * It counted subjects where two systems disagreed, and with one provider there
+ * is no second system to disagree with. A tile pinned at zero under the words
+ * "the systems agree" is not a reassurance — it is a claim this application is
+ * no longer entitled to make.
+ */
+test('the drifting tile is gone and the other three tiles are not', async () => {
+  await expect(it.window.getByText('Drifting')).toHaveCount(0)
+
+  await expect(it.window.getByRole('button', { name: /Your court/ })).toHaveCount(1)
+  await expect(it.window.getByText('Stalled')).toBeVisible()
+  await expect(it.window.getByText('Agents live')).toBeVisible()
+})
+
+test('the lane carries its own count and its own threshold', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
-  const pulls = it.window.getByRole('region', { name: 'Pull requests' })
-  const branches = it.window.getByRole('region', { name: 'Open branches' })
 
-  // The thresholds differ because the lanes measure different things: a ticket
-  // untouched for three days is normal, a pull request untouched for a day is
-  // someone waiting.
   await expect(tickets.getByText('stale past 3d')).toBeVisible()
-  await expect(pulls.getByText('stale past 24h')).toBeVisible()
-  await expect(branches).toBeVisible()
-
   await expect(tickets.getByText('MERC-1184')).toBeVisible()
-  await expect(pulls.getByText('#451')).toBeVisible()
 })
 
-test('each lane reports its own freshness, not the board-wide worst', async () => {
+test('the lane reports its own freshness, not the board-wide worst', async () => {
   // The bug this pins: the lanes all shared one aggregate reading, and because
   // `comparisons` had never synced, every lane on a perfectly healthy board
   // announced "never synced". A per-lane reading is what XV asks for and what
-  // makes the sentence true.
+  // makes the sentence true. Still worth asserting with one lane on the board:
+  // the envelope carries freshness for kinds nothing displays, and it is
+  // reading *those* that produced the bug.
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
 
   await expect(tickets.getByText(/last refreshed/)).toBeVisible()
   await expect(tickets.getByText(/never synced/)).toHaveCount(0)
 })
 
+/**
+ * An absent correlation is still drawn, and it is down to one kind.
+ *
+ * There were four badges: branch, pull request, CI check, agent. Three of them
+ * described a code host and a local checkout. What has to survive the narrowing
+ * is the *placeholder* — a row with no agent renders a hairline mark holding
+ * its column, not a gap — because that is what keeps the slots after it lined
+ * up down the lane.
+ */
 test('an absent correlation is drawn, not omitted', async () => {
-  const badges = await it.window.evaluate(() => {
-    const row = [...document.querySelectorAll('.row')].find((r) =>
-      r.querySelector('.row__id')?.textContent?.includes('MERC-1184'),
-    )
-    return [...(row?.querySelectorAll('.badge') ?? [])].map((b) => ({
-      kind: (b as HTMLElement).dataset['kind'],
-      present: (b as HTMLElement).dataset['present'],
-    }))
-  })
+  const badges = async (issueKey: string) =>
+    it.window.evaluate((key: string) => {
+      const row = [...document.querySelectorAll('.row')].find((r) =>
+        r.querySelector('.row__id')?.textContent?.includes(key),
+      )
+      return [...(row?.querySelectorAll('.badge') ?? [])].map((b) => ({
+        kind: (b as HTMLElement).dataset['kind'],
+        present: (b as HTMLElement).dataset['present'],
+      }))
+    }, issueKey)
 
-  // MERC-1184 has a pull request and nothing else. All four slots are still
-  // rendered, so the columns line up down the lane and "nothing started" reads
-  // as a state rather than as a shorter row.
-  expect(badges).toHaveLength(4)
-  expect(badges.find((b) => b.kind === 'pull-request')?.present).toBe('true')
-  expect(badges.find((b) => b.kind === 'branch')?.present).toBe('false')
+  // An agent is working MERC-1190 and none is on MERC-1184. Both rows carry the
+  // same one slot; only the mark inside it differs.
+  const worked = await badges('MERC-1190')
+  const idle = await badges('MERC-1184')
+
+  expect(worked).toHaveLength(1)
+  expect(idle).toHaveLength(1)
+  expect(worked[0]?.kind).toBe('agent')
+  expect(worked[0]?.present).toBe('true')
+  expect(idle[0]?.present).toBe('false')
 })
 
 test('the ticket lane carries sprint, priority and story points, and names its columns', async () => {
@@ -138,14 +171,14 @@ test('a ticket in no sprint shows a placeholder rather than a name', async () =>
 })
 
 /**
- * The ticket lane gave up its age column, and only the ticket lane.
+ * There is no age column anywhere on the board.
  *
- * Three metric columns do not fit beside it at any width the board can spare.
- * Age is the one with a stand-in on the same row — the staleness bar is derived
- * from the same timestamp — so it is the one that goes, and it goes *here only*:
- * on the pull request lane "stale past 24h" is the entire point.
+ * The ticket lane traded it for the sprint column and the other two lanes kept
+ * it; 006 removed those two lanes, so the column had no caller left and went
+ * with them. The fact is not lost — the staleness bar in the leftmost track is
+ * derived from the same timestamp and carries the exact age in its `title`.
  */
-test('the ticket lane trades its age column for the sprint one, and no other lane does', async () => {
+test('no lane draws an age column, and the sprint column that replaced it is there', async () => {
   const counts = await it.window.evaluate(() => {
     const lane = (name: string): Element | null =>
       [...document.querySelectorAll('section.lane')].find(
@@ -156,19 +189,17 @@ test('the ticket lane trades its age column for the sprint one, and no other lan
       lane(name)?.querySelectorAll(slot).length ?? -1
 
     return {
+      // `-1` would mean the lane itself was not found, which would make a zero
+      // prove nothing at all.
       ticketAge: inLane('Tickets', '.row__age'),
       ticketSprint: inLane('Tickets', '.row__sprint'),
-      pullAge: inLane('Pull requests', '.row__age'),
-      branchAge: inLane('Open branches', '.row__age'),
+      anyAge: document.querySelectorAll('.row__age').length,
     }
   })
 
   expect(counts.ticketAge).toBe(0)
   expect(counts.ticketSprint).toBeGreaterThan(0)
-  // `-1` would mean the lane itself was not found, which would make the zero
-  // above prove nothing.
-  expect(counts.pullAge).toBeGreaterThan(0)
-  expect(counts.branchAge).toBeGreaterThan(0)
+  expect(counts.anyAge).toBe(0)
 })
 
 /**
@@ -211,33 +242,20 @@ test('a column heading sorts its lane, and a third press gives the order back', 
   expect(await identifiers()).toEqual(original)
 })
 
-/**
- * Sorting one lane does not sort another.
+/*
+ * There was a test here called "each lane sorts on its own", and it is not
+ * commented out or skipped — it is gone, with a note, because it needed two
+ * lanes and there is one.
  *
- * The lanes are not three views of one list. Ordering tickets by their key says
- * nothing about how the operator wants their branches ordered, and a board-wide
- * control would answer a question about one lane by rearranging two others.
+ * The guarantee it checked is still real and still in the code: `useLaneSort`
+ * gives every lane its own `useState`, so ordering one cannot reorder another.
+ * It is simply unobservable on a board with a single sortable lane, and a test
+ * that cannot fail is worse than an absent one because it reads as cover.
+ *
+ * 007 adds the handed-off lane, and its T111 carries restoring this. That is
+ * the whole reason this comment exists rather than a quiet deletion: a
+ * guarantee dropped silently at M1 is a guarantee nobody remembers at M6.
  */
-test('each lane sorts on its own', async () => {
-  const branches = it.window.getByRole('region', { name: 'Open branches' })
-  const before = await branches.locator('.row .row__id').allTextContents()
-
-  const heading = it.window
-    .getByRole('region', { name: 'Tickets' })
-    .getByRole('button', { name: /^Sort by Ticket/ })
-
-  await heading.click()
-  await expect(heading).toHaveAttribute('aria-label', /ascending/)
-
-  expect(await branches.locator('.row .row__id').allTextContents()).toEqual(before)
-
-  // Back to unsorted before leaving. Every test in this file shares one app, so
-  // a sort left applied here is a sort the next test starts with — which is the
-  // kind of shared state that makes a later failure look like a different bug.
-  await heading.click()
-  await heading.click()
-  await expect(heading).toHaveAttribute('aria-label', 'Sort by Ticket')
-})
 
 /**
  * Unknown is drawn as absent, never as a number.
@@ -310,20 +328,15 @@ test('the column headings line up with the cells beneath them', async () => {
   }
 })
 
-/**
- * The two lanes that are not tickets do not carry the two ticket columns.
+/*
+ * "The pull request lane has no sprint, priority or points column" was here, and
+ * goes for the same reason as the per-lane sort test above: it needed a lane
+ * without the metric columns, and after 006 every lane on the board has them.
  *
- * A pull request has no priority and a branch is not estimated, so a column
- * there could only ever be empty — and a permanently empty column is noise
- * rather than the meaningful absence the row's other placeholders carry.
+ * The opt-in behaviour it guarded is intact — `data-metrics` still drives both
+ * the grid template and the headings from one flag — and 007's handed-off lane
+ * is the next lane that will not carry them. T111 restores the assertion there.
  */
-test('the pull request lane has no sprint, priority or points column', async () => {
-  const pulls = it.window.getByRole('region', { name: 'Pull requests' })
-
-  await expect(pulls.getByText('Priority', { exact: true })).toHaveCount(0)
-  await expect(pulls.locator('.row__points')).toHaveCount(0)
-  await expect(pulls.locator('.row__sprint')).toHaveCount(0)
-})
 
 test('the operator court tile filters the whole board', async () => {
   const tile = it.window.getByRole('button', { name: /Your court/ })

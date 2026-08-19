@@ -157,38 +157,39 @@ body {
 /*
  * The lane owns the column template; the row inherits it.
  *
- * Two lanes have ten columns and one has twelve — priority and story points
- * exist on a ticket and on nothing else (see `Row.tsx`). Declaring the template
- * on `.lane` and reading it from `.row` means the heading row and its rows
- * cannot come from different definitions, which is the one way a header can end
- * up naming the wrong column.
+ * A lane has nine columns, or twelve when it carries the ticket metrics —
+ * sprint, priority and story points exist on a ticket and on nothing else (see
+ * `Row.tsx`). Declaring the template on `.lane` and reading it from `.row` means
+ * the heading row and its rows cannot come from different definitions, which is
+ * the one way a header can end up naming the wrong column.
+ *
+ * **Two tracks left in 006** and their absence is worth naming, because both
+ * were load-bearing here and neither leaves a gap. The *age* track went because
+ * the two lanes that drew it — pull requests and open branches — went with the
+ * providers behind them; the ticket lane had already traded it away for sprint.
+ * The *correlation* track narrowed from four presence badges to one, since three
+ * of the four described a code host and a checkout.
  */
 .lane {
   /* Fixed slots, in the design's order: staleness, project, id, title, status,
-     correlation, ball in court, age, trailing, severity. Only the title is
-     flexible — everything else holds its column down the whole lane. */
-  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 68px 62px 56px
+     correlation, ball in court, trailing, severity. Only the title is flexible
+     — everything else holds its column down the whole lane. */
+  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 44px 62px
     var(--trailing-w) var(--mark-w);
 }
 
 /*
  * Sprint, priority and points, inserted after status: all three are facts about
- * the ticket, so they belong beside the one the tracker already reports.
- *
- * **This lane has no age track**, and that is what pays for the sprint one. The
- * three metric columns will not fit beside age at any width the board can spare
- * — the title track is already `minmax(0, 1fr)` and would be the one to give —
- * and age is the only column here with a stand-in on the same row: the staleness
- * bar in the leftmost track is derived from the same timestamp and carries the
- * exact age in its `title`. So the sequence is stale, project, id, title, status,
- * sprint, priority, points, correlation, court, trailing, severity.
+ * the ticket, so they belong beside the one the tracker already reports. The
+ * sequence is stale, project, id, title, status, sprint, priority, points,
+ * correlation, court, trailing, severity.
  */
 .lane[data-metrics='true'] {
   /* Priority and points are wider here than the values in them need, and that
      is the sort caret's doing: it sits inside the heading's own track, so a
      column sized to `POINTS` renders `POI…▼` the moment it becomes the sorted
      one — the heading going unreadable exactly when it is the one being read. */
-  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 92px 88px 80px 58px 68px 62px
+  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 92px 88px 80px 58px 44px 62px
     var(--trailing-w) var(--mark-w);
 }
 
@@ -300,13 +301,12 @@ body {
      pasted into a message, and it stopped working the moment `.row__open`
      started covering the row — the declaration would have stayed in the file
      looking like a feature while doing nothing at all. The title is still
-     selectable in the Attention strips and in the confirmation dialog. */
+     selectable in the notes dialog, which shows the subject as plain text. */
 }
 
 .row__status,
 .row__sprint,
-.row__priority,
-.row__age {
+.row__priority {
   font-size: var(--t-meta);
   color: var(--ink-3);
   overflow: hidden;
@@ -314,13 +314,8 @@ body {
   white-space: nowrap;
 }
 
-.row__age {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
 /* Right-aligned and tabular, so a column of estimates can be read down rather
-   than across — the same reason the age column is. */
+   than across. */
 .row__points {
   font-size: var(--t-meta);
   color: var(--ink-2);
@@ -368,9 +363,8 @@ body {
 
 /* One weight and one colour across the whole heading — a heading that inherited
    its slot's own emphasis would compete with the values under it. */
-/* No `text-align` here on purpose: the points and age headings must keep the
-   right alignment their slots give them, or they stop sitting over the numbers
-   they name. */
+/* No `text-align` here on purpose: the points heading must keep the right
+   alignment its slot gives it, or it stops sitting over the numbers it names. */
 .lane__headings > * {
   color: inherit;
   font-weight: inherit;
@@ -406,10 +400,9 @@ body {
   cursor: pointer;
 }
 
-/* The two right-aligned tracks. Their headings sit over numbers, so the flex
-   box has to push its content to the same edge the numbers are on. */
-.lane__sort.row__points,
-.lane__sort.row__age {
+/* The one right-aligned track. Its heading sits over numbers, so the flex box
+   has to push its content to the same edge the numbers are on. */
+.lane__sort.row__points {
   justify-content: flex-end;
 }
 

@@ -5,7 +5,20 @@ import { BridgeError, call, storeCredential } from '../bridge.js'
 /**
  * Connections: add, test, re-authorize, remove (FR-005 to FR-007).
  *
- * Two rules shape this screen, and both are about what it must *not* do.
+ * **One provider.** This screen offered a choice between Jira and GitHub, and
+ * the GitHub half is gone with the provider. What is left is not a segmented
+ * control with one button in it — a control that cannot be used to choose
+ * anything is not a control — so the form states which provider it is for and
+ * the labels stop asking which one this is.
+ *
+ * The GitHub half is also the reason to be careful with the *token help* text on
+ * this screen. 0.1.3 had to correct it once already: it asked for a permission
+ * GitHub does not have. That text is gone rather than reworded, and no reference
+ * to a code-host permission survives anywhere in this file — which is the thing
+ * to check on any future edit here, because help text is where a removed feature
+ * outlives its code.
+ *
+ * Two rules still shape the screen, and both are about what it must *not* do.
  *
  * **The secret is never read back.** There is no operation that returns one and
  * no bridge method that could — the field below starts empty every time, even
@@ -14,16 +27,15 @@ import { BridgeError, call, storeCredential } from '../bridge.js'
  * as it is open. The renderer is the process that renders provider-supplied
  * strings; it is the last one that should be holding a token.
  *
- * **Testing is separate from adding, and reports each check by name.** A GitHub
- * token can authenticate, read a repository, and still lack the scope `compare`
- * needs — and the only symptom is an ahead/behind column that is quietly empty
- * everywhere (research R3). Collapsing that into one tick would hide the single
- * failure most worth surfacing here.
+ * **Testing is separate from adding, and reports each check by name.** A token
+ * can authenticate against a site and still not see the project the operator
+ * bound, and one tick over the pair would hide which half failed. Each check is
+ * reported on its own line, in words as well as marks.
  */
 
 interface Connection {
   id: string
-  kind: 'jira' | 'github'
+  kind: 'jira'
   siteOrHost: string
   accountLabel: string
   viewerIdentity: { accountId: string; displayName: string | null } | null
@@ -132,7 +144,11 @@ export function Connections(): ReactElement {
 }
 
 function AddConnection({ onAdded }: { onAdded(): void }): ReactElement {
-  const [kind, setKind] = useState<'jira' | 'github'>('jira')
+  // Not state any more, and not a parameter: there is one provider, and a
+  // variable that can only hold one value is a decision that has already been
+  // made. `storeCredential` still takes a kind, because the keychain entry and
+  // the connection row are both keyed by it.
+  const kind = 'jira' as const
   const [siteOrHost, setSiteOrHost] = useState('')
   const [accountLabel, setAccountLabel] = useState('')
   const [secret, setSecret] = useState('')
@@ -161,44 +177,33 @@ function AddConnection({ onAdded }: { onAdded(): void }): ReactElement {
 
   return (
     <form className="settings__form" onSubmit={(e) => void submit(e)}>
-      <h3>Add or re-authorize</h3>
-
-      <div className="segmented" role="group" aria-label="Provider">
-        <button type="button" aria-pressed={kind === 'jira'} onClick={() => setKind('jira')}>
-          Jira
-        </button>
-        <button type="button" aria-pressed={kind === 'github'} onClick={() => setKind('github')}>
-          GitHub
-        </button>
-      </div>
+      <h3>Add or re-authorize a Jira account</h3>
 
       <label>
-        {kind === 'jira' ? 'Site' : 'Host'}
+        Site
         <input
           value={siteOrHost}
           onChange={(e) => setSiteOrHost(e.target.value)}
-          placeholder={kind === 'jira' ? 'acme.atlassian.net' : 'github.com'}
+          placeholder="acme.atlassian.net"
           required
         />
       </label>
 
       <label>
-        {kind === 'jira' ? 'Account email' : 'Your GitHub login'}
+        Account email
         <input
           value={accountLabel}
           onChange={(e) => setAccountLabel(e.target.value)}
-          placeholder={kind === 'jira' ? 'you@acme.com' : 'your-login'}
+          placeholder="you@acme.com"
           required
         />
         <span className="settings__hint">
-          {kind === 'jira'
-            ? 'Jira Cloud authenticates as email plus token. Only the token is a secret.'
-            : 'Not the organisation — your own login, so the board can tell your pull requests from everyone else’s.'}
+          Jira Cloud authenticates as email plus token. Only the token is a secret.
         </span>
       </label>
 
       <label>
-        {kind === 'jira' ? 'API token' : 'Personal access token'}
+        API token
         <input
           type="password"
           value={secret}
@@ -208,9 +213,8 @@ function AddConnection({ onAdded }: { onAdded(): void }): ReactElement {
           required
         />
         <span className="settings__hint">
-          {kind === 'jira'
-            ? 'From id.atlassian.com → Security → API tokens. Use a scoped, read-only token if you are offered one.'
-            : 'A fine-grained token, read-only on Metadata, Contents, Pull requests and Commit statuses. GitHub offers no “Checks” permission — CI results arrive with these. It is scoped to one owner, so pick the owner that holds the repositories you want.'}
+          From id.atlassian.com → Security → API tokens. Use a scoped, read-only token if you
+          are offered one.
         </span>
       </label>
 

@@ -1,36 +1,42 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo, useState, type ReactElement } from 'react'
-import { Attention } from './components/Attention.js'
 import { BallInCourt } from './components/BallInCourt.js'
-import { ConfirmAction } from './components/ConfirmAction.js'
 import { ConnectionNotice } from './components/ConnectionNotice.js'
 import { NoProjects } from './components/EmptyState.js'
 import { NotesModal } from './components/NotesModal.js'
 import { StatTiles } from './components/StatTiles.js'
-import { filterFindings, filterSessions, filterWork, summarise, useFilter } from './filter.js'
-import { Branches, PullRequests, Tickets, type NotesAccess } from './lanes/Lanes.js'
+import { filterSessions, filterWork, summarise, useFilter } from './filter.js'
+import { Tickets, type NotesAccess } from './lanes/Lanes.js'
 import { LaneBoundary } from './lanes/LaneBoundary.js'
 import { Sessions } from './lanes/Sessions.js'
 import { call } from './bridge.js'
 import { useOperation, usePushInvalidation, worstFreshness, type Envelope } from './query.js'
 import { Settings } from './settings/Settings.js'
 import { Titlebar } from './Titlebar.js'
-import type { AgentSession, DriftFinding, Note, Project, WorkItem } from './types.js'
+import type { AgentSession, Note, Project, WorkItem } from './types.js'
 
 /**
  * One page (T137).
  *
- * Everything the operator needs is here at once — tiles, Attention, three lanes,
- * agent sessions, and who is holding what up. There is no navigation and no
- * second screen, because the value of this application is entirely in the
+ * Everything the operator needs is here at once — tiles, the ticket lane, agent
+ * sessions, and who is holding what up. There is no navigation and no second
+ * screen, because the value of this application is entirely in the
  * *relationships between* the systems it reads, and a relationship you have to
  * navigate to see is one you will not see.
+ *
+ * **This is the thin board**, and it is an intended intermediate state. 006 took
+ * the pull request lane, the branch lane and the Attention region off it in one
+ * pass, and 007 fills the space with the agent console. A board that is mostly
+ * empty column is not the finished product; a board carrying three lanes that
+ * can never have anything in them was worse.
  *
  * Two structural decisions:
  *
  * **Each lane has its own error boundary** (T141, XV). Without one, a single
- * malformed pull request unmounts the whole tree and the operator's board goes
- * white because GitHub returned something odd.
+ * malformed ticket unmounts the whole tree and the operator's board goes white
+ * because Jira returned something odd. Every boundary that survived 006 is still
+ * here — the count went from six to four because four regions left, not because
+ * a surviving region gave one up.
  *
  * **Every lane narrows from one snapshot.** The reads happen here and the
  * filtering happens in `filter.ts`, so the number in a tile and the length of
@@ -48,13 +54,20 @@ export function App(): ReactElement {
   const [showSettings, setShowSettings] = useState(false)
   /** The subject whose notes are open, with the label the row showed. */
   const [notesFor, setNotesFor] = useState<{ key: string; label: string } | null>(null)
-  /** The finding being confirmed for dispatch. One at a time, deliberately. */
-  const [confirming, setConfirming] = useState<DriftFinding | null>(null)
 
   const projects = useOperation<Project[]>('projects.list')
   const work = useOperation<Envelope<WorkItem[]>>('work.list')
-  const drift = useOperation<Envelope<DriftFinding[]>>('drift.list')
   const sessions = useOperation<AgentSession[]>('sessions.list')
+  /**
+   * Open questions from agents.
+   *
+   * **This read is not Attention's, and taking it out along with Attention is
+   * the mistake this comment exists to have prevented** (FR-121). Two other
+   * things depend on it and neither is going: the asking set below puts the
+   * question mark on a row's note badge, and core's ball-in-court hands an item
+   * to the operator when an agent is waiting on them. 007 gives the display
+   * itself a new home in the agent update panel.
+   */
   const questions = useOperation<Note[]>('notes.questions')
 
   /**
@@ -69,8 +82,6 @@ export function App(): ReactElement {
     const keys = new Set<string>()
     for (const item of work.data?.data ?? []) {
       if (item.ticket !== null) keys.add(item.ticket.key)
-      for (const pr of item.pullRequests) keys.add(pr.key)
-      for (const ws of item.workspaces) keys.add(ws.key)
     }
     // The operation caps at a thousand keys. A board past that has other
     // problems, but truncating silently would show empty badges on the tail and
@@ -146,18 +157,19 @@ export function App(): ReactElement {
 
   const known = projects.data
   const items = filterWork(work.data?.data ?? [], filter)
-  const findings = filterFindings(drift.data?.data ?? [], filter)
   const live = filterSessions(sessions.data ?? [], filter)
-  const nudges = (questions.data ?? []).filter((n) => n.resolvedAt === null)
-  const counts = summarise(items, findings, live)
-  // Each lane reports its own resource, not the board-wide worst. The header
+  const counts = summarise(items, live)
+  // The lane reports its own resource, not the board-wide worst. The header
   // summarises only what is on screen — an envelope also carries freshness for
   // kinds nothing displays, and letting those decide put every lane into
   // "never synced" because `comparisons` had no row yet.
+  //
+  // Two names for one read, for now. They are two different claims — what this
+  // lane knows, and what the whole board knows — and they coincide only because
+  // there is one displayed resource kind left. 007 adds a second lane and the
+  // header's set widens again; collapsing them here would have to be undone.
   const ticketFreshness = worstFreshness(work.data, 'tickets')
-  const pullFreshness = worstFreshness(work.data, 'pulls')
-  const branchFreshness = worstFreshness(work.data, 'local')
-  const freshness = worstFreshness(work.data, 'tickets', 'pulls', 'local')
+  const freshness = worstFreshness(work.data, 'tickets')
 
   /**
    * What the lanes need to draw and open notes (T150).
@@ -166,9 +178,9 @@ export function App(): ReactElement {
    * badges rather than rendering every row with a zero. A badge reading 0 is a
    * claim; an absent badge is not.
    *
-   * The asking set is built from the same `notes.questions` read that feeds
-   * Attention — unfiltered, so a badge appears on a row whose project is
-   * currently filtered out the moment the filter widens again.
+   * The asking set is built from `notes.questions` — unfiltered, so a badge
+   * appears on a row whose project is currently filtered out the moment the
+   * filter widens again.
    */
   const notes: NotesAccess | undefined =
     noteCounts.data === undefined
@@ -206,7 +218,6 @@ export function App(): ReactElement {
           <>
             <StatTiles
               yourCourt={counts.yourCourt}
-              drifting={counts.drifting}
               stalled={counts.stalled}
               agentsLive={counts.agentsLive}
               totalSessions={live.length}
@@ -230,43 +241,6 @@ export function App(): ReactElement {
                     notes={notes}
                   />
                 </LaneBoundary>
-
-                {/*
-                  Under the tickets rather than above them, at the operator's
-                  request.
-
-                  It sat above all three lanes because drift is the one thing on
-                  this board no other tool reports, and the top is where that
-                  argument leads. What the argument missed is that the panel is
-                  *tall* — one strip carries both sides of the evidence and its
-                  age — so a board with three findings on it opened on the
-                  disagreements and pushed the work itself below the fold. The
-                  tickets are what the operator came for; the drift is what they
-                  stay for. It keeps its place in the main column, immediately
-                  after the lane whose rows it is usually about, and the
-                  "Drifting" tile still reports the count from the top.
-                */}
-                <LaneBoundary lane="Attention">
-                  <Attention findings={findings} questions={nudges} onDispatch={setConfirming} />
-                </LaneBoundary>
-
-                <LaneBoundary lane="Pull requests">
-                  <PullRequests
-                    items={items}
-                    projects={known}
-                    freshness={pullFreshness}
-                    notes={notes}
-                  />
-                </LaneBoundary>
-
-                <LaneBoundary lane="Open branches">
-                  <Branches
-                    items={items}
-                    projects={known}
-                    freshness={branchFreshness}
-                    notes={notes}
-                  />
-                </LaneBoundary>
               </div>
 
               <aside className="board__side">
@@ -284,11 +258,11 @@ export function App(): ReactElement {
       </main>
 
       {/*
-        Both dialogs live here rather than inside the row or the strip that
-        opens them. A `<dialog>` rendered from inside a lane would unmount the
-        moment its row left the list — which happens on any sync that reorders
-        the lane, and on every project chip press — closing itself mid-sentence
-        with the operator's draft in it.
+        The dialog lives here rather than inside the row that opens it. A
+        `<dialog>` rendered from inside a lane would unmount the moment its row
+        left the list — which happens on any sync that reorders the lane, and on
+        every project chip press — closing itself mid-sentence with the
+        operator's draft in it.
       */}
       {notesFor !== null && (
         <NotesModal
@@ -298,13 +272,6 @@ export function App(): ReactElement {
         />
       )}
 
-      {confirming !== null && (
-        <ConfirmAction
-          finding={confirming}
-          sessions={sessions.data ?? []}
-          onClose={() => setConfirming(null)}
-        />
-      )}
     </>
   )
 }

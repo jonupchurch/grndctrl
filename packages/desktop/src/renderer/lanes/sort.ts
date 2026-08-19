@@ -27,7 +27,17 @@
  * stable since ES2019; this relies on that rather than re-implementing it.
  */
 
-export type SortColumn = 'identifier' | 'title' | 'status' | 'sprint' | 'priority' | 'points' | 'age'
+/**
+ * `age` was here and is not any more.
+ *
+ * It was the pull request and branch lanes' most useful order — "what has been
+ * sitting longest" — and 006 removed both lanes. The ticket lane never had the
+ * column: the sprint, priority and points tracks took its width. So the entry
+ * survived as a name in a union that no lane could supply an accessor for, which
+ * `sortableColumns` would have quietly filtered out of every heading row
+ * forever. A column nothing can sort by is not an option, it is dead vocabulary.
+ */
+export type SortColumn = 'identifier' | 'title' | 'status' | 'sprint' | 'priority' | 'points'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -40,10 +50,9 @@ export interface SortState {
 /**
  * What one row answers for each column that can be sorted on.
  *
- * A lane supplies only the columns it draws — the pull request lane has no
- * `sprint` accessor because it has no sprint column — and `sortableColumns`
- * reads the same object, so a heading cannot become clickable without something
- * behind it to sort by.
+ * A lane supplies only the columns it draws — a lane with no sprint column has
+ * no `sprint` accessor — and `sortableColumns` reads the same object, so a
+ * heading cannot become clickable without something behind it to sort by.
  *
  * `null` is unknown and sorts last. A number and a string are both allowed
  * because points are numeric and everything else is not; they are never compared
@@ -53,7 +62,7 @@ export type SortAccessors<T> = Partial<Record<SortColumn, (row: T) => string | n
 
 /** The columns this lane can actually sort by, in the order they are drawn. */
 export function sortableColumns<T>(accessors: SortAccessors<T>): SortColumn[] {
-  const order: SortColumn[] = ['identifier', 'title', 'status', 'sprint', 'priority', 'points', 'age']
+  const order: SortColumn[] = ['identifier', 'title', 'status', 'sprint', 'priority', 'points']
   return order.filter((column) => accessors[column] !== undefined)
 }
 

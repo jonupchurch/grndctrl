@@ -2,12 +2,18 @@ import type { ReactElement } from 'react'
 import { StatusMark } from './StatusMark.js'
 
 /**
- * The four numbers across the top (T139 — FR-073).
+ * The three numbers across the top (T139 — FR-073).
  *
- * They answer, in order: what is mine, what disagrees, what has stopped moving,
- * and what is an agent doing. That order is the question an operator actually
- * arrives with, and it is why "Your court" is first and is the only one that is
- * also a *control*.
+ * They answer, in order: what is mine, what has stopped moving, and what is an
+ * agent doing. That order is the question an operator actually arrives with, and
+ * it is why "Your court" is first and is the only one that is also a *control*.
+ *
+ * **There were four.** "Drifting" counted the subjects where two systems
+ * disagreed, and every one of the nine rules behind it compared a ticket against
+ * a pull request, a branch or a checkout. With one provider left there is
+ * nothing for a second source to disagree with, so the tile could only ever have
+ * read `0` — a permanent zero beside the label "the systems agree" is not a
+ * reassurance, it is a claim the application is no longer entitled to make.
  *
  * **The first tile is a toggle.** Pressing it filters the whole board to the
  * operator's own work. That is the single most common thing anyone wants from
@@ -16,15 +22,14 @@ import { StatusMark } from './StatusMark.js'
  * `button` with `aria-pressed`, so the toggle state is announced rather than
  * conveyed by a background colour.
  *
- * The other three read as buttons too but are not toggles yet — the drift and
- * stalled filters are worth having and are not in this slice. They are rendered
- * as plain figures rather than dead buttons, because a control that does nothing
- * when pressed is worse than no control.
+ * The other two read as buttons too but are not toggles yet — a stalled filter
+ * is worth having and is not in this slice. They are rendered as plain figures
+ * rather than dead buttons, because a control that does nothing when pressed is
+ * worse than no control.
  */
 
 export interface StatTilesProps {
   yourCourt: number
-  drifting: number
   stalled: number
   agentsLive: number
   totalSessions: number
@@ -34,7 +39,6 @@ export interface StatTilesProps {
 
 export function StatTiles({
   yourCourt,
-  drifting,
   stalled,
   agentsLive,
   totalSessions,
@@ -55,13 +59,6 @@ export function StatTiles({
           {mineOnly ? 'showing only yours — press to show all' : 'press to show only yours'}
         </span>
       </button>
-
-      <Figure
-        label="Drifting"
-        value={drifting}
-        sub={drifting === 0 ? 'the systems agree' : 'two sources disagree'}
-        severity={drifting === 0 ? 'good' : 'critical'}
-      />
 
       <Figure
         label="Stalled"

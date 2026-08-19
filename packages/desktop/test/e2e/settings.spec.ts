@@ -42,16 +42,25 @@ test('the secret field is a password field and starts empty', async () => {
   const { window } = it
   await window.getByRole('button', { name: 'Settings' }).click()
 
+  // There is exactly one, and re-authorizing an existing account gets the same
+  // empty box as adding a new one. That is the point: no operation returns a
+  // stored secret and no bridge method could, so there is nothing to pre-fill
+  // it with — and a field that *looked* pre-filled would mean there was.
   const secret = window.locator('input[type="password"]')
+  await expect(secret).toHaveCount(1)
   await expect(secret).toBeVisible()
   await expect(secret).toHaveValue('')
 
-  // Typed, then the provider is switched. The field must not carry a secret
-  // across a change of context — the operator's Jira token must not still be
-  // sitting in the box when the form is now asking for a GitHub one.
-  await secret.fill('a-secret-value')
-  await window.getByRole('button', { name: 'GitHub' }).click()
-  await expect(window.locator('input[type="password"]')).toHaveValue('a-secret-value')
+  // Never offered back by the browser either. The keychain is the only place a
+  // credential lives (FR-005), and an autofill store would be a second one.
+  await expect(secret).toHaveAttribute('autocomplete', 'off')
+
+  /*
+   * This test used to type a value and then press the "GitHub" button, to check
+   * what a change of provider did to a half-typed Jira token. There is one
+   * provider now, so there is no context to switch and the segmented control is
+   * gone — a control that cannot be used to choose anything is not a control.
+   */
 })
 
 test('no field on the page exposes a stored credential', async () => {

@@ -6,18 +6,32 @@ import { launch, type LaunchedApp } from './app.js'
 /**
  * The golden path (T155), in one session, in order.
  *
- * Configure → render → open each row type → write a note and watch the badge
- * follow it → confirm a dispatch and watch it land in the outbox. Every other
- * e2e in this directory asserts one property in isolation; this one asserts
- * that the properties compose, which is the thing that actually breaks. Each of
- * the eight defects found the day this application first met live providers had
- * a passing test beside it, and every one of them was a seam.
+ * Configure → render → open a ticket → write a note and watch the badge follow
+ * it → edit it, and lose a revision race on purpose. Every other e2e in this
+ * directory asserts one property in isolation; this one asserts that the
+ * properties compose, which is the thing that actually breaks. Each of the eight
+ * defects found the day this application first met live providers had a passing
+ * test beside it, and every one of them was a seam.
  *
  * Written as a single ordered file rather than independent tests because the
  * later steps genuinely depend on the earlier ones — the note badge reads `1`
- * because step five wrote a note, not because a fixture said so. Playwright
+ * because step three wrote a note, not because a fixture said so. Playwright
  * runs the tests in a file in order against one `beforeAll`, which is exactly
  * that shape.
+ *
+ * **The path used to be nine steps and is now six**, and what left is worth
+ * naming rather than quietly renumbering. Two steps opened a pull request row
+ * and a branch row; three drove a drift finding through the confirmation dialog
+ * into the outbox and then restarted the application to prove the queued action
+ * had never been in memory.
+ *
+ * The outbox itself is **not** gone — its eight operations, its durable table
+ * and its claim protocol are all still here, and `outbox-durability.test.ts` in
+ * core still proves an action survives a restart. What is gone is the only route
+ * *from the interface* to it, because that route began at a drift finding. So
+ * this file no longer ends at the outbox: nothing on the board can put anything
+ * in it, and a golden path that queued an action by calling the bridge directly
+ * would be asserting the seam it exists to test does not matter.
  */
 
 const SCENARIO = join(
@@ -70,9 +84,9 @@ test.afterAll(async () => {
 })
 
 test('1 · the board is configured, and settings agrees with what it is showing', async () => {
-  // The seeded project is bound to a Jira project and a repository. Both screens
-  // read the same `projects.list`; a board that renders MERC rows while settings
-  // shows nothing configured would mean two sources for one fact.
+  // The seeded project is bound to a Jira project. Both screens read the same
+  // `projects.list`; a board that renders MERC rows while settings shows nothing
+  // configured would mean two sources for one fact.
   await expect(it.window.getByRole('heading', { name: 'Ground Control' })).toBeVisible()
   await expect(
     it.window.getByRole('navigation', { name: 'Filter by project' }).getByRole('button', {
@@ -84,11 +98,11 @@ test('1 · the board is configured, and settings agrees with what it is showing'
   await it.window.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(it.window.getByRole('heading', { name: 'Settings' })).toBeVisible()
 
-  // The same project, described by the screen that owns it: the ticket project
-  // and the repository the board is joining together.
+  // The same project, described by the screen that owns it. The repository line
+  // that used to follow — `MERC · acme/mercury` — went with the field.
   const projects = it.window.getByRole('region', { name: 'Projects' })
   await expect(projects.getByText('MERC · Mercury')).toBeVisible()
-  await expect(projects.getByText('MERC · acme/mercury')).toBeVisible()
+  await expect(projects.getByText('acme/mercury')).toHaveCount(0)
 
   await it.window.getByRole('button', { name: 'Back to the board' }).click()
   await expect(it.window.getByRole('region', { name: 'Tickets' })).toBeVisible()
@@ -105,37 +119,23 @@ test('2 · a ticket row opens the ticket, not the repository', async () => {
     .toEqual(['https://acme.atlassian.net/browse/MERC-1184'])
 })
 
-test('3 · a pull request row opens that pull request', async () => {
-  await it.window
-    .getByRole('region', { name: 'Pull requests' })
-    .getByRole('button', { name: /^Open #451/ })
-    .click()
-
-  // The second entry, not a replacement: the list accumulates, so this also
-  // shows the ticket click above did not fire twice.
-  await expect
-    .poll(openedUrls)
-    .toEqual([
-      'https://acme.atlassian.net/browse/MERC-1184',
-      'https://github.com/acme/mercury/pull/451',
-    ])
+/**
+ * Every row on the board opens a ticket, because every row *is* one.
+ *
+ * There were three row kinds and three steps here, and the interesting one was
+ * the branch: a branch the code host had never seen has no branch page, so
+ * `links.resolve` answered with the repository instead of opening a 404. That
+ * fallback, and the two link targets above it, are removed in M2.
+ *
+ * The remaining assertion is that the accumulating list has exactly one entry --
+ * which also proves the click above fired once rather than twice, the thing the
+ * second step used to prove.
+ */
+test('3 · nothing else on the board opens anything', async () => {
+  expect(await openedUrls()).toEqual(['https://acme.atlassian.net/browse/MERC-1184'])
 })
 
-test('4 · a branch row opens the branch, and falls back rather than failing', async () => {
-  await it.window
-    .getByRole('region', { name: 'Open branches' })
-    .getByRole('button', { name: /^Open feature\/MERC-1190/ })
-    .click()
-
-  const urls = await openedUrls()
-  expect(urls).toHaveLength(3)
-  // FR-076: a branch the host has never seen has no branch page, so
-  // `links.resolve` answers with the repository. Either is correct; opening
-  // nothing, or opening a 404, is not.
-  expect(urls[2]).toMatch(/^https:\/\/github\.com\/acme\/mercury(\/tree\/feature\/MERC-1190)?$/)
-})
-
-test('5 · a note written from the board is on the row when the dialog closes', async () => {
+test('4 · a note written from the board is on the row when the dialog closes', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
 
   // Nothing has been written to this subject, so the control is the quiet `+`
@@ -173,7 +173,7 @@ test('5 · a note written from the board is on the row when the dialog closes', 
 })
 
 /**
- * The note that step 5 wrote must not have moved MERC-1184's columns.
+ * The note that step 4 wrote must not have moved MERC-1184's columns.
  *
  * This is the reason the row's last two grid tracks are pinned rather than
  * `auto`. A badge reading `1` is wider than the `+` on MERC-1190 below it, and
@@ -186,7 +186,7 @@ test('5 · a note written from the board is on the row when the dialog closes', 
  * Asserted after the note exists, which is what makes it a real comparison
  * rather than two identical rows agreeing.
  */
-test('5b · the row that gained a note still lines up with the one that did not', async () => {
+test('4b · the row that gained a note still lines up with the one that did not', async () => {
   const columns = await it.window.evaluate(() => {
     const of = (id: string): Record<string, number> => {
       const row = [...document.querySelectorAll('.row')].find((r) =>
@@ -216,7 +216,7 @@ test('5b · the row that gained a note still lines up with the one that did not'
   }
 })
 
-test('6 · editing that note against a current revision succeeds', async () => {
+test('5 · editing that note against a current revision succeeds', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
   await tickets.getByRole('button', { name: '1 note on MERC-1184' }).click()
 
@@ -235,7 +235,7 @@ test('6 · editing that note against a current revision succeeds', async () => {
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
 })
 
-test('6b · an edit that lost the revision race shows what it lost to', async () => {
+test('5b · an edit that lost the revision race shows what it lost to', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
   await tickets.getByRole('button', { name: '1 note on MERC-1184' }).click()
 
@@ -293,74 +293,25 @@ test('6b · an edit that lost the revision race shows what it lost to', async ()
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
 })
 
-test('7 · the drift finding offers its action, and says what confirming means', async () => {
-  const attention = it.window.getByRole('region', { name: 'Attention' })
-  await expect(attention.getByText('MERC-1184 is In Review, but PR #451 merged')).toBeVisible()
-
-  await attention.getByRole('button', { name: 'Move to Done' }).click()
-
-  const dialog = it.window.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: 'Confirm this action' })).toBeVisible()
-
-  // XVI, stated to the operator rather than only enforced in the wiring. This
-  // application holds read-only credentials and will not transition the ticket
-  // itself; confirming records a request for an agent to carry out.
-  await expect(dialog.getByText(/read-only credentials and never writes/)).toBeVisible()
-
-  // FR-066. The seeded session has missed its heartbeat, so it is silent — and
-  // a silent agent is exactly the case where "queued" must not read as "sent",
-  // because a crashed agent cannot report its own crash.
-  await expect(dialog.getByText('No agent is connected.')).toBeVisible()
-
-  // Both sides of the evidence travel into the dialog. The operator is being
-  // asked to authorise a change to a ticket; the two facts that disagree are
-  // what the decision rests on, and the summary sentence alone is not them.
-  const evidence = dialog.getByRole('list', { name: 'Evidence' })
-  await expect(evidence.getByText('status is In Review')).toBeVisible()
-  await expect(evidence.getByText('merged')).toBeVisible()
-})
-
-test('8 · confirming queues the action, and it is pending rather than sent', async () => {
-  const dialog = it.window.getByRole('dialog')
-  await dialog.getByRole('button', { name: 'Move to Done' }).click()
-
-  await expect(dialog.getByRole('heading', { name: 'Queued' })).toBeVisible()
-  await expect(dialog.getByText('Waiting to be claimed')).toBeVisible()
-
-  // The history's first entry is written by `enqueue` and names the operator as
-  // the actor. This is the record that the action was confirmed rather than
-  // raised automatically — the property XVI exists for.
-  await expect(dialog.getByText(/confirmed by the operator/)).toBeVisible()
-
-  // Still true after queueing, and still said plainly.
-  await expect(dialog.getByText('No agent is connected.')).toBeVisible()
-
-  // Nothing was opened by any of this. A confirmation flow that reached a
-  // provider would be the exact failure XVI forbids, and it would be invisible
-  // in every other assertion here.
-  expect(await openedUrls()).toHaveLength(3)
-})
-
-test('9 · the queued action survives a restart, because it was never in memory', async () => {
-  // FR-064 is the reason the outbox is a table rather than an event. An action
-  // raised while nothing is listening has to still be there when something
-  // finally is — which is most of the time, on a single-operator machine.
-  const dir = it.dir
-  await it.app.close()
-
-  it = await launch({ env: { GRNDCTRL_DATA_DIR: dir } })
-  it.dir = dir
-
-  const pending = await it.window.evaluate(async () => {
-    const bridge = (globalThis as Record<string, unknown>)['grndctrl'] as {
-      outbox: { pending(input: unknown): Promise<{ ok: boolean; data: unknown }> }
-    }
-    const result = await bridge.outbox.pending({})
-    return result.ok ? (result.data as { kind: string; state: string }[]) : null
-  })
-
-  expect(pending).not.toBeNull()
-  expect(pending).toHaveLength(1)
-  expect(pending?.[0]?.kind).toBe('transition-ticket')
-  expect(pending?.[0]?.state).toBe('pending')
-})
+/*
+ * Steps 7, 8 and 9 were here.
+ *
+ * 7 opened a drift finding's action and checked the dialog said, in words, that
+ * this application holds read-only credentials and will not make the change
+ * itself. 8 confirmed it and checked the action was recorded as *pending*, with
+ * the operator named in its history as the actor -- constitution XVI made
+ * visible rather than only enforced. 9 restarted the application and found the
+ * action still queued.
+ *
+ * All three began at a drift finding, and 006 removes drift. They are not
+ * replaced, because there is nothing on the board to replace them with: no
+ * surface in the interface can now create an outbox action.
+ *
+ * **The properties they held are not all covered elsewhere, and that is worth
+ * being plain about.** `outbox-durability.test.ts` and `no-auto-dispatch.test.ts`
+ * in core still hold the durability guarantee and the never-writes guarantee at
+ * the service level. What no test holds any more is the *dialog* -- that a human
+ * is shown what confirming means before they confirm it. That component is
+ * deleted, so there is nothing to test; but if a confirmation flow is ever built
+ * again, this is the assertion it needs and this comment is where to find it.
+ */

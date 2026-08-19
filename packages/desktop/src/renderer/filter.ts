@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentSession, DriftFinding, Project, WorkItem } from './types.js'
+import type { AgentSession, Project, WorkItem } from './types.js'
 
 /**
  * Project selection is a filter, not navigation (T138 — FR-070).
@@ -108,16 +108,6 @@ export function filterWork(items: readonly WorkItem[], filter: Filter): WorkItem
   })
 }
 
-export function filterFindings(
-  findings: readonly DriftFinding[],
-  filter: Filter,
-): DriftFinding[] {
-  // Drift is deliberately *not* narrowed by `mineOnly`. A disagreement between
-  // two systems is not in anyone's court until someone looks at it, and hiding
-  // it behind a "mine" toggle is how it stays unlooked-at.
-  return findings.filter((f) => filter.projectId === null || f.projectId === filter.projectId)
-}
-
 export function filterSessions(
   sessions: readonly AgentSession[],
   filter: Filter,
@@ -134,14 +124,10 @@ export function filterSessions(
  */
 export function summarise(
   items: readonly WorkItem[],
-  findings: readonly DriftFinding[],
   sessions: readonly AgentSession[],
-): { yourCourt: number; drifting: number; stalled: number; agentsLive: number } {
+): { yourCourt: number; stalled: number; agentsLive: number } {
   return {
     yourCourt: items.filter((i) => i.ballInCourt === 'you').length,
-    // Distinct subjects, not findings: two rules firing on one ticket is one
-    // thing to go and look at, and counting it twice overstates the problem.
-    drifting: new Set(findings.map((f) => f.subjectKey)).size,
     stalled: items.filter((i) => i.staleness === 'stale' || i.staleness === 'abandoned').length,
     agentsLive: sessions.filter((s) => s.state === 'running' || s.state === 'needs-you').length,
   }

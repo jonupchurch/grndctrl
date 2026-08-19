@@ -3,7 +3,6 @@ import { EmptyState } from '../components/EmptyState.js'
 import { LaneStatus } from '../components/LaneStatus.js'
 import { Row, RowHeadings } from '../components/Row.js'
 import { paletteIndexOf } from '../components/ProjectChip.js'
-import type { Severity } from '../components/StatusMark.js'
 import { launch } from '../launch.js'
 import type { FreshnessView } from '../query.js'
 import type { Project, WorkItem } from '../types.js'
@@ -18,23 +17,24 @@ import {
 } from './sort.js'
 
 /**
- * The three lanes (T140), each a projection of the same correlated work items.
+ * The work lane — a projection of the correlated work items (T140).
  *
- * They are projections rather than three separate fetches on purpose. A pull
- * request is not an independent thing here — it is part of a work item that also
- * has a ticket, a branch, and possibly an agent on it — and fetching the lanes
- * separately would mean three snapshots that can disagree, so a PR could appear
- * in its lane while the ticket it belongs to had already gone from the other.
+ * **There were three of these** (tickets, pull requests, open branches) and now
+ * there is one. The other two read a code host and a local git checkout, and
+ * 006 removed both providers: a company GitHub that refuses the API is not a
+ * degraded lane, it is a lane that can never have anything in it, and a lane
+ * that is permanently empty teaches the operator to stop looking at the board.
  *
- * Each lane keeps **its own count, its own threshold, and its own empty state**.
- * The thresholds differ because the lanes measure different things: a ticket
- * untouched for three days is normal in most teams, a pull request untouched for
- * twenty-four hours is someone waiting.
+ * `Lane` stays a shell taking its title, threshold, columns and empty state as
+ * props rather than collapsing into `Tickets`, because it is about to have a
+ * second caller again: [007](../../../../specs/007-agent-console/spec.md) adds
+ * the lane of work that was handed off. Inlining it now and un-inlining it in a
+ * fortnight is churn, not simplification.
  *
- * They also keep **their own column headings**, for the same reason: the third
- * column is a ticket's summary, a pull request's title, and a branch's ticket —
- * one heading across all three would have to be vague enough to be true of all
- * of them, which is a heading that tells the operator nothing.
+ * The lane keeps **its own count, its own threshold, and its own empty state**,
+ * and it keeps **its own column headings** — the third column is a ticket's
+ * summary here and will be something else in the next lane, and one heading
+ * across both would have to be vague enough to be true of either.
  */
 
 interface LaneShellProps {
@@ -54,11 +54,6 @@ interface LaneShellProps {
    * the ticket lane is the only place that sets either.
    */
   metrics?: boolean
-  /**
-   * Whether the rows carry the age column. Off on the ticket lane only, where
-   * the three metric columns took its width — see `Row.tsx`.
-   */
-  age?: boolean
   /** The lane's sort state and the columns it can sort by. */
   sort: {
     state: SortState | null
@@ -78,14 +73,13 @@ function Lane({
   resource,
   columns,
   metrics = false,
-  age = true,
   sort,
   children,
   empty,
   now,
 }: LaneShellProps): ReactElement {
   return (
-    <section className="lane" aria-label={title} data-metrics={metrics} data-age={age}>
+    <section className="lane" aria-label={title} data-metrics={metrics}>
       <header className="lane__head">
         <span>{title}</span>
         <span className="lane__count">{count}</span>
@@ -98,7 +92,7 @@ function Lane({
         empty
       ) : (
         <>
-          <RowHeadings {...columns} metrics={metrics} age={age} sort={sort} />
+          <RowHeadings {...columns} metrics={metrics} sort={sort} />
           {children}
         </>
       )}
@@ -109,10 +103,11 @@ function Lane({
 /**
  * A lane's sort state, and the props its headings need to change it.
  *
- * Per lane rather than per board, because the lanes are not three views of one
- * list: sorting tickets by story points says nothing about how the operator
- * wants their branches ordered, and a shared control would reorder two lanes to
- * answer a question about the third.
+ * Per lane rather than per board. It mattered more when there were three lanes
+ * — sorting tickets by story points says nothing about how the operator wants
+ * their branches ordered — and it still matters, because 007 adds a second lane
+ * whose interesting order is "most recently taken off my plate" and whose
+ * columns are not these.
  *
  * **Not persisted, deliberately, for now.** The project filter is saved because
  * it is a standing choice about what the board is *for*; a sort is a question
@@ -141,8 +136,8 @@ function useLaneSort<T>(accessors: SortAccessors<T>): {
  *
  * Passed in rather than fetched per lane. One `notes.counts` call covers the
  * whole board — the operation takes up to a thousand keys precisely so a lane of
- * badges is one query — and three lanes fetching their own would put three
- * snapshots of the same table on one screen.
+ * badges is one query — and two lanes fetching their own would put two snapshots
+ * of the same table on one screen.
  */
 export interface NotesAccess {
   /** Count per subject key. A key that is absent has no notes. */
@@ -200,25 +195,11 @@ const slot = (
   }
 }
 
-/**
- * A timestamp as an *age*, so ascending means youngest.
- *
- * The column is called Age and the number in it counts upward from the last
- * activity, so sorting it ascending has to put the freshest row first — which is
- * the opposite of sorting the timestamp itself. Negating the epoch is the whole
- * conversion; nothing here needs `now`, because every row is measured from the
- * same one and a shared offset does not change an ordering.
- *
- * `null` stays null: a row whose last activity is unknown is unknown, and it
- * sorts to the end rather than claiming to be the oldest thing on the board.
- */
-function ageKey(at: string | null): number | null {
-  if (at === null) return null
-  const parsed = Date.parse(at)
-  return Number.isNaN(parsed) ? null : -parsed
-}
-
 export function Tickets({ items, projects, freshness, notes, now }: LaneProps): ReactElement {
+  // Still filtered, and still necessary at this point in 006: core has not
+  // narrowed yet, so it can still produce a work item built from a branch with
+  // no ticket on it. FR-106 makes `ticket` non-nullable at M4 and this filter
+  // becomes a no-op; it is removed then, with the type that permitted it.
   const withTickets = items.filter((i) => i.ticket !== null)
 
   // No `age` accessor, because this lane has no age column to click. The lane's
@@ -244,16 +225,12 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
       resource="Tickets"
       columns={{ identifier: 'Ticket', title: 'Summary', status: 'Status' }}
       metrics
-      // The one lane without it: sprint, priority and points are three columns
-      // this one has and the others do not, and the staleness bar already
-      // carries the same fact in the leftmost track.
-      age={false}
       sort={sort.props}
       {...(now === undefined ? {} : { now })}
       empty={
         <EmptyState title="No tickets">
-          Tickets assigned to you in the bound Jira project appear here, with the branch and pull
-          request each one is connected to.
+          Tickets assigned to you in the bound Jira project appear here, with any agent that is
+          working on one.
         </EmptyState>
       }
     >
@@ -261,21 +238,15 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
         <Row
           key={item.key}
           identifier={item.ticket?.issueKey ?? item.key}
-          age={false}
           title={item.ticket?.summary ?? ''}
           severity={item.severity}
           staleness={item.staleness}
           lastRealActivityAt={item.lastRealActivityAt}
           ballInCourt={item.ballInCourt}
-          correlations={{
-            branch: item.workspaces.length > 0,
-            'pull-request': item.pullRequests.length > 0,
-            check: item.checks.length > 0,
-            agent: item.sessions.length > 0,
-          }}
+          correlations={{ agent: item.sessions.length > 0 }}
           {...(item.ticket === null ? {} : { status: item.ticket.statusName })}
           // Always passed on this lane, because the lane is what declares the
-          // columns: a row that omitted them would leave two tracks empty and
+          // columns: a row that omitted them would leave three tracks empty and
           // slide its own correlation badges under the "Priority" heading.
           // `withTickets` has already excluded the null ticket; the fallback is
           // here so a change to that filter cannot silently misalign the grid.
@@ -292,199 +263,4 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
       ))}
     </Lane>
   )
-}
-
-export function PullRequests({
-  items,
-  projects,
-  freshness,
-  notes,
-  now,
-}: LaneProps): ReactElement {
-  // Flattened, because one work item can carry several pull requests — a ticket
-  // with three PRs is one work item (decision 11) but three rows here.
-  const rows = items.flatMap((item) =>
-    item.pullRequests.map((pr) => ({ item, pr })),
-  )
-
-  const sort = useLaneSort<(typeof rows)[number]>({
-    // The number itself, not `#482` — a numeric sort key, so 9 comes before 100.
-    identifier: ({ pr }) => pr.number,
-    title: ({ pr }) => pr.title,
-    // The same string the cell shows, from the same function, so the order the
-    // eye reads down the column is the order it was sorted by.
-    status: ({ pr }) => describePull(pr),
-    age: ({ item, pr }) => ageKey(pr.lastRealActivityAt ?? item.lastRealActivityAt),
-  })
-
-  return (
-    <Lane
-      title="Pull requests"
-      threshold="stale past 24h"
-      count={rows.length}
-      freshness={freshness}
-      resource="Pull requests"
-      columns={{ identifier: 'PR', title: 'Title', status: 'Review' }}
-      sort={sort.props}
-      {...(now === undefined ? {} : { now })}
-      empty={
-        <EmptyState title="No open pull requests">
-          Pull requests you opened, or that are waiting on your review, appear here with their CI
-          state and the ticket they belong to.
-        </EmptyState>
-      }
-    >
-      {sort.rows(rows).map(({ item, pr }) => (
-        <Row
-          key={pr.key}
-          identifier={`#${pr.number}`}
-          title={pr.title}
-          severity={severityOfPull(pr, item.severity)}
-          staleness={item.staleness}
-          lastRealActivityAt={pr.lastRealActivityAt ?? item.lastRealActivityAt}
-          ballInCourt={item.ballInCourt}
-          correlations={{
-            branch: item.workspaces.length > 0,
-            'pull-request': true,
-            check: item.checks.length > 0,
-            agent: item.sessions.length > 0,
-          }}
-          status={describePull(pr)}
-          {...slot(item.projectId, projects)}
-          {...noteSlot(notes, pr.key, `#${pr.number}`)}
-          {...(now === undefined ? {} : { now })}
-          onOpen={() => void launch(pr.key, 'pull-request')}
-        />
-      ))}
-    </Lane>
-  )
-}
-
-export function Branches({ items, projects, freshness, notes, now }: LaneProps): ReactElement {
-  const rows = items.flatMap((item) => item.workspaces.map((ws) => ({ item, ws })))
-
-  const sort = useLaneSort<(typeof rows)[number]>({
-    identifier: ({ ws }) => ws.branch,
-    title: ({ item }) => item.ticket?.summary ?? null,
-    status: ({ item, ws }) => describeWorkspace(ws, comparisonFor(item, ws)),
-    age: ({ item }) => ageKey(item.lastRealActivityAt),
-  })
-
-  return (
-    <Lane
-      title="Open branches"
-      threshold="stale past 3d"
-      count={rows.length}
-      freshness={freshness}
-      resource="Branches"
-      columns={{ identifier: 'Branch', title: 'Ticket', status: 'Local state' }}
-      sort={sort.props}
-      {...(now === undefined ? {} : { now })}
-      empty={
-        <EmptyState title="No open branches">
-          Branches in your local checkouts appear here — with whether they are ahead of or behind
-          the base, and whether anything is uncommitted.
-        </EmptyState>
-      }
-    >
-      {sort.rows(rows).map(({ item, ws }) => (
-        <Row
-          key={ws.key}
-          identifier={ws.branch}
-          title={item.ticket?.summary ?? '(no ticket)'}
-          severity={item.severity}
-          staleness={item.staleness}
-          lastRealActivityAt={item.lastRealActivityAt}
-          ballInCourt={item.ballInCourt}
-          correlations={{
-            branch: true,
-            'pull-request': item.pullRequests.length > 0,
-            check: item.checks.length > 0,
-            agent: item.sessions.length > 0,
-          }}
-          status={describeWorkspace(ws, comparisonFor(item, ws))}
-          {...slot(item.projectId, projects)}
-          {...noteSlot(notes, ws.key, ws.branch)}
-          {...(now === undefined ? {} : { now })}
-          // A branch the host has never seen has no branch page, and
-          // `links.resolve` falls back to the repository (FR-076).
-          onOpen={() => void launch(ws.key, 'branch')}
-        />
-      ))}
-    </Lane>
-  )
-}
-
-/**
- * These compare against core's normalised `ReviewDecision`, not GitHub's raw
- * GraphQL enum. They used to read `CHANGES_REQUESTED` and `APPROVED`, which the
- * provider normalises to `changesRequested` and `approved` before anything
- * leaves it — so neither branch could ever be taken. Every pull request was
- * rendered "In review" at its fallback severity, including ones with changes
- * requested, which is precisely the state this lane exists to surface.
- */
-export function severityOfPull(pr: WorkItem['pullRequests'][number], fallback: Severity): Severity {
-  if (pr.reviewDecision === 'changesRequested') return 'serious'
-  if (pr.unresolvedThreadCount > 0) return 'warning'
-  return fallback
-}
-
-export function describePull(pr: WorkItem['pullRequests'][number]): string {
-  if (pr.isDraft) return 'Draft'
-  if (pr.reviewDecision === 'changesRequested') return 'Changes requested'
-  if (pr.reviewDecision === 'approved') return 'Approved'
-  if (pr.unresolvedThreadCount > 0) return `${pr.unresolvedThreadCount} unresolved`
-  return 'In review'
-}
-
-/**
- * What local git alone knows.
- *
- * Ahead/behind comes from GitHub, so it is `null` for a branch that has never
- * been pushed — and `null` is rendered as "unpushed", never as zero. "No commits
- * ahead" and "we have no idea" are different answers and only one of them is
- * true here (FR-018).
- */
-/** The code host's view of this branch, or nothing if it has never seen it. */
-function comparisonFor(
-  item: WorkItem,
-  ws: WorkItem['workspaces'][number],
-): WorkItem['comparisons'][number] | undefined {
-  const key = `repo:${ws.canonicalRemote}#${ws.branch}`
-  return item.comparisons.find((c) => c.branchKey === key)
-}
-
-/**
- * What is true about this checkout.
- *
- * Ahead/behind comes from the code host, so it is absent for a branch that was
- * never pushed — and absent is reported as unknown, never as zero. "No commits
- * ahead" and "we have no idea" are different answers and only one of them is
- * true here (FR-018).
- *
- * This used to read ahead/behind off the workspace itself, where the renderer's
- * hand-written type claimed they lived and core had never sent them. Every
- * branch fell through to the numeric arm, compared `undefined ?? 0` against
- * zero, found nothing to report, and printed "in sync".
- */
-export function describeWorkspace(
-  ws: WorkItem['workspaces'][number],
-  comparison: WorkItem['comparisons'][number] | undefined,
-): string {
-  const parts: string[] = []
-  if (ws.hasUncommittedChanges) parts.push('uncommitted')
-
-  // Null is core's way of saying there is no upstream at all, which is a
-  // different fact from "nothing to push" and outranks it.
-  if (ws.unpushedCommitCount === null) parts.push('no upstream')
-  else if (ws.unpushedCommitCount > 0) parts.push(`${ws.unpushedCommitCount} unpushed`)
-
-  if (comparison === undefined || (comparison.aheadBy === null && comparison.behindBy === null)) {
-    parts.push('unknown vs base')
-  } else {
-    if ((comparison.aheadBy ?? 0) > 0) parts.push(`${comparison.aheadBy} ahead`)
-    if ((comparison.behindBy ?? 0) > 0) parts.push(`${comparison.behindBy} behind`)
-  }
-
-  return parts.length === 0 ? 'in sync' : parts.join(' · ')
 }
