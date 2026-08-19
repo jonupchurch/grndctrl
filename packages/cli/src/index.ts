@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { correlate, DEFAULT_SETTINGS, freshnessView } from '@grndctrl/core'
+import { noteFieldsOf, resolveScenarioTimes } from '@grndctrl/core/fixtures'
+import type { ScenarioNote } from '@grndctrl/core/fixtures'
 import type { CorrelationInput, FreshnessRecord, ResourceKind, Settings } from '@grndctrl/core'
 import { renderBoard } from './board.js'
 import { importCredential } from './credential.js'
@@ -17,12 +19,22 @@ const DEFAULT_ENV_FILE = '.env.local'
  * debugging a diffable output afterwards.
  */
 
+/**
+ * The on-disk shape, which is not quite a `CorrelationInput`.
+ *
+ * Two of its fields are *derived* rather than stated. `noteCounts` and
+ * `openQuestionSubjects` are what the notes produce, and the other reader of
+ * these files — `seed.mjs` — writes notes into a real authored store where both
+ * numbers come from the rows in it. A scenario that stated them could only be
+ * honoured here, so it stated one thing and meant two.
+ */
 interface Scenario {
   description?: string
   now?: string
   settings?: Partial<Settings>
   freshness?: FreshnessRecord[]
-  input: Omit<CorrelationInput, 'settings' | 'now'>
+  notes?: ScenarioNote[]
+  input: Omit<CorrelationInput, 'settings' | 'now' | 'noteCounts' | 'openQuestionSubjects'>
 }
 
 /**
@@ -58,15 +70,32 @@ export function runCli(argv: readonly string[]): { output: string; exitCode: num
 
   let scenario: Scenario
   try {
-    scenario = JSON.parse(readFileSync(fixturePath, 'utf8')) as Scenario
+    // Resolved against *this* instant, so `now-5d` means five days before the
+    // command was run (FR-118). A scenario is a photograph of a board and its
+    // meaning is relative to when it was taken; the absolute dates these files
+    // used to carry made a fixture about staleness stop being about staleness a
+    // fortnight after it was written.
+    scenario = resolveScenarioTimes(
+      JSON.parse(readFileSync(fixturePath, 'utf8')) as Scenario,
+      new Date(),
+    )
   } catch (e) {
     return { output: `Could not read ${fixturePath}: ${messageOf(e)}`, exitCode: 1 }
   }
 
-  const now = new Date(scenario.now ?? '2026-08-14T12:00:00Z')
+  // Still defaulted, because a scenario with no `now` is legal and a board with
+  // no clock is not. It is the load instant rather than a date in 2026: the
+  // fallback used to be the day these fixtures were written, which quietly made
+  // every undated scenario a period piece.
+  const now = scenario.now === undefined ? new Date() : new Date(scenario.now)
   const settings = { ...DEFAULT_SETTINGS, ...scenario.settings }
 
-  const correlationInput: CorrelationInput = { ...scenario.input, settings, now }
+  const correlationInput: CorrelationInput = {
+    ...scenario.input,
+    ...noteFieldsOf(scenario.notes ?? []),
+    settings,
+    now,
+  }
 
   // One pass. There were two, and the second existed only because severity had
   // to know which items were in drift (FR-029) -- a single pass rendered a

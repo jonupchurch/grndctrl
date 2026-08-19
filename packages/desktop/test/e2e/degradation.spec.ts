@@ -12,12 +12,23 @@ import { launch, type LaunchedApp } from './app.js'
  * failed has chosen a purity that serves nobody, and the failure mode is silent
  * — the lanes just look empty, which reads as "no work" rather than "no data".
  *
- * The seeded connections carry a `credentialRef` pointing at a keychain entry
+ * **What XV looks like with one provider.** This file used to demonstrate the
+ * guarantee across three lanes: one provider failing while the others rendered.
+ * That comparison is gone with the providers, and the tempting reading is that
+ * the guarantee went with it. It did not — it changed shape. The board is no
+ * longer *tickets, pull requests and checkouts*; it is *provider-derived data and
+ * everything else*, and everything else is a large fraction of the screen: the
+ * agent session panel, the ball-in-court accounting, the tiles, the notes, and
+ * the notice explaining what broke. So the line the failure must not cross runs
+ * between the ticket lane and the rest of the page, and that is what is asserted
+ * below.
+ *
+ * The seeded connection carries a `credentialRef` pointing at a keychain entry
  * that does not exist, which is precisely the state a revoked or deleted token
  * leaves behind. So this is a real revocation rather than a simulated one, and
- * it costs no network: the connection ids are `jira-1` and `gh-1`, which are
- * not the operator's own (`jira`, `github`), so nothing here can reach a real
- * provider with a real credential even by accident.
+ * it costs no network: the connection id is `jira-1`, which is not the
+ * operator's own (`jira`), so nothing here can reach a real provider with a real
+ * credential even by accident.
  */
 
 const SCENARIO = join(
@@ -28,7 +39,7 @@ const SCENARIO = join(
   '..',
   'fixtures',
   'scenarios',
-  'merged-pr-open-ticket.json',
+  'canonical-board.json',
 )
 
 let it: LaunchedApp
@@ -51,9 +62,7 @@ test('the board says it cannot refresh, rather than ageing quietly', async () =>
   await expect(notice.getByText(/no stored credential/)).toBeVisible()
 
   // Naming which one. "A connection is broken" sends the operator to check all
-  // of them, which is the work the application is supposed to have done. The
-  // GitHub connection that used to be named beside it is not seeded any more —
-  // the mirror's CHECK refuses the row.
+  // of them, which is the work the application is supposed to have done.
   await expect(notice.getByText(/Jira · example.atlassian.net/)).toBeVisible()
 
   // And saying that pressing Refresh cannot help, because it cannot — that is
@@ -80,10 +89,8 @@ test('a refresh that could not happen is reported as a failure, not a success', 
   // that credential could not be fetched at all.
   //
   // One entry now. The list held three: `jira-1`, `gh-1`, and `local` for the
-  // fixture's checkout path, which exists on no machine. The two that left are
-  // not synced any more, and `gh-1` is skipped rather than reported precisely
-  // because it is a row about to be deleted rather than a connection the
-  // operator has to fix.
+  // fixture's checkout path, which existed on no machine. Neither of the other
+  // two is synced any more, and the scenario no longer seeds them at all.
   const failed = (report?.results ?? []).filter((r) => !r.ok)
   expect(failed.map((r) => r.connectionId).sort()).toEqual(['jira-1'])
 
@@ -97,15 +104,11 @@ test('the lane keeps its data and its own reading', async () => {
 
   // The rows are still there with the provider unusable. XV in one assertion: a
   // lane degrades, it does not blank, because what it last fetched is still the
-  // best answer available.
-  //
-  // This test demonstrated the property across *three* lanes and now has one to
-  // demonstrate it on, which is weaker — the interesting version was one
-  // provider failing while another rendered. T054 rewrites this file at M5 to
-  // demonstrate the ticket lane failing while the session lane, the panels and
-  // this notice still render, which is the shape the guarantee takes with a
-  // single provider. Until then it is narrowed rather than dropped.
+  // best answer available. All three rows, not merely one — a lane that
+  // rendered its first row and dropped the rest would pass a presence check.
   await expect(tickets.getByText('MERC-1184')).toBeVisible()
+  await expect(tickets.getByText('MERC-1190')).toBeVisible()
+  await expect(tickets.getByText('MERC-1201')).toBeVisible()
 
   // And the lane reports its own state rather than a board-wide verdict.
   // "not authenticated" rather than "refused": nothing was refused, because no
@@ -118,10 +121,51 @@ test('the lane keeps its data and its own reading', async () => {
   await expect(tickets.getByText(/showing/)).toBeVisible()
 })
 
+/**
+ * The failure stops at the lane (T054 — XV).
+ *
+ * This is the assertion that replaced "one provider fails, another renders".
+ * Everything below is derived from the *authored* store or computed from data
+ * already in hand, and none of it has any business changing because a token was
+ * revoked — but all of it sits on the same page, behind the same query layer,
+ * and a board-wide error boundary or a single `if (failed) return null` would
+ * take the lot.
+ *
+ * The session panel is the sharpest case: an agent reporting over the loopback
+ * API is *still working* while Jira is unreachable, and a board that hid it
+ * would be hiding the one thing still moving.
+ */
+test('nothing that does not come from the provider is affected', async () => {
+  // Agent sessions. Authored data, arriving over a completely different path.
+  const sessions = it.window.getByRole('region', { name: 'Agent sessions' })
+  await expect(sessions.getByText('claude-code')).toBeVisible()
+  await expect(sessions.getByText('Silent')).toBeVisible()
+
+  // Ball in court still accounts for every item, from the rows the mirror
+  // already holds. A panel that emptied itself here would be reporting "nothing
+  // is waiting on you" — which is a claim, and a false one.
+  const court = it.window.getByRole('region', { name: 'Ball in court' })
+  await expect(court.getByText('waiting on you')).toBeVisible()
+  await expect(court.getByText('waiting on someone else')).toBeVisible()
+
+  // The tiles, which are counts over the same rows.
+  await expect(it.window.getByRole('button', { name: /Your court/ })).toBeVisible()
+  await expect(it.window.getByText('Stalled')).toBeVisible()
+  await expect(it.window.getByText('Agents live')).toBeVisible()
+
+  // And the note the scenario seeded, still readable — the authored store is
+  // not behind the credential and must not act as though it were.
+  await expect(
+    it.window.getByRole('region', { name: 'Tickets' }).getByRole('button', {
+      name: '2 notes on MERC-1201',
+    }),
+  ).toBeVisible()
+})
+
 test('the board is still fully interactive', async () => {
   // The part that matters and the part a screenshot cannot tell you. Everything
   // below is an ordinary interaction, and every one of them has to still work
-  // while two of the three providers are unusable.
+  // while the only provider is unusable.
 
   // Filtering.
   const chip = it.window

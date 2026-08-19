@@ -30,7 +30,7 @@ const SCENARIO = join(
   '..',
   'fixtures',
   'scenarios',
-  'merged-pr-open-ticket.json',
+  'canonical-board.json',
 )
 
 interface Freshness {
@@ -59,6 +59,17 @@ const stamp = (rows: Freshness[], connectionId: string): string =>
 
 let it: LaunchedApp
 
+/**
+ * The seeded `lastSuccessAt`, read before anything can have polled.
+ *
+ * Captured rather than written down. It used to be the literal
+ * `2026-08-14T11:57:00Z` from the fixture, which stopped being true the moment
+ * scenario timestamps became offsets resolved at load (FR-118) — and an
+ * assertion that pins a constant from a file is one edit away from failing for a
+ * reason that has nothing to do with polling.
+ */
+let seededSuccess: string | null = null
+
 test.beforeAll(async () => {
   it = await launch({ scenario: SCENARIO })
 
@@ -74,6 +85,10 @@ test.beforeAll(async () => {
     }
     bridge.on.syncProgress((payload) => events.push((payload as { phase: string }).phase))
   })
+
+  seededSuccess =
+    (await status(it)).find((r) => r.connectionId === 'jira-1' && r.resourceKind === 'tickets')
+      ?.lastSuccessAt ?? null
 })
 
 test.afterAll(async () => {
@@ -137,7 +152,8 @@ test('records the attempt as a failure, so the board does not claim to be fresh'
   const rows = await status(it)
   const jira = rows.find((r) => r.connectionId === 'jira-1' && r.resourceKind === 'tickets')
 
-  expect(jira?.lastSuccessAt).toBe('2026-08-14T11:57:00Z')
+  expect(seededSuccess).not.toBeNull()
+  expect(jira?.lastSuccessAt).toBe(seededSuccess)
   expect(jira?.lastFailureAt).not.toBeNull()
   expect(Date.parse(jira?.lastFailureAt ?? '')).toBeGreaterThan(
     Date.parse(jira?.lastSuccessAt ?? ''),

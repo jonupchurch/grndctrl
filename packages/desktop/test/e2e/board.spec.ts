@@ -11,10 +11,11 @@ import { launch, type LaunchedApp } from './app.js'
  * correlation, freshness envelope, registry, IPC, React — so a regression
  * anywhere in it lands here.
  *
- * The scenario is still named for a correlation this application no longer
- * makes; M5 (T049) rebuilds and renames it. Until then the extra pull requests
- * and branches in it are simply data nothing reads, which is the intended state
- * of the whole engine between M1 and M3.
+ * It was `merged-pr-open-ticket.json`, named for a ticket in review whose pull
+ * request had already merged. That is a disagreement this application can no
+ * longer see, so the fixture is named for its role and rebuilt around what it
+ * still has to demonstrate: three tickets, an agent on one, notes on another,
+ * and one in somebody else's court.
  *
  * It is deliberately about *what the operator can see*, not about component
  * internals. A test that asserted a class name would pass through a redesign
@@ -29,7 +30,7 @@ const SCENARIO = join(
   '..',
   'fixtures',
   'scenarios',
-  'merged-pr-open-ticket.json',
+  'canonical-board.json',
 )
 
 let it: LaunchedApp
@@ -92,8 +93,25 @@ test('the lane reports its own freshness, not the board-wide worst', async () =>
   // reading *those* that produced the bug.
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
 
-  await expect(tickets.getByText(/last refreshed/)).toBeVisible()
+  // **Either sentence, because this test was racing the scheduler and winning.**
+  // It asserted `last refreshed` alone, which is the *stale* wording; the seeded
+  // connection has no credential, so a few seconds after launch the first poll
+  // fails and the lane switches to `failed to refresh <E> ...; showing 2h ago`.
+  // It passed because the old fixture was stale by five days and the assertion
+  // resolved before that first pass. Making the scenario's last success recent
+  // enough to read as fresh <E> where the lane renders no status line at all <E>
+  // was enough to lose the race, which is the kind of failure that arrives
+  // months later looking like flake.
+  //
+  // Both wordings name a real event on *this* connection, which is the property.
+  // The third wording is the bug, and it is the one that must never appear.
+  await expect(tickets.getByText(/last refreshed|failed to refresh/)).toBeVisible()
   await expect(tickets.getByText(/never synced/)).toHaveCount(0)
+
+  // Whichever it is, the age it reports is the ticket connection's own seeded
+  // success rather than some other resource's. An aggregate reading is how the
+  // original bug looked from here.
+  await expect(tickets.getByText(/2 hours ago/)).toBeVisible()
 })
 
 /**
@@ -339,18 +357,29 @@ test('the column headings line up with the cells beneath them', async () => {
  */
 
 test('the operator court tile filters the whole board', async () => {
+  const tickets = it.window.getByRole('region', { name: 'Tickets' })
   const tile = it.window.getByRole('button', { name: /Your court/ })
 
   await expect(tile).toHaveAttribute('aria-pressed', 'false')
+  await expect(tickets.getByText('MERC-1201')).toBeVisible()
+
   await tile.click()
   await expect(tile).toHaveAttribute('aria-pressed', 'true')
 
-  // Both fixture items are in the operator's court, so nothing disappears —
-  // what is being asserted is that the toggle is a *control* with announced
-  // state, not a coloured background.
-  await expect(it.window.getByRole('region', { name: 'Tickets' }).getByText('MERC-1184')).toBeVisible()
+  // MERC-1201 is assigned to somebody else and no agent is on it, so the ball is
+  // theirs and it goes. Both other rows stay.
+  //
+  // Every fixture item used to be in the operator's court, which left this
+  // asserting only that the toggle announced its state — a filter that removes
+  // nothing cannot be told from a filter that is not wired up. The rebuilt
+  // scenario has a row in each court for exactly this reason.
+  await expect(tickets.getByText('MERC-1201')).toHaveCount(0)
+  await expect(tickets.getByText('MERC-1184')).toBeVisible()
+  await expect(tickets.getByText('MERC-1190')).toBeVisible()
+
   await tile.click()
   await expect(tile).toHaveAttribute('aria-pressed', 'false')
+  await expect(tickets.getByText('MERC-1201')).toBeVisible()
 })
 
 test('selecting a project narrows the page rather than navigating', async () => {

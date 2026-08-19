@@ -15,9 +15,14 @@ import { runCli } from '../src/index.js'
  * were the whole reason this renderer existed at M2 — it made the correlation
  * engine demonstrable before there was a screen — and there is no drift to
  * demonstrate.
+ *
+ * This renderer is also **the second reader of a scenario file**, and that is
+ * the job it has now. The desktop seed script is the first, and anything a
+ * scenario states that only one of them can act on is a fixture meaning two
+ * different boards. The note count below used to be exactly that.
  */
 
-const FIXTURE = join(import.meta.dirname, '..', '..', '..', 'fixtures', 'scenarios', 'merged-pr-open-ticket.json')
+const FIXTURE = join(import.meta.dirname, '..', '..', '..', 'fixtures', 'scenarios', 'canonical-board.json')
 
 const board = (args: string[] = []) => runCli(['board', '--fixtures', FIXTURE, ...args])
 
@@ -75,8 +80,32 @@ describe('the text board', () => {
     expect(output).toContain('YOU')
   })
 
-  it('shows the note count on the row that carries notes', () => {
-    expect(board().output).toContain('[2 notes]')
+  /**
+   * The note count, on the row that has notes and nowhere else.
+   *
+   * It used to be a `noteCounts` map stated by the scenario, and this assertion
+   * passed against a number nothing had written: the same scenario seeded into a
+   * real authored store produced a board where that row had no notes at all.
+   * Both readers derive it from the scenario's `notes` now, so what this checks
+   * is a count with two actual notes behind it.
+   *
+   * Paired with the row that has none, because a renderer that stamped the count
+   * on every row would satisfy the first line alone.
+   */
+  it('shows the note count on the row that carries notes, and on no other', () => {
+    const lines = board().output.split('\n')
+    const lineFor = (key: string) => {
+      const line = lines.find((l) => l.includes(key))
+      // Not `?? ''`: a missing row would make every absence assertion below
+      // pass by matching nothing, which is the failure mode absence assertions
+      // have.
+      if (line === undefined) throw new Error(`no row for ${key} on the board`)
+      return line
+    }
+
+    expect(lineFor('MERC-1201')).toContain('[2 notes]')
+    expect(lineFor('MERC-1184')).not.toContain('note')
+    expect(lineFor('MERC-1190')).not.toContain('note')
   })
 
   it('filters to one project without changing the rest of the layout', () => {

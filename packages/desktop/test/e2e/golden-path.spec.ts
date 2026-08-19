@@ -42,7 +42,7 @@ const SCENARIO = join(
   '..',
   'fixtures',
   'scenarios',
-  'merged-pr-open-ticket.json',
+  'canonical-board.json',
 )
 
 let it: LaunchedApp
@@ -182,7 +182,9 @@ test('4 · a note written from the board is on the row when the dialog closes', 
  * notes and not on the row without.
  *
  * It has to live here rather than in `board.spec.ts` because it needs a board
- * where one row has notes and another does not, and no scenario seeds notes.
+ * where one row has notes and another does not, and the scenario seeds notes on
+ * neither of these two — the two it does seed are on MERC-1201, deliberately a
+ * third row, so that step 4 above is what creates the difference being measured.
  * Asserted after the note exists, which is what makes it a real comparison
  * rather than two identical rows agreeing.
  */

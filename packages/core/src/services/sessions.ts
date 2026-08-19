@@ -47,7 +47,6 @@ export interface StartSessionInput {
   sessionId: string
   projectId?: string | null | undefined
   workItemKey?: NaturalKey | null | undefined
-  workspaceKey?: NaturalKey | null | undefined
   reportedStatus?: string | null | undefined
   heartbeatIntervalSec: number
   /** The agent's own clock. Clamped — never trusted to be ahead of ours (FR-045). */
@@ -60,10 +59,20 @@ export interface SessionRef {
   at?: string | undefined
 }
 
+/**
+ * `workspaceKey` was on both of these, and on the patch `activity` builds.
+ *
+ * It outlived the column. Migration 4 dropped `agent_sessions.workspace_key`,
+ * and `SessionPatch` lost the field with it, so the spread in `activity` was
+ * building `UPDATE agent_sessions SET undefined = ?` for any caller that still
+ * passed one. Nothing external could: the registry schema is strict and
+ * `conformance.test.ts` asserts that `sessions.start` rejects it by name. But
+ * `seed.mjs` calls these services directly, which is the whole point of a
+ * composition root, and it was still passing the field.
+ */
 export interface ActivityInput extends SessionRef {
   reportedStatus?: string | null | undefined
   workItemKey?: NaturalKey | null | undefined
-  workspaceKey?: NaturalKey | null | undefined
 }
 
 export interface SessionsService {
@@ -218,7 +227,6 @@ export function sessionsService(deps: SessionsServiceDeps): SessionsService {
           lastRealActivityAt: stamp(input.at, now, existing.lastRealActivityAt),
           ...(input.reportedStatus === undefined ? {} : { reportedStatus: input.reportedStatus }),
           ...(input.workItemKey === undefined ? {} : { workItemKey: input.workItemKey }),
-          ...(input.workspaceKey === undefined ? {} : { workspaceKey: input.workspaceKey }),
         },
         now,
       )

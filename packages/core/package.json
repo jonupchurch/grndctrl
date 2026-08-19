@@ -13,7 +13,8 @@
     "./handshake": "./dist/runtime/handshake.js",
     "./runtime": "./dist/runtime/services.js",
     "./scheduler": "./dist/runtime/scheduler.js",
-    "./adapters/http": "./dist/adapters/http.js"
+    "./adapters/http": "./dist/adapters/http.js",
+    "./fixtures": "./dist/fixtures/scenario.js"
   },
   "engines": {
     "node": ">=22"

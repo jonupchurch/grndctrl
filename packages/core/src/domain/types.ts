@@ -168,7 +168,7 @@ export interface TicketActivity {
  * worth a sentence on the way out: it carried ahead/behind as `number | null`
  * where `null` meant *the host has never seen this branch*, and the comment on
  * it warned against coercing that to zero, because "no commits ahead" and "we
- * have no idea" are different answers. That distinction outlived the type <E>
+ * have no idea" are different answers. That distinction outlived the type —
  * `links.resolve` still returns `fellBack` for the same reason.
  */
 

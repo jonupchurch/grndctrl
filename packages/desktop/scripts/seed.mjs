@@ -13,15 +13,20 @@ import { createRequire } from 'node:module'
  * because a colleague closed a ticket.
  *
  * So the same `fixtures/scenarios/*.json` the correlation engine is tested
- * against are written straight into the mirror. What comes out the other side is
- * the genuine path — correlation, drift rules, freshness envelopes, IPC — over
- * known inputs. The only thing skipped is the provider fetch.
+ * against are written straight into the databases. What comes out the other side
+ * is the genuine path — correlation, freshness envelopes, IPC — over known
+ * inputs. The only thing skipped is the provider fetch.
  *
  *   node scripts/seed.mjs --dir <data dir> [--scenario <path>]
  *
  * Writing into the *default* data directory is refused. This truncates every
  * mirror table it touches, and doing that to the operator's real board because
  * a flag was forgotten is not a mistake worth leaving available.
+ *
+ * **Timestamps are offsets, resolved here** (FR-118). `resolveScenarioTimes`
+ * comes from core rather than from a copy in this file precisely because the
+ * text board reads the same scenarios: two resolvers would make one fixture mean
+ * two boards, and the disagreement would look like a rendering bug.
  */
 
 const require = createRequire(import.meta.url)
@@ -36,8 +41,9 @@ const flag = (name) => {
 
 const core = require('@grndctrl/core')
 const runtime = require('@grndctrl/core/runtime')
+const fixtures = require('@grndctrl/core/fixtures')
 const dir = flag('--dir')
-const scenarioPath = flag('--scenario') ?? join(REPO, 'fixtures/scenarios/merged-pr-open-ticket.json')
+const scenarioPath = flag('--scenario') ?? join(REPO, 'fixtures/scenarios/canonical-board.json')
 
 if (dir === undefined) {
   console.error('seed.mjs --dir <data directory> [--scenario <path>]')
@@ -52,7 +58,10 @@ if (resolve(dir) === resolve(core.appDataDir())) {
   process.exit(1)
 }
 
-const scenario = JSON.parse(readFileSync(scenarioPath, 'utf8'))
+const scenario = fixtures.resolveScenarioTimes(
+  JSON.parse(readFileSync(scenarioPath, 'utf8')),
+  new Date(),
+)
 const input = scenario.input
 const now = scenario.now ?? new Date().toISOString()
 
@@ -60,16 +69,10 @@ const now = scenario.now ?? new Date().toISOString()
 // the same wiring the app uses, so anything seeded here is reachable by exactly
 // the path the app reads it back on.
 const services = runtime.createCoreServices({ dir })
-const { mirror, projects, sessions } = services
+const { mirror, projects, sessions, notes } = services
 
 // Connections first: every other table is keyed by one, and the freshness rows
 // hang off them.
-//
-// Only the Jira ones. A scenario written for 0.3.0 still names a
-// `githubConnectionId`, and seeding it would now fail on the CHECK constraint
-// migration 4 leaves behind. Ignored rather than made an error: these scenarios
-// are rewritten in M5, and a seed script that refused to load them until then
-// would take the whole end-to-end suite with it.
 const connectionIds = new Set()
 for (const project of input.projects ?? []) {
   const id = project.jiraConnectionId
@@ -95,14 +98,7 @@ for (const id of connectionIds) {
   })
 }
 
-// The four removed columns are dropped on the way in, for the same reason: a
-// 0.3.0 scenario still carries them and `projects.upsert` no longer takes them.
-for (const project of input.projects ?? []) {
-  const { githubConnectionId, repoOwner, repoName, checkoutPaths, ticketKeyPattern, ...kept } =
-    project
-  void [githubConnectionId, repoOwner, repoName, checkoutPaths, ticketKeyPattern]
-  projects.upsert(kept)
-}
+for (const project of input.projects ?? []) projects.upsert(project)
 
 const byConnection = (rows, key) => {
   const groups = new Map()
@@ -114,14 +110,11 @@ const byConnection = (rows, key) => {
   return groups
 }
 
-// Tickets only. A scenario's `pullRequests`, `checks`, `branches`,
-// `comparisons` and `workspaces` have no table to go into any more; they are
-// skipped here and removed from the scenarios themselves in M5.
 for (const [id, rows] of byConnection(input.tickets, 'connectionId')) mirror.replaceTickets(id, rows)
 
-// Freshness last, and from the scenario rather than from the clock: several of
-// these scenarios exist precisely to put a lane into `stale` or `failed`, and
-// stamping everything fresh would erase the thing being demonstrated.
+// Freshness from the scenario rather than from the clock: several of these
+// scenarios exist precisely to put a lane into `stale` or `failed`, and stamping
+// everything fresh would erase the thing being demonstrated.
 for (const entry of (scenario.freshness ?? []).filter(
   (e) => (e.resourceKind ?? e.kind) === 'tickets',
 )) {
@@ -158,7 +151,6 @@ for (const session of input.sessions ?? []) {
       sessionId: session.sessionId,
       projectId: session.projectId ?? null,
       workItemKey: session.workItemKey ?? null,
-      workspaceKey: session.workspaceKey ?? null,
       reportedStatus: session.reportedStatus ?? null,
       heartbeatIntervalSec: session.heartbeatIntervalSec ?? 60,
       at: session.startedAt,
@@ -174,6 +166,33 @@ for (const session of input.sessions ?? []) {
       ctx,
     )
   }
+
+  // And the heartbeat after it, because the two columns are the whole point of
+  // the session state machine: activity advances both, a beat advances only one.
+  // Without this the seeded row derives its heartbeat from its activity, so a
+  // scenario describing an agent that is alive and doing nothing would arrive
+  // here as one that is silent — and the text board, which reads the file
+  // directly, would render the state the file actually asked for. Two readers,
+  // two boards, from one fixture.
+  if (session.lastHeartbeatAt) {
+    sessions.heartbeat(
+      { agentId: session.agentId, sessionId: session.sessionId, at: session.lastHeartbeatAt },
+      ctx,
+    )
+  }
+}
+
+// Notes last, because `subjectPresence` is resolved against the mirror and a
+// note written before its ticket would be created already orphaned.
+//
+// Written through `notes.create` rather than declared as counts on the scenario.
+// They used to be declared, and only the text board could act on it: this script
+// fills a real authored store, where the count on a row and the open questions
+// driving ball-in-court both come from the notes actually in it. So the canonical
+// scenario said MERC-1184 carried two notes, the seeded board showed none, and
+// nothing could catch the disagreement because each reader was self-consistent.
+for (const note of scenario.notes ?? []) {
+  notes.create({ subjectKey: note.subjectKey, type: note.type, body: note.body }, ctx)
 }
 
 services.close()
@@ -183,8 +202,6 @@ console.log(
     `  scenario   ${scenarioPath}\n` +
     `  projects   ${(input.projects ?? []).length}\n` +
     `  tickets    ${(input.tickets ?? []).length}\n` +
-    `  pulls      ${(input.pullRequests ?? []).length}\n` +
-    `  branches   ${(input.branches ?? []).length}\n` +
-    `  workspaces ${(input.workspaces ?? []).length}\n` +
-    `  sessions   ${(input.sessions ?? []).length}`,
+    `  sessions   ${(input.sessions ?? []).length}\n` +
+    `  notes      ${(scenario.notes ?? []).length}`,
 )

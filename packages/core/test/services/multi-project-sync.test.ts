@@ -279,7 +279,7 @@ describe('ticket pages', () => {
  * failing must not delete the other's rows. "checkouts shared between projects"
  * checked each distinct path was read once. "a refresh scoped to one connection"
  * checked that refreshing Jira did not re-read every checkout on disk and stamp
- * the branches lane as freshly synced <E> work the operator did not ask for, and
+ * the branches lane as freshly synced — work the operator did not ask for, and
  * a freshness claim about a question they did not ask.
  *
  * The scoping behaviour they tested (`--connection`, and `wanted()` inside

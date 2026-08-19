@@ -13,11 +13,25 @@ import { join } from 'node:path'
  * Six projects is not incidental either: the palette has exactly six colours
  * (decision 8), so this is also the largest board on which every project still
  * has one, and the point past which a seventh falls back to a neutral chip.
+ *
+ * **It used to build a pull request and a branch for every other item**, on the
+ * argument that correlation needed real joining to do rather than three copies
+ * of one list. Both lanes are gone and so is that joining, so 200 items are now
+ * 200 rows exactly — which `perf.spec.ts` asserts as a literal number rather
+ * than reading it back off this file.
  */
 
-const NOW = '2026-08-14T12:00:00Z'
-const ACTIVITY = '2026-08-14T09:00:00Z'
-const FETCHED = '2026-08-14T11:59:30Z'
+/**
+ * Offsets, not dates (FR-118), resolved by whichever reader loads this.
+ *
+ * The activity cycle is the one that earns its keep: four offsets spanning the
+ * ticket lane's 72-hour threshold put every severity band on the measured board,
+ * so the timings below are over the board's real drawing cost — four mark shapes
+ * and four row treatments — rather than over two hundred identical rows.
+ */
+const NOW = 'now'
+const FETCHED = 'now-30s'
+const ACTIVITY = ['now-1h', 'now-4d', 'now-7d', 'now-10d']
 const me = { accountId: 'me', displayName: 'Jon', email: null }
 const them = { accountId: 'them', displayName: 'Sam', email: null }
 
@@ -39,17 +53,11 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
     colorIndex: i,
     jiraConnectionId: 'jira-1',
     jiraProjectKey: code,
-    githubConnectionId: 'gh-1',
-    repoOwner: 'acme',
-    repoName: code.toLowerCase(),
     documentationUrl: null,
-    checkoutPaths: [],
     statusOverrides: {},
   }))
 
   const tickets = []
-  const pullRequests = []
-  const branches = []
   const perProject = new Array(projectCount).fill(0)
 
   for (let i = 0; i < itemCount; i++) {
@@ -57,6 +65,7 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
     const code = codes[p] ?? 'MERC'
     const number = 1000 + i
     perProject[p] = (perProject[p] ?? 0) + 1
+    const activity = ACTIVITY[i % ACTIVITY.length] ?? NOW
 
     tickets.push({
       key: `jira:acme.atlassian.net/${code}-${number}`,
@@ -79,69 +88,33 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
       // sort by any one of them has ties to keep stable rather than a column of
       // distinct values that would order the same way however it was compared.
       sprint: ['Sprint 12', 'Sprint 13', null][i % 3] ?? null,
-      createdAt: '2026-08-01T09:00:00Z',
-      updatedAt: ACTIVITY,
-      lastRealActivityAt: ACTIVITY,
-      lastStatusChangeAt: ACTIVITY,
+      createdAt: 'now-40d',
+      updatedAt: activity,
+      lastRealActivityAt: activity,
+      lastStatusChangeAt: activity,
       url: `https://acme.atlassian.net/browse/${code}-${number}`,
-      fetchedAt: '2026-08-14T11:57:00Z',
+      fetchedAt: FETCHED,
     })
-
-    // Half carry a pull request and a branch, so correlation has real joining
-    // to do and the lanes are not three copies of one list.
-    if (i % 2 === 0) {
-      const repo = code.toLowerCase()
-      const head = `feature/${code}-${number}`
-      pullRequests.push({
-        key: `gh:acme/${repo}#${number}`,
-        connectionId: 'gh-1',
-        number,
-        title: `feat: work item ${number}`,
-        author: me,
-        headBranch: head,
-        headSha: `sha${number}`,
-        baseBranch: 'main',
-        state: 'open',
-        isDraft: false,
-        reviewDecision: 'approved',
-        requestedReviewers: [],
-        unresolvedThreadCount: 0,
-        mergedAt: null,
-        closedAt: null,
-        lastRealActivityAt: ACTIVITY,
-        url: `https://github.com/acme/${repo}/pull/${number}`,
-        fetchedAt: FETCHED,
-      })
-      branches.push({
-        key: `repo:github.com/acme/${repo}#${head}`,
-        connectionId: 'gh-1',
-        name: head,
-        headSha: `sha${number}`,
-        updatedAt: ACTIVITY,
-        url: `https://github.com/acme/${repo}/tree/${head}`,
-        fetchedAt: FETCHED,
-      })
-    }
   }
 
   const scenario = {
     description: `${itemCount} work items across ${projectCount} projects — the board SC-013 measures against.`,
     now: NOW,
     freshness: [
-      { connectionId: 'jira-1', resourceKind: 'tickets', lastSuccessAt: '2026-08-14T11:57:00Z', lastFailureAt: null, failureReason: null, nextAttemptAt: null },
-      { connectionId: 'gh-1', resourceKind: 'pulls', lastSuccessAt: FETCHED, lastFailureAt: null, failureReason: null, nextAttemptAt: null },
+      {
+        connectionId: 'jira-1',
+        resourceKind: 'tickets',
+        lastSuccessAt: FETCHED,
+        lastFailureAt: null,
+        failureReason: null,
+        nextAttemptAt: null,
+      },
     ],
+    notes: [],
     input: {
       projects,
       tickets,
-      pullRequests,
-      branches,
-      checks: [],
-      workspaces: [],
-      comparisons: [],
       sessions: [],
-      noteCounts: {},
-      openQuestionSubjects: [],
       operatorAccountIds: ['me'],
     },
   }

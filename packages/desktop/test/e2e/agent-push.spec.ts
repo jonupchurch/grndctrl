@@ -32,7 +32,7 @@ const SCENARIO = join(
   '..',
   'fixtures',
   'scenarios',
-  'merged-pr-open-ticket.json',
+  'canonical-board.json',
 )
 
 let it: LaunchedApp

@@ -84,9 +84,8 @@ test('the board really is the size SC-013 names', async () => {
   // 200 ticket rows, and only ticket rows: 006 removed the pull request lane
   // (which contributed one row per other item, for 300) and the branch lane
   // (which contributed none, because it rendered local checkouts and the
-  // fixture has no paths). The generator still *builds* pull requests and
-  // branches until M5 (T053) narrows it; nothing renders them, which is
-  // exactly what this number now asserts.
+  // fixture has no paths). The generator no longer builds either, so this is
+  // now one row per item with nothing left that could quietly add more.
   expect(await rowCount()).toBe(200)
 })
 
