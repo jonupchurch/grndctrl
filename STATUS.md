@@ -1,8 +1,18 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-19 (0.3.0 cut and tagged) · **Stage:** released · **On npm:** 0.2.0 is `latest` on all four packages — `npx grndctrl`. 0.3.0 is tagged; the workflow publishes it. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-19 (0.3.0 published from a tag) · **Stage:** released · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
-**0.2.0 is on the registry**, published 2026-08-18 by the tag `v0.2.0`, each
+**0.3.0 is on the registry**, published 2026-08-19 by the tag `v0.3.0`, each
+package carrying SLSA provenance — read back from `registry.npmjs.org` directly
+rather than through `npm view`, which caches. Fourth release cut from a tag, and
+the second that was routine.
+
+The release run also settled the local audit alarm for the third time: `No client
+references in the tree or its history` passed on the runner's fresh clone while
+this checkout reported 98 occurrences, every one of them in an unreachable
+dangling object. Check reachability before believing a history finding.
+
+**0.2.0 was on the registry**, published 2026-08-18 by the tag `v0.2.0`, each
 package carrying SLSA provenance — read back from `registry.npmjs.org` directly
 rather than through `npm view`, which caches. Third release cut from a tag.
 
