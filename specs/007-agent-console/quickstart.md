@@ -9,7 +9,7 @@ Each milestone verifiable on its own, in build order. **Windows first** — the 
 ## Prerequisites
 
 - [006](../006-remove-code-host-and-local-git/quickstart.md) complete and green.
-- A Jira site with at least one **unassigned** ticket in a bound project, and one ticket with a **rich description** — a heading, a bullet list, a code block, and ideally something exotic like a panel or an embedded image, because the exotic node is the one the converter has to handle honestly.
+- A Jira site where a ticket has been **reassigned away from you in the last week** (and ideally one **unassigned** away from you, which is the case a naive query drops), and one ticket with a **rich description** — a heading, a bullet list, a code block, and ideally something exotic like a panel or an embedded image, because the exotic node is the one the converter has to handle honestly.
 - An MCP client that can call the new tools. For the last section, a real agent.
 
 ---
@@ -32,15 +32,26 @@ Then launch and:
 
 ---
 
-## M2 — The unassigned lane
+## M2 — The "no longer mine" lane
 
-- The lane lists unassigned tickets, newest first, and **says it is capped**.
-- The ticket lane above it is unchanged — still only your work.
-- **The numbers did not move.** Compare every tile and every ball-in-court row before and after the lane appears. This is the assertion that the reversal stayed scoped to a lane (SC-014).
+**First, before any of this** (T106a): send `assignee CHANGED FROM currentUser() AFTER -7d` to `/rest/api/3/search/jql` and see if Jira accepts it. One request. If it does not, the lane cannot be built as specified and that is a conversation, not a workaround.
+
+Then:
+
+- The lane lists tickets that left your hands in the last seven days, newest first, **each showing who has it now** — or that nobody does.
+- A ticket reassigned away **eleven** days ago is not there.
+- A ticket reassigned away and then back to you is in the **ticket** lane and not in this one.
+- A ticket that became **unassigned** away from you *is* there. This is the one a naive query drops silently, and the lane looks perfectly healthy without it.
+- The ticket lane above is unchanged — still only your work.
+- **The numbers did not move.** Compare every tile and every ball-in-court row before and after the lane appears (SC-014).
 - Select one project. The lane filters with everything else.
 - Click a row. Jira opens.
 
-**The probe that matters** (T108): make the two queries two separate `replaceTickets` calls, sync twice, and watch one lane empty. Then fix it. This bug reaches a bug report as *"sometimes the tickets are gone"*, and finding it from that description costs a day.
+**Two probes here.**
+
+(T108) Make the two queries two separate `replaceTickets` calls, sync twice, and watch one lane empty. This bug reaches a bug report as *"sometimes the tickets are gone"*, and finding it from that description costs a day.
+
+(T108a) Drop `OR assignee IS EMPTY` from the query and confirm the unassigned-away case disappears while the lane still looks fine. JQL's `!=` does not match empty fields — the failure is invisible unless something asserts that specific row.
 
 ---
 
@@ -130,6 +141,6 @@ With a real agent, on a real ticket:
 6. Both appear, most recent first, terse.
 7. Agent asks a question as a `question-for-human` note.
 8. It appears in the update panel, and ball-in-court moves to you.
-9. Collapse the unassigned lane and the prompts panel. Restart. Still collapsed.
+9. Collapse the no-longer-mine lane and the prompts panel. Restart. Still collapsed.
 
 **If steps 1, 3 and 5 do nothing**, the agent has not been told to call the tools — see the `CLAUDE.md` snippet in `docs/agents.md` (T147). That is the expected first-run state, and it is why the empty states have to explain themselves.

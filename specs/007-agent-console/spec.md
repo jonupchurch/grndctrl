@@ -20,7 +20,7 @@ After 006 the board answers one question well: *what is assigned to me and how s
 
 Three things are missing, and they are all about the same shift in how the work actually happens. The operator no longer works a ticket by opening it and typing; they work it by **handing it to an agent**. So the board needs to say what the agent is on, what the agent has to say about it, and what was said to the agent — and none of that is on the screen today. The session lane reports that an agent exists and when it last moved. It does not report what it is *doing*.
 
-The fourth is different and simpler: with tickets scoped to the operator's own assignments, there is no way to see what is available. A backlog you cannot look at is a backlog you ask someone about.
+The fourth is different. With tickets scoped to the operator's own assignments, a ticket that stops being theirs simply vanishes from the board — silently, between two syncs, with nothing to mark that it was ever there. Work gets handed on, dropped, or quietly taken over, and the operator finds out by remembering to wonder.
 
 And a board that is now seven regions tall on one page needs to be foldable, or the region the operator cares about today is below the fold because of two they do not.
 
@@ -30,21 +30,21 @@ And a board that is now seven regions tall on one page needs to be foldable, or 
 
 | Added | Cost |
 |---|---|
-| **Unassigned ticket lane** | A second query per connection per sync, and a **deliberate reversal** of a standing rule (see below). |
+| **A "no longer mine" lane** | A second query per connection per sync, and a dependency on JQL history operators that [must be verified before anything is built](./research.md#-the-one-thing-that-must-be-verified-before-building). |
 | **Active ticket panel** | The first time this application fetches and renders a ticket's **description**, which is rich text from an untrusted source in a format that is not plain text. See [R1](./research.md#r1--the-ticket-description-is-not-a-string--changes-the-design). |
 | **Agent update panel** | A new authored table, a new MCP tool, and a retention policy — an append-only log with no bound grows until it is a problem. |
 | **Recent prompts panel** | A new authored table, a new MCP tool, and **the first new capability the shell has granted the renderer since 001**: writing to the system clipboard. |
 | **Collapsible sections** | Persisted per-section state, and a rule about what "collapsed" means to everything that counts rows. |
 
-### The reversal, stated plainly
+### What the lane actually is
 
-**A standing decision is being reversed here, and it was not a casual one.** `sync.ts` carries this comment today:
+The screenshot said *"Recent Tickets not assigned"*, which reads as the backlog. It is not. Corrected twice by the operator in conversation: **items that were assigned to them, now are not, and changed hands in the last seven days.**
 
-> *Scoped to the operator's own assignments. Without that clause this pulls every open ticket in every bound project — measured against real projects, several hundred rows of which roughly two thirds were backlog nobody had touched. A command station is the work you are holding, not an export of the tracker.*
+That is a much narrower and much better feature. It is not a view of the tracker — it is **the tail of the operator's own work**: what was handed to somebody else or dropped in the last week. The row worth seeing is the ticket you thought you were still holding.
 
-That reasoning is still correct, and the operator has asked for the unassigned tickets anyway. The resolution is not to abandon the rule but to **scope it to a lane**: the ticket lane stays exactly as it is, showing only the operator's own work and feeding every count, every tile and ball-in-court. Unassigned tickets are a *separate, capped, read-only list* that feeds nothing. The rule was about what the board is *about*; it is still about the operator's work.
+**So the standing rule survives.** `sync.ts` argues today that *"a command station is the work you are holding, not an export of the tracker"*, and this lane is work the operator *was* holding. Nothing here needs a cap, an assignee-based filter, or an argument about noise: the set is small by construction, because it is bounded by "passed through your hands in the last week".
 
-**Unassigned means unassigned.** `assignee IS EMPTY` — genuinely nobody's, therefore available. Not "assigned to someone else", which on a real project is most of the tracker and is exactly the export the rule was written against.
+The wider reading — everything not assigned to the operator — was considered and explicitly narrowed away from. It is the export that rule exists to prevent.
 
 ---
 
@@ -88,22 +88,25 @@ Prompts the operator has given agents are recorded as they are used. The panel l
 
 ---
 
-### User Story 3 - See what is available to pick up (Priority: P3)
+### User Story 3 - Notice what stopped being yours (Priority: P3)
 
-A lane of recent unassigned tickets across the bound projects, so the operator can see what is going spare without opening Jira.
+A ticket the operator was assigned is reassigned, or unassigned, and today it simply disappears from the board between two syncs. A lane shows what left their hands in the last seven days, and who has it now.
 
-**Why this priority**: genuinely useful and genuinely separable. It is also the one with a standing decision to reverse, so it benefits from landing after the panels that have no such history.
+**Why this priority**: genuinely useful and genuinely separable. It also depends on a tracker capability that has not been verified yet, so it is the one most likely to need a conversation rather than an implementation.
 
-**Independent Test**: seed a scenario with assigned and unassigned tickets; the ticket lane shows only the operator's, the unassigned lane shows only the unassigned, and no count, tile or ball-in-court number moves when unassigned tickets are added.
+**Independent Test**: seed a scenario where a ticket's assignee changed away from the operator four days ago, another eleven days ago, and a third that changed away and back. Only the first appears.
 
 **Acceptance Scenarios**:
 
-1. **Given** unassigned tickets in a bound project, **When** the board renders, **Then** they appear in their own lane, newest first, capped.
-2. **Given** an unassigned ticket, **When** the headline counts are read, **Then** none of them counts it — not "your court", not "stalled", not the ticket lane's own count.
-3. **Given** an unassigned ticket, **When** ball-in-court is computed, **Then** it does not appear there. Nobody's move is not "their" move.
-4. **Given** the project filter is set to one project, **When** the unassigned lane renders, **Then** it filters with everything else.
-5. **Given** an unassigned row, **When** the operator clicks it, **Then** the ticket opens in Jira, exactly as a ticket row does.
-6. **Given** a sync completes, **When** the mirror is inspected, **Then** the operator's tickets and the unassigned tickets are both present and neither query has overwritten the other.
+1. **Given** a ticket reassigned away from the operator three days ago, **When** the board renders, **Then** it appears in the lane, showing who holds it now.
+2. **Given** a ticket **unassigned** away from the operator three days ago, **When** the board renders, **Then** it appears too, showing that nobody holds it. This is the case a naive query drops silently.
+3. **Given** a ticket reassigned away eleven days ago, **When** the board renders, **Then** it does not appear.
+4. **Given** a ticket reassigned away and then back to the operator, **When** the board renders, **Then** it appears in the ticket lane and **not** in this one.
+5. **Given** any ticket in this lane, **When** the headline counts are read, **Then** none of them counts it — not "your court", not "stalled", not the ticket lane's count.
+6. **Given** any ticket in this lane, **When** ball-in-court is computed, **Then** it does not appear there.
+7. **Given** the project filter is set to one project, **When** the lane renders, **Then** it filters with everything else.
+8. **Given** a row in the lane, **When** the operator clicks it, **Then** the ticket opens at the tracker, exactly as a ticket row does.
+9. **Given** a sync completes, **When** the mirror is inspected, **Then** the operator's tickets and this lane's tickets are both present and neither query has overwritten the other.
 
 ---
 
@@ -127,6 +130,9 @@ Every region on the board — lanes, panels, and the tile row — can be collaps
 
 ### Edge Cases
 
+- **A ticket that left and came back.** Reassigned away on Monday, back on Tuesday. It belongs to the ticket lane and to nothing else; the second clause of the query is what makes that true rather than putting it in both.
+- **A ticket reassigned away twice inside the window.** It appears once. The lane is a set of tickets, not a log of transitions.
+- **The tracker refuses history operators.** Reported as unbuildable (FR-123b), not approximated. Verified before anything else in this milestone is written.
 - **The active ticket is one the operator cannot see.** An agent sets a ticket that is not in the mirror — not theirs, not unassigned, or from an unbound project. The panel shows what it knows (the key, and a link built from the project binding) and says the rest is unavailable. It does not fetch it on demand; that would be a network call driven by an agent's input.
 - **The active ticket is deleted or reassigned at the tracker.** The panel keeps showing the last known state with its freshness attached, exactly like every other provider-derived thing on this board.
 - **A description containing something that is not text.** Jira descriptions carry tables, panels, media, mentions and embedded content. Unsupported nodes render as a labelled placeholder — never dropped silently, never as raw markup. See [R1](./research.md#r1--the-ticket-description-is-not-a-string--changes-the-design).
@@ -141,12 +147,14 @@ Every region on the board — lanes, panels, and the tile row — can be collaps
 
 Numbering continues the single namespace 001 established.
 
-### The unassigned lane
+### The "no longer mine" lane
 
-- **FR-123**: The system MUST fetch recent unassigned tickets for each bound project, scoped at the query — `assignee IS EMPTY`, non-terminal, newest first, capped at a stated limit — and MUST NOT fetch tickets assigned to other people.
-- **FR-124**: Unassigned tickets MUST NOT become work items. They MUST NOT contribute to any headline count, to ball-in-court, to severity, to staleness, or to the ticket lane's count. This MUST be enforced by exclusion from correlation, **not** by a display filter — `mineOnly` cannot do it, for the reason in [R2](./research.md#r2--can-the-unassigned-lane-share-the-tickets-table-yes-and-the-reason-is-neat).
-- **FR-125**: The operator's own tickets and the unassigned tickets MUST both survive a sync. A write of one set MUST NOT discard the other.
-- **FR-126**: The unassigned lane MUST obey the project filter, and MUST state its cap where the operator can see it — a capped list that does not say it is capped reads as a complete one.
+- **FR-123**: The system MUST fetch, for each bound project, tickets whose assignee **changed away from the operator within the last seven days and is not the operator now** — scoped at the query, using the tracker's issue history. It MUST NOT fetch tickets that were never the operator's.
+- **FR-123a**: The query MUST match tickets that became **unassigned** as well as tickets reassigned to a person. A comparison operator alone does not match an empty field, and a lane that silently omits the unassigned ones has dropped the rows nobody picked up.
+- **FR-123b**: If the tracker's search endpoint does not support history operators, the feature MUST be reported as unbuildable rather than approximated. The nearest approximation is every ticket not assigned to the operator, which is the export FR-102's scoping rule exists to prevent.
+- **FR-124**: These tickets MUST NOT become work items. They MUST NOT contribute to any headline count, to ball-in-court, to severity, to staleness, or to the ticket lane's count. This MUST be enforced by exclusion from correlation, **not** by a display filter — `mineOnly` cannot do it, for the reason in [R2](./research.md#correlation-must-exclude-them-and-the-obvious-shortcut-is-known-broken).
+- **FR-125**: The operator's own tickets and this lane's tickets MUST both survive a sync. A write of one set MUST NOT discard the other.
+- **FR-126**: The lane MUST obey the project filter, MUST show **who holds each ticket now** — or that nobody does — and MUST state the seven-day window it covers. A row that does not say where the work went is a row the operator cannot act on.
 
 ### The active ticket
 
@@ -185,7 +193,7 @@ Numbering continues the single namespace 001 established.
 
 | Entity | Change |
 |---|---|
-| **Ticket** | Gains `description` (structured, not a string) and `assignee` becomes load-bearing for lane assignment. |
+| **Ticket** | Gains `description` (structured, not a string). `assignee` becomes load-bearing: it decides which lane a row belongs to, and the "no longer mine" lane displays it. |
 | **ActiveTicket** | New. Authored, single-valued: a ticket key, who set it, and when. |
 | **AgentUpdate** | New. Authored, append-only: session, agent, text, timestamp. |
 | **Prompt** | New. Authored: text, agent, optional session and project, recorded timestamp. |
@@ -196,8 +204,9 @@ Numbering continues the single namespace 001 established.
 ## Success Criteria *(mandatory)*
 
 - **SC-013**: An agent can set the active ticket, post an update, and record a prompt over MCP, and all three appear on an open board with no poll and no reload.
-- **SC-014**: Adding fifty unassigned tickets to a scenario changes no headline count, no tile, and no ball-in-court number.
-- **SC-015**: A sync writes both the operator's tickets and the unassigned tickets, and both are present in the mirror afterwards.
+- **SC-014**: Adding tickets to the "no longer mine" lane changes no headline count, no tile, and no ball-in-court number.
+- **SC-015**: A sync writes both the operator's tickets and this lane's tickets, and both are present in the mirror afterwards.
+- **SC-021**: A ticket that became **unassigned** away from the operator appears in the lane. This is asserted separately from the reassigned-to-a-person case, because the query that gets it wrong still returns plenty of rows.
 - **SC-016**: A ticket description containing a table, a code block, a mention and an unsupported node renders all four legibly, with the unsupported one labelled, and no markup reaches the page.
 - **SC-017**: Clicking a prompt puts its complete text on the clipboard — asserted by reading the clipboard back, not by asserting the click handler ran.
 - **SC-018**: Every region collapses, survives a restart collapsed, and renders none of its contents while collapsed — asserted by counting elements, not by checking a class.
@@ -210,5 +219,6 @@ Numbering continues the single namespace 001 established.
 
 1. **Agents will be configured to call the new tools.** The update and prompt panels are empty until something calls them. A `CLAUDE.md` snippet ships with the change; nothing in this application can make an agent cooperate, and the empty states say so.
 2. **One active ticket is enough.** The operator works one thing at a time with an agent. If that stops being true it is a list, not a rewrite.
-3. **Jira Cloud's description format is ADF.** Confirmed in [R1](./research.md#r1--the-ticket-description-is-not-a-string--changes-the-design); a Server/DC deployment returning wiki markup is out of scope, and the renderer degrades to a labelled placeholder rather than guessing.
-4. **The operator accepts that recorded prompts may contain anything an agent was told**, including secrets, held in their own local authored store.
+3. **Jira's search endpoint supports `CHANGED FROM … AFTER`.** *Unverified, and the first thing to check.* There is no client-side fallback: the changelog endpoint takes issue keys, and the keys of tickets reassigned away are exactly the ones this application no longer holds.
+4. **Jira Cloud's description format is ADF.** Confirmed in [R1](./research.md#r1--the-ticket-description-is-not-a-string--changes-the-design); a Server/DC deployment returning wiki markup is out of scope, and the renderer degrades to a labelled placeholder rather than guessing.
+5. **The operator accepts that recorded prompts may contain anything an agent was told**, including secrets, held in their own local authored store.

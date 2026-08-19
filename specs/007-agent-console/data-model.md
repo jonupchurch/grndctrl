@@ -155,12 +155,14 @@ CREATE INDEX idx_prompts_recorded ON prompts(recorded_at DESC);
 
 ---
 
-## What the unassigned lane does *not* add
+## What the "no longer mine" lane does *not* add
 
 **Nothing.** No table, no column, no flag.
 
-The two ticket queries are disjoint by construction — the operator's rows all have `assignee.accountId` equal to the viewer's, unassigned rows all have `assignee` null — so `assignee === null` identifies the lane exactly ([R2](./research.md#r2--can-the-unassigned-lane-share-the-tickets-table-yes-and-the-reason-is-neat)).
+The two ticket queries stay disjoint: the ticket lane's rows all carry the viewer's `assignee.accountId`; this lane's rows never do, because the query's second clause excludes anything currently the operator's. So **`assignee?.accountId` not among the operator's account ids** identifies the lane exactly, and `correlate` already receives `operatorAccountIds` ([R2](./research.md#the-discriminator-and-why-still-no-new-column)).
 
-This is worth stating as a data-model decision rather than an implementation detail, because the obvious alternative — an `is_mine` or `lane` column written by whichever query produced the row — is a field that must be kept true by the sync, and the recurring bug in this codebase is exactly the field that both sides agree on and nothing maintains.
+This is a data-model decision rather than an implementation detail, because the obvious alternative — a `lane` or `is_mine` column written by whichever query produced the row — is a field that must be kept true by the sync. Under this reading it would be wrong more often than under the last one: a ticket reassigned *back* to the operator between syncs would sit in the ticket lane carrying a flag saying it was somebody else's.
+
+**What the lane displays that the ticket lane does not** is the current assignee — who has it now, or nobody. That is a rendering of a field the ticket already carries, not a new one.
 
 **The constraint it creates**: both result sets must be written in a single `replaceTickets` call, because that call deletes every row for the connection first. Two writes and the second discards the first. It is a data-model consequence, not a coding detail, and FR-125 exists for it.

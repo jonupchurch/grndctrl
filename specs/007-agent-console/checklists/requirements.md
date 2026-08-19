@@ -41,7 +41,9 @@ The mirror of 006's removal checklist. A feature that adds has different ways of
 
 Not blockers; each has a stated default that implementation will follow.
 
-- [ ] **"Not assigned" reading.** Default: `assignee IS EMPTY` — genuinely nobody's, therefore available. The alternative, "assigned to anyone but me", is most of a real tracker and is the export the standing rule was written against.
+- [x] **"Not assigned" reading.** Settled: items that **were** the operator's, are not now, and changed hands in the last seven days. Corrected twice in conversation, away from both "unassigned only" and "anything not mine".
+- [ ] **Seven days.** The window is a constant. Worth revisiting after a fortnight of use.
 - [ ] **Prompt list exposure.** Default: readable by any agent (`all`). They are all your agents on your machine, but one agent can read what another was told, and a prompt may contain a pasted secret. One word to change.
 - [ ] **Whether the update panel shows one agent or all of them.** Default: the sessions on the active ticket, most recent first — not a merged stream across every agent.
-- [ ] **Version.** 006 + 007 together in one release. **0.4.0** stays the recommendation; 1.0.0 is available if the reshaped product warrants the signal.
+- [x] **Version.** Settled: **0.4.0**, 006 and 007 in one release.
+- [x] **The outbox.** Settled: kept, with the gap recorded — nothing in the interface produces an action after 006.

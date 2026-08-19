@@ -8,7 +8,7 @@
 
 ## Summary
 
-Four new regions and one cross-cutting behaviour, landing on the board [006](../006-remove-code-host-and-local-git/plan.md) empties: a lane of unassigned tickets, an active-ticket panel with the ticket's description, a terse agent-update panel, a click-to-copy prompt list, and collapse on every region.
+Four new regions and one cross-cutting behaviour, landing on the board [006](../006-remove-code-host-and-local-git/plan.md) empties: a lane of work that has been handed off, an active-ticket panel with the ticket's description, a terse agent-update panel, a click-to-copy prompt list, and collapse on every region.
 
 **This is the first feature since 001 that adds.** Three new authored tables, three new registry operations, three new MCP tools, one new shell channel, one new provider field, and one new renderer subsystem (the description converter). Every one of those crosses a boundary that has been quiet for five releases, so the gates below do real work rather than being re-confirmed.
 
@@ -35,11 +35,11 @@ Four new regions and one cross-cutting behaviour, landing on the board [006](../
 | **XI** — no secrets outside the OS credential store | **Engaged, and worth stating.** Recorded prompts are free text an agent was given, and may contain a token somebody pasted. They are authored data in the operator's own local store — the same place a note would be — but the prompt panel puts them one click from the clipboard. No new secret path is created; no automated redaction is offered; the operator can delete a prompt. Recorded in the spec's edge cases rather than left to be discovered. |
 | **XII** — everything reachable through the registry | **The gate that does the most work here.** Three new operations, and each arrives on IPC, loopback HTTP and MCP together. The clipboard is deliberately *not* an operation — it is a host affordance like opening a browser, and `channels.ts` already argues that distinction for `OPEN_CHANNEL`. Getting this wrong in the other direction (a private renderer path to the store) is the failure the gate exists to catch. |
 | **XIII** — mirrored and authored separate | **Held.** All three new tables are authored and reference tickets by natural key. The active ticket survives a mirror rebuild pointing at a ticket that may not be there yet — which is FR-131's case, and is correct rather than a bug. |
-| **XIV** — no provider data without its freshness | **Engaged by two new regions.** The unassigned lane and the active-ticket panel both render provider data and both need freshness. The description in particular: a ticket description shown without its age is the most convincing stale thing on the board, because it reads like a document. |
+| **XIV** — no provider data without its freshness | **Engaged by two new regions.** The handed-off lane and the active-ticket panel both render provider data and both need freshness. The description in particular: a ticket description shown without its age is the most convincing stale thing on the board, because it reads like a document. |
 | **XV** — degrade honestly, never blank | **Four new regions, four new error boundaries.** Each of the new panels can fail on its own — an unparseable description, a store read, an empty agent surface — and none may take the board with it. |
 | **XVI** — never hold write authority | **Not engaged, and worth saying why.** Setting the active ticket, posting an update and recording a prompt are all local writes to the operator's own store. Nothing here touches a provider. The distinction between "an agent can set this" and "an agent can act on your behalf" is exactly what XVI polices, and this is firmly the first. |
 | **XVII** — Windows first-class | **Engaged by the clipboard**, which is the only genuinely platform-divergent thing here. Verified on Windows first. |
-| **XVIII** — determinism | **Held.** Correlation gains one exclusion (unassigned tickets) and is otherwise untouched. The new state is authored and read, not derived. |
+| **XVIII** — determinism | **Held.** Correlation gains one exclusion (tickets that are not the operator’s) and is otherwise untouched. The new state is authored and read, not derived. |
 
 ### Part I — process principles
 
@@ -59,7 +59,7 @@ packages/core/src/
 ├── domain/types.ts              + ActiveTicket, AgentUpdate, Prompt; Ticket.description
 ├── domain/adf.ts                NEW — ADF → internal document nodes (R1)
 ├── providers/jira/index.ts      + 'description' in the field list
-├── correlation/join.ts          + exclude unassigned tickets from work items (FR-124)
+├── correlation/join.ts          + exclude not-mine tickets from work items (FR-124)
 ├── services/
 │   ├── sync.ts                  + the second query; ONE write (FR-125, the R2 trap)
 │   ├── focus.ts                 NEW — the active ticket
@@ -71,7 +71,7 @@ packages/core/src/
     ├── focus.ts                 NEW — focus.get / focus.set / focus.clear
     ├── updates.ts               NEW — updates.list / updates.post
     ├── prompts.ts               NEW — prompts.list / prompts.record / prompts.delete
-    └── work.ts                  + tickets.unassigned
+    └── work.ts                  + tickets.handedOff
 
 packages/desktop/src/
 ├── shared/channels.ts           + COPY_CHANNEL
@@ -83,7 +83,7 @@ packages/desktop/src/
     ├── panels/ActiveTicket.tsx       NEW
     ├── panels/AgentUpdates.tsx       NEW
     ├── panels/Prompts.tsx            NEW
-    ├── lanes/Unassigned.tsx          NEW
+    ├── lanes/HandedOff.tsx           NEW
     └── App.tsx                       the new layout
 
 packages/mcp/src/tools/
@@ -104,11 +104,13 @@ docs/agents.md   + the CLAUDE.md snippet that makes an agent actually call these
 
 **Why first**: it touches every region, so doing it before there are four more regions is strictly less work. It is also independently useful and independently revertible, and it gets the "do not render when collapsed" decision tested before three new panels depend on it.
 
-### M2 — The unassigned lane
+### M2 — The "no longer mine" lane
 
-The second query, the single write, the correlation exclusion, the lane. Ends with the reversal in [the spec](./spec.md#the-reversal-stated-plainly) actually visible.
+**Starts with one request against a real Jira**, not with code: does `/rest/api/3/search/jql` accept `assignee CHANGED FROM currentUser() AFTER -7d`? There is no client-side fallback ([R2](./research.md#-the-one-thing-that-must-be-verified-before-building)), so if the answer is no this milestone stops and becomes a conversation rather than an approximation.
 
-**Why second**: it is the only one of the four that needs nothing new from the agent surface, so it lands with no dependency on an agent being configured.
+Then the second query, the single write, the correlation exclusion, and the lane with its assignee column.
+
+**Why second**: it is the only one of the four that needs nothing new from the agent surface, so it lands with no dependency on an agent being configured — and its one unknown is answerable in a minute.
 
 ### M3 — The active ticket
 
@@ -139,7 +141,8 @@ The final arrangement, the `CLAUDE.md` snippet in `docs/agents.md` without which
 
 | Deferred | Default | Cost to revisit |
 |---|---|---|
-| **Whether "unassigned" should also mean "assigned to someone else"** | No — `assignee IS EMPTY` only | One JQL clause; but see the reversal note in the spec, and expect volume. |
+| **A wider lane — everything not assigned to the operator** | No. Narrowed away from explicitly; it is the export the scoping rule exists to prevent. | One JQL clause, a cap, and an argument about noise. |
+| **A window other than seven days** | Seven | A constant. Worth revisiting after a fortnight of use. |
 | **More than one active ticket** | One | A list rather than a value; the operations already take a key. |
 | **Editing prompts** | Record and delete only | An update operation. |
 | **Prompt search or pinning** | Neither | The panel is bounded and newest-first; search matters at a size this will not reach soon. |
@@ -154,7 +157,9 @@ The final arrangement, the `CLAUDE.md` snippet in `docs/agents.md` without which
 | Risk | Why it is real here | Mitigation |
 |---|---|---|
 | **The second query wipes the first** | `replaceTickets` deletes by connection. Two writes means the second discards the first, and the symptom is a lane empty on alternate syncs. | One concatenated write (FR-125). The test asserts both sets present *after a sync*, not that both queries ran. |
-| **Unassigned tickets leak into the counts** | Six places consume work items. Excluding at each is six chances to miss one. | Exclude once, at the top of `correlate`. SC-014 adds fifty unassigned tickets and asserts no number moves. |
+| **The query silently drops the unassigned ones** | JQL `!=` does not match an empty field. The lane still returns rows, so nothing looks wrong. | FR-123a, and SC-021 asserts the unassigned case **separately** from the reassigned one. |
+| **These tickets leak into the counts** | Six places consume work items. Excluding at each is six chances to miss one. | Exclude once, at the top of `correlate`. SC-014 asserts no number moves. |
+| **The tracker refuses history operators** | `CHANGED` is changelog-backed and the enhanced endpoint has restricted things before. There is no fallback. | Verified as the first task of M2, before any code is written. |
 | **The description renders as markup** | It arrives from the least trusted source in the application, and the fastest way to ship it is `dangerouslySetInnerHTML`. | FR-129, and the CSP would break it anyway — but the CSP is not the reason, it is the backstop. The converter emits nodes, never strings-that-are-markup. |
 | **A description node is silently dropped** | A whitelist converter's natural failure is to ignore what it does not know, and the missing node is usually the acceptance criteria. | FR-130: unsupported nodes render as a labelled placeholder. Test with a deliberately unknown node type. |
 | **The clipboard copies nothing, silently** | The most likely failure and the least visible one — indistinguishable from success until a paste. | SC-017 reads the clipboard back. The channel returns a result and the row acknowledges it. |

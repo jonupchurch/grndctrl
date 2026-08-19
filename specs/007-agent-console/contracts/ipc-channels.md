@@ -76,7 +76,7 @@ Four new regions, four new boundaries (XV). Each of the new panels has a way to 
 - **Active ticket** — a stored description that fails to render. The converter runs at ingest, so this should be impossible; the boundary is there because "should be impossible" is not a rendering strategy.
 - **Agent updates** — an empty or failing store read.
 - **Prompts** — the same, plus a failed copy, which is handled inline rather than by the boundary because the panel is fine and only the action failed.
-- **Unassigned lane** — a provider read, exactly like the ticket lane.
+- **The "no longer mine" lane** — a provider read, exactly like the ticket lane.
 
 ---
 

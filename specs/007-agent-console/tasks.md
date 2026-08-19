@@ -33,17 +33,28 @@ Applied to the existing regions first, so the four new ones inherit it rather th
 
 ---
 
-## Phase 2: M2 — The unassigned lane
+## Phase 2: M2 — The "no longer mine" lane
 
-Needs nothing from the agent surface.
+Needs nothing from the agent surface. Needs one thing from Jira, and that comes first.
 
-- **T107** `services/sync.ts` — the second query: `project IN (…) AND assignee IS EMPTY AND statusCategory != Done ORDER BY created DESC`, capped. **Both result sets concatenated into one `replaceTickets` call** — the [R2](./research.md#r2--can-the-unassigned-lane-share-the-tickets-table-yes-and-the-reason-is-neat) trap. Two writes and the second discards the first.
-- **T108** **Probe T107 first, not after.** Write the two queries as two writes, confirm the test catches it, then fix it. This bug's symptom is a lane empty on alternate syncs — the kind that reaches a bug report as "sometimes it does not work".
-- **T109** `correlation/join.ts` — exclude `assignee === null` tickets from work items, **once, at the top** (FR-124). Six consumers would otherwise each need to remember.
-- **T110** `registry/ops/work.ts` — `tickets.unassigned`, envelope, `providerDerived`, carrying its cap alongside the rows ([operations.md](./contracts/operations.md#ticketsunassigned)).
-- **T111** `renderer/lanes/Unassigned.tsx` — a lane on `Section`, newest first, obeying the project filter, stating its cap, rows opening at the tracker.
-- **T112** SC-014: add fifty unassigned tickets to a scenario and assert **no** headline count, tile or ball-in-court number moves. This is the assertion that the reversal stayed scoped to a lane.
-- **T113** Update `docs/` and the sync comment. The comment in `sync.ts` currently argues *against* fetching anything but the operator's own work; it is still right about the ticket lane and must be rewritten to say so rather than deleted, or the next reader will re-derive the wrong conclusion.
+- **T106a** **Before any code**: send `assignee CHANGED FROM currentUser() AFTER -7d` to `/rest/api/3/search/jql` against a real site and see whether it is accepted. **There is no client-side fallback** — the changelog endpoint takes issue keys, and the keys of tickets reassigned away are exactly the ones this application no longer holds ([R2](./research.md#-the-one-thing-that-must-be-verified-before-building)). If it is refused, stop and report it (FR-123b); do not substitute the wider "everything not assigned to me", which is the reading the operator narrowed away from.
+- **T107** `services/sync.ts` — the second query:
+
+  ```
+  project IN (…)
+  AND assignee CHANGED FROM currentUser() AFTER -7d
+  AND (assignee != currentUser() OR assignee IS EMPTY)
+  ORDER BY updated DESC
+  ```
+
+  **Both result sets concatenated into one `replaceTickets` call** — the R2 write trap. Two writes and the second discards the first.
+- **T108** **Probe T107 first, not after.** Write it as two writes, confirm the test catches it, then fix it. This bug's symptom is a lane empty on alternate syncs — the kind that reaches a bug report as "sometimes it does not work".
+- **T108a** **Probe the NULL clause.** Drop `OR assignee IS EMPTY` and confirm SC-021 fails. JQL comparison operators do not match empty fields, so the naive query still returns plenty of rows and looks fine — it has just silently lost every ticket that became unassigned, which are the ones nobody picked up.
+- **T109** `correlation/join.ts` — exclude tickets whose `assignee?.accountId` is not among `operatorAccountIds`, **once, at the top** (FR-124). Six consumers would otherwise each need to remember. **Not `mineOnly`** — it tests `ballInCourt !== 'you'` and `ball.ts` awards an unassigned ticket to the operator, so it passes exactly the rows it appears to remove.
+- **T110** `registry/ops/work.ts` — `tickets.handedOff`, envelope, `providerDerived`, carrying the window length alongside the rows ([operations.md](./contracts/operations.md#ticketshandedoff)). No cap: the set is bounded by construction and truncating it would hide the row worth seeing.
+- **T111** `renderer/lanes/HandedOff.tsx` — a lane on `Section`, newest first, obeying the project filter, **showing who holds each ticket now** (or that nobody does), stating the seven-day window, rows opening at the tracker.
+- **T112** SC-014: add rows to this lane in a scenario and assert **no** headline count, tile or ball-in-court number moves.
+- **T113** Update `docs/` and the sync comment. The comment in `sync.ts` argues *against* fetching anything but the operator's own work; it is still right — this lane is work the operator *was* holding — and must be rewritten to say so rather than deleted, or the next reader will re-derive the wrong conclusion and widen the query.
 
 ---
 
@@ -100,12 +111,12 @@ The largest single piece of new code here, and separable from M3a.
 
 ## Phase 6: M6 — Layout, docs, release
 
-- **T145** `App.tsx` — the final arrangement: tickets, unassigned, active ticket, agent updates down the main column; sessions, ball-in-court, prompts down the side. Four new `LaneBoundary` wrappers (XV).
+- **T145** `App.tsx` — the final arrangement: tickets, no-longer-mine, active ticket, agent updates down the main column; sessions, ball-in-court, prompts down the side. Four new `LaneBoundary` wrappers (XV).
 - **T146** **Look at it running**, populated, with every region expanded, and then with several collapsed. Seven regions is a lot of page; this is where the layout is judged, not in a mockup.
 - **T147** [P] `docs/agents.md` — the `CLAUDE.md` snippet without which two panels stay empty. **This is part of the feature, not documentation of it.**
 - **T148** [P] README and the package descriptions — the product is a ticket-and-agent console now.
 - **T149** [P] `scripts/audit-egress.ts` — confirm nothing new contacts anything. Two new tables and a clipboard channel should not, and "should not" is what an audit is for.
-- **T150** Scenario fixtures gain unassigned tickets, an active ticket, updates and prompts, with relative timestamps ([006 FR-118](../006-remove-code-host-and-local-git/spec.md#test-material)).
+- **T150** Scenario fixtures gain handed-off tickets (one reassigned to a person, one unassigned, one outside the window, one that came back), an active ticket, updates and prompts, with relative timestamps ([006 FR-118](../006-remove-code-host-and-local-git/spec.md#test-material)).
 - **T151** CHANGELOG — 006's removals and 007's additions in one entry, breaking changes at the top.
 - **T152** STATUS.md, version cut, release.
 
@@ -114,15 +125,15 @@ The largest single piece of new code here, and separable from M3a.
 ## Dependencies & Execution Order
 
 ```
-006 M6 ─→ M1 (collapse) ─→ M2 (unassigned) ─→ M3a ─→ M3b ─→ M4 ─→ M5 ─→ M6
+006 M6 ─→ M1 (collapse) ─→ M2 (handed off) ─→ M3a ─→ M3b ─→ M4 ─→ M5 ─→ M6
                                                 └── M4 and M5 do not depend on M3b
 ```
 
-M1 first because it touches every region and there are fewer of them now than there will be. M2 before the agent panels because it needs no agent to demonstrate. M3b is separable from everything after it.
+M1 first because it touches every region and there are fewer of them now than there will be. M2 before the agent panels because it needs no agent to demonstrate — and because its one unknown, whether Jira will answer the query at all, is worth resolving early. M3b is separable from everything after it.
 
 ### Critical path
 
-T101 (Section) → T103 (adopt it) → T107/T108 (the one write, probed) → T116 (exposure) → T123 (converter) → T139/T140 (channel and surface) → T146 (**look at it**) → T152.
+T101 (Section) → T103 (adopt it) → T106a (**verify the JQL**) → T107/T108 (the one write, probed) → T116 (exposure) → T123 (converter) → T139/T140 (channel and surface) → T146 (**look at it**) → T152.
 
 ### Parallel opportunities
 

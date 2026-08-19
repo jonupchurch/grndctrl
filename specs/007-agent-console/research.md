@@ -30,24 +30,67 @@ There are three ways to get renderable content, and two of them are wrong here.
 
 ---
 
-## R2 — Can the unassigned lane share the tickets table? Yes, and the reason is neat
+## R2 — The lane is work that was taken off your plate
 
-The two queries produce **disjoint** sets by construction:
+**Settled by the operator on 2026-08-19, in two corrections.** The label on the screenshot said *"Recent Tickets not assigned"*, which read as "the backlog". It is not. Their words: *"we only want to track items that WERE assigned to me and now are not"*, then *"and only the last 7 days"*.
 
-- the operator's lane: `assignee = currentUser()` — every row has `assignee.accountId` equal to the viewer's
-- the unassigned lane: `assignee IS EMPTY` — every row has `assignee` null
+That is a different feature from the one the label suggested, and a much better one. It is not a view of the tracker; it is **the tail of the operator's own work** — what was handed to somebody else, or dropped on the floor, in the last week. The thing you want to notice is a ticket you thought you were still holding that quietly became someone else's.
 
-So `assignee === null` identifies an unassigned ticket exactly, and **no new column, no new table and no new flag is needed**. The lane a ticket belongs to is a property of the ticket, not a label the sync attaches.
+**It therefore barely reverses the standing rule at all.** `sync.ts` argues that "a command station is the work you are holding, not an export of the tracker"; this lane is work the operator *was* holding. The rule survives intact and the earlier draft of this research — which planned for hundreds of rows, a hard cap and an assignee column to make them actionable — was solving a problem that no longer exists.
 
-That is worth stating because the obvious design — a `lane` or `is_mine` column written by whichever query produced the row — would be a field that has to be kept true, and this codebase's recurring bug is the field both sides agree on that nothing maintains.
+### The query
 
-**The trap is the write, not the read.** `replaceTickets(connectionId, tickets)` **deletes every row for that connection and reinserts**. Two queries writing separately means the second wipes the first, and the symptom is a lane that is empty on every other sync — intermittent, timing-dependent, and very hard to read from a bug report. `syncTickets` already carries a comment about exactly this hazard for a different reason. **Both result sets must be concatenated and written in one call** (FR-125), and the test for it must assert both are present after a sync rather than asserting each query ran.
+```
+project IN (…)
+AND assignee CHANGED FROM currentUser() AFTER -7d
+AND (assignee != currentUser() OR assignee IS EMPTY)
+ORDER BY updated DESC
+```
 
-**Correlation must exclude them** (FR-124). `correlate` builds a work item per ticket; an unassigned ticket would become one, and would then reach the tiles, ball-in-court and the ticket lane's count. The filter belongs at the top of `correlate`, where it is one condition, rather than at each of the six places that would otherwise need to remember.
+Three clauses, each load-bearing:
 
-**And the obvious shortcut is already known to be broken.** The `mineOnly` filter looks like it would do this job — it is right there, it already exists, and it filters the board to the operator's own work. It does not: it tests `ballInCourt !== 'you'`, and **the fallback at the end of `ball.ts` awards an unassigned ticket to the operator on the grounds that nobody else holds it**. So `mineOnly` passes exactly the rows it appears to remove.
+- **`CHANGED FROM currentUser() AFTER -7d`** is the whole feature. It reads the issue's *history*, not its current state, which is the only way to ask this question at all.
+- **`(assignee != currentUser() OR assignee IS EMPTY)`** excludes tickets that came back. Without it, a ticket reassigned away on Monday and back to the operator on Tuesday sits in both lanes.
+- The `AFTER -7d` bound makes the result set small by construction. **No cap is needed** — this is the operator's own recent work, not a slice of a backlog — and a cap would be the wrong instrument anyway, since truncating *this* list hides exactly the row worth seeing.
 
-This is not a hypothetical. It is why the assignee scope was moved into the JQL in the first place, on 2026-08-15, after a board carrying [redacted] claimed 159 items needed attention when the real number was nine — and it was found by looking at the running board, not by any of the 533 tests then passing. Excluding at `correlate` avoids it because an unassigned ticket never becomes a work item and therefore never reaches `ball.ts` at all. Anyone who "simplifies" FR-124 into a display filter reintroduces the original bug exactly.
+### ⚠ The one thing that must be verified before building
+
+**JQL's history operators may not be available on the enhanced search endpoint.** `CHANGED`, `WAS` and `WAS IN` are backed by the issue changelog, and this application uses `/rest/api/3/search/jql` — the replacement for the deprecated `/search`, which came with its own restrictions (R2 of 001 found two already).
+
+**There is no fallback.** Changelogs are fetched by `/rest/api/3/changelog/bulkfetch`, which takes issue keys — and the keys of tickets reassigned away are precisely the ones this application no longer has, because the assignee-scoped query stopped returning them. The history cannot be searched from the client side.
+
+So: **verify this against a real Jira before writing anything else in M2.** It is one request. If `CHANGED` is refused there, the lane cannot be built as specified and the operator has to be told rather than handed an approximation — the nearest approximation, "everything not assigned to me", is the export the standing rule exists to prevent, and is the reading they explicitly narrowed away from.
+
+### The JQL trap in the second clause
+
+```
+assignee != currentUser()          -- WRONG: silently excludes every unassigned ticket
+(assignee != currentUser() OR assignee IS EMPTY)   -- correct
+```
+
+JQL comparison operators do not match empty fields, exactly like SQL's `NULL`. The naive clause keeps tickets reassigned to a *person* and **silently drops the ones that were simply unassigned** — which are arguably the most interesting rows in the lane, because nobody picked them up.
+
+It fails in the worst way: the lane works, has rows in it, and is quietly missing a category. **The test must seed a ticket that was unassigned away from the operator and assert it appears**, not merely assert the lane is non-empty.
+
+### The discriminator, and why still no new column
+
+The two queries stay **disjoint**: the ticket lane's rows all have `assignee.accountId` equal to the viewer's; this lane's rows, by the second clause, never do. So the predicate is **`assignee?.accountId` is not among the operator's account ids**, and `correlate` already receives `operatorAccountIds` — it is in `CorrelationInput` and in every scenario fixture today.
+
+**No new column, no new table, no flag.** The alternative — a `lane` column written by whichever query produced the row — would have to stay correct across reassignment, and a ticket that came back to the operator between syncs would carry a stale flag saying it was somebody else's while sitting in the ticket lane.
+
+**The rows do want an assignee column**, though: "who has it now" is the entire point of the row. That is a lane-local column, not a change to the ticket lane.
+
+### The write trap is unchanged and is still the sharpest edge
+
+`replaceTickets(connectionId, tickets)` **deletes every row for that connection and reinserts**. Two queries writing separately means the second wipes the first, and the symptom is a lane empty on alternate syncs — intermittent, timing-dependent, and nearly unreadable from a bug report. **Both result sets concatenated into one call** (FR-125); the test asserts both present *after a sync* rather than asserting each query ran.
+
+### Correlation must exclude them, and the obvious shortcut is known-broken
+
+`correlate` builds a work item per ticket; one of these would become a work item and reach the tiles, ball-in-court and the ticket lane's count. Exclude **once, at the top of `correlate`**, not at each of the six consumers.
+
+**Not with `mineOnly`.** It looks like it would do this job — it exists, and it filters the board to the operator's work. It does not: it tests `ballInCourt !== 'you'`, and **`ball.ts`'s fallback awards an unassigned ticket to the operator on the grounds that nobody else holds it**. So `mineOnly` passes exactly the rows it appears to remove — and this lane is full of unassigned tickets, so it would fail here immediately and visibly.
+
+That is not hypothetical. It is why the assignee scope moved into the JQL on 2026-08-15, after a board carrying [redacted] claimed 159 items needed attention when the real number was nine — found by looking at the running board, not by any of the 533 tests then passing.
 
 ---
 

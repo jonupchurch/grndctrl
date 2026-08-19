@@ -12,7 +12,7 @@ Amends [001's operations contract](../../001-ground-control-v1/contracts/operati
 
 | Operation | Exposure | Why |
 |---|---|---|
-| `tickets.unassigned` | `all` | An agent asking "what is available" is a reasonable question and the data is no more sensitive than `work.list`. |
+| `tickets.handedOff` | `all` | An agent asking what left the operator's hands is reasonable, and the data is no more sensitive than `work.list`. |
 | `focus.get` | `all` | An agent needs to know what it is meant to be on. |
 | `focus.set` | `all` | **The operator's own words were "populated by MCP".** This is the one that must not be `ui-only`. |
 | `focus.clear` | `all` | Symmetric with set; an agent finishing should be able to clear. |
@@ -26,7 +26,7 @@ Amends [001's operations contract](../../001-ground-control-v1/contracts/operati
 
 ---
 
-## `tickets.unassigned`
+## `tickets.handedOff`
 
 ```
 input:  { projectId?: string | null }
@@ -34,11 +34,15 @@ output: envelope<Ticket[]>
 mutates: false          providerDerived: true
 ```
 
+Tickets that were the operator's, are not now, and changed hands inside the window.
+
 An envelope, because it is provider-derived and gate XIV admits no exceptions — a lane of tickets with no freshness is exactly the kind of thing that looks current forever.
 
-**Bounded, and it says so.** The output carries the cap alongside the rows so the lane can state it (FR-126). A capped list that does not say it is capped reads as a complete one, and the operator concludes there are four tickets available when there are forty.
+**No cap.** The set is bounded by construction: seven days of the operator's own reassignments. A cap would be the wrong instrument anyway — truncating *this* list hides the row worth seeing. The output does carry the window length so the lane can say what it covers (FR-126).
 
-**Not `work.list` with a flag.** A parameter that switched `work.list` between two disjoint sets would make every caller's meaning depend on an argument, and the two sets differ in kind: one is work items with severity, staleness and ball-in-court, the other is tickets with none of those, because they are nobody's (FR-124).
+**Not `work.list` with a flag.** A parameter that switched `work.list` between two disjoint sets would make every caller's meaning depend on an argument, and the two sets differ in kind: one is work items with severity, staleness and ball-in-court, the other is tickets with none of those, because they are not the operator's problem any more (FR-124).
+
+**The name is not `tickets.unassigned`.** These tickets are mostly assigned — to somebody else. Naming it for the empty case would mislead every future reader in the direction the screenshot label already misled once.
 
 ---
 
@@ -99,5 +103,5 @@ Gain `collapsedRegions: Record<string, boolean>`. Unknown keys are accepted and 
 
 1. **Every new operation declares an exposure, and the eight above match this table exactly.** Enumerated, so adding a ninth without deciding fails.
 2. **`prompts.delete` is not reachable from MCP.** Asserted against the MCP server's own tool list, not against the descriptor — the descriptor is what the assertion would be reading from in the first place.
-3. **`tickets.unassigned` returns an envelope**, like every other `providerDerived` operation.
+3. **`tickets.handedOff` returns an envelope**, like every other `providerDerived` operation.
 4. **No operation accepts `setBy`, `agentId` or `postedAt` as input.** Provenance and time are the service's to determine; a caller that can supply them can lie about them.
