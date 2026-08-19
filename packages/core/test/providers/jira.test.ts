@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   applyActivity,
   classifyAuthor,
+  currentSprint,
   jiraProvider,
+  sprintFieldId,
   storyPointFieldId,
   toPoints,
   toStatusCategory,
@@ -289,6 +291,210 @@ describe('priority and story points', () => {
       'updated',
     ])
     expect(tickets[0]?.storyPoints).toBeNull()
+  })
+})
+
+describe('the sprint column', () => {
+  const SPRINT_FIELD = {
+    id: 'customfield_10020',
+    name: 'Sprint',
+    custom: true,
+    schema: { type: 'array', custom: 'com.pyxis.greenhopper.jira:gh-sprint' },
+  }
+
+  const FIELDS = [
+    { id: 'summary', name: 'Summary', custom: false, schema: { type: 'string' } },
+    SPRINT_FIELD,
+  ]
+
+  const issue = (fields: Record<string, unknown>) => ({
+    issues: [
+      {
+        id: '10001',
+        key: 'MERC-1184',
+        fields: {
+          summary: 'Reconcile worktree state',
+          status: { name: 'In Review', statusCategory: { key: 'indeterminate' } },
+          ...fields,
+        },
+      },
+    ],
+    isLast: true,
+  })
+
+  it('asks for the sprint field it resolved, and reads the answer', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({
+        customfield_10020: [{ id: 7, name: 'Sprint 12', state: 'active' }],
+      }),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    const search = calls.find((c) => c.url.includes('/search'))
+    expect((search?.body as { fields: string[] }).fields).toContain('customfield_10020')
+    expect(tickets[0]?.sprint).toBe('Sprint 12')
+  })
+
+  // Both custom fields come out of one field list. Asking twice would spend a
+  // second round trip on a payload already in hand.
+  it('resolves points and sprint from a single field request', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({}),
+    })
+
+    await jira.searchIssues({ jql: 'x' })
+    await jira.searchIssues({ jql: 'x', pageToken: 'page-2' })
+
+    expect(calls.filter((c) => c.url.endsWith('/rest/api/3/field'))).toHaveLength(1)
+  })
+
+  it('names no sprint field when the site has none', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': [FIELDS[0]],
+      '/rest/api/3/search/jql': issue({}),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    const search = calls.find((c) => c.url.includes('/search'))
+    expect((search?.body as { fields: string[] }).fields).not.toContain('customfield_10020')
+    expect(tickets[0]?.sprint).toBeNull()
+  })
+
+  // Same trade as story points: the sprint is a column, the search is the lane.
+  it('still returns tickets when the field lookup fails', async () => {
+    const jira = jiraProvider({
+      site: 'acme.atlassian.net',
+      email: 'jon@example.com',
+      apiToken: 'token',
+      connectionId: 'jira-1',
+      fetcher: failingFieldLookup(
+        issue({ customfield_10020: [{ name: 'Sprint 12', state: 'active' }] }),
+      ),
+      now: () => NOW,
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    expect(tickets).toHaveLength(1)
+    expect(tickets[0]?.sprint).toBeNull()
+  })
+})
+
+describe('resolving the sprint field', () => {
+  const sprintField = {
+    id: 'customfield_10020',
+    name: 'Sprint',
+    custom: true,
+    schema: { type: 'array', custom: 'com.pyxis.greenhopper.jira:gh-sprint' },
+  }
+
+  it('matches on the greenhopper schema key, whatever the site calls the field', () => {
+    expect(sprintFieldId([{ ...sprintField, name: 'Iteration' }])).toBe('customfield_10020')
+  })
+
+  // The one exact answer this lookup has that the story point lookup does not.
+  // A text field a team happened to call "Sprint" is not the sprint field, and
+  // its contents in this column would be a confident wrong answer.
+  it('refuses a differently-typed field that merely shares the name', () => {
+    expect(
+      sprintFieldId([
+        { id: 'customfield_10099', name: 'Sprint', custom: true, schema: { type: 'string', custom: 'com.atlassian.jira.plugin.system.customfieldtypes:textfield' } },
+      ]),
+    ).toBeNull()
+  })
+
+  // Some deployments answer the field list without `schema` at all. An exact
+  // name is the fallback -- `Sprint Goal` is a different field.
+  it('falls back to an exact name when the payload carries no schema', () => {
+    expect(sprintFieldId([{ id: 'customfield_10020', name: 'Sprint', custom: true }])).toBe(
+      'customfield_10020',
+    )
+    expect(sprintFieldId([{ id: 'customfield_10021', name: 'Sprint Goal', custom: true }])).toBeNull()
+  })
+
+  it('is null rather than a guess when nothing matches', () => {
+    expect(sprintFieldId([])).toBeNull()
+    expect(sprintFieldId({ error: 'nope' })).toBeNull()
+  })
+})
+
+describe('choosing which sprint a ticket is in', () => {
+  /**
+   * The case the whole function exists for.
+   *
+   * A carried-over ticket keeps every sprint it has been in, oldest first, so
+   * the first entry is a sprint that ended weeks ago. Showing it would answer
+   * the operator's question with last month's sprint — the active one is the
+   * one they mean.
+   */
+  it('prefers the active sprint over the closed ones a ticket was carried through', () => {
+    expect(
+      currentSprint([
+        { name: 'Sprint 10', state: 'closed' },
+        { name: 'Sprint 11', state: 'closed' },
+        { name: 'Sprint 12', state: 'active' },
+      ]),
+    ).toBe('Sprint 12')
+  })
+
+  it('falls back to the future sprint when nothing is running', () => {
+    expect(
+      currentSprint([
+        { name: 'Sprint 11', state: 'closed' },
+        { name: 'Sprint 13', state: 'future' },
+      ]),
+    ).toBe('Sprint 13')
+  })
+
+  // Jira returns them oldest first, so the newest closed sprint is the last one.
+  it('takes the most recent closed sprint when there is nothing else', () => {
+    expect(
+      currentSprint([
+        { name: 'Sprint 10', state: 'closed' },
+        { name: 'Sprint 11', state: 'closed' },
+      ]),
+    ).toBe('Sprint 11')
+  })
+
+  // Jira Server and older deployments send the Java `toString` of the sprint
+  // object. A site answering that would otherwise put the class name on screen.
+  it('reads the legacy stringified form', () => {
+    expect(
+      currentSprint([
+        'com.atlassian.greenhopper.service.sprint.Sprint@1a2b[id=7,rapidViewId=3,state=CLOSED,name=Sprint 11,startDate=2026-07-01,endDate=2026-07-14,goal=]',
+        'com.atlassian.greenhopper.service.sprint.Sprint@3c4d[id=8,rapidViewId=3,state=ACTIVE,name=Sprint 12,startDate=2026-07-15,endDate=2026-07-28,goal=]',
+      ]),
+    ).toBe('Sprint 12')
+  })
+
+  it('keeps a sprint name that has a comma in it', () => {
+    expect(
+      currentSprint([
+        'com.atlassian.greenhopper.service.sprint.Sprint@1[id=7,state=ACTIVE,name=Sprint 12, week 2,startDate=2026-07-15]',
+      ]),
+    ).toBe('Sprint 12, week 2')
+  })
+
+  it('accepts a single object as well as an array, which some payloads send', () => {
+    expect(currentSprint({ name: 'Sprint 12', state: 'active' })).toBe('Sprint 12')
+  })
+
+  /**
+   * Not in a sprint is a fact, and it is not "Backlog".
+   *
+   * Every one of these is a shape a real payload has: the field absent, the
+   * field present and null, an empty array, and an entry with no usable name.
+   */
+  it('is null rather than a word this code invented', () => {
+    expect(currentSprint(undefined)).toBeNull()
+    expect(currentSprint(null)).toBeNull()
+    expect(currentSprint([])).toBeNull()
+    expect(currentSprint([{ id: 7, state: 'active' }])).toBeNull()
+    expect(currentSprint([{ name: '   ', state: 'active' }])).toBeNull()
   })
 })
 

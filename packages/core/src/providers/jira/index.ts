@@ -26,11 +26,12 @@ import type { TicketProvider } from '../seam.js'
  *   field FR-027 exists to distrust, so falling back to it would turn "we could
  *   not fetch the history" into a confident wrong answer.
  *
- *   **Story points have no field id.** They are a custom field whose id differs
- *   per site — `customfield_10016` on one, `customfield_10004` on the next — so
- *   there is nothing to hard-code and a guess would read some other field's
- *   number. The id is looked up once per provider instance and cached; see
- *   `storyPointFieldId`.
+ *   **Story points and sprint have no field id.** Both are custom fields whose
+ *   ids differ per site — `customfield_10016` on one, `customfield_10004` on the
+ *   next — so there is nothing to hard-code and a guess would read some other
+ *   field's value. The site's field list is fetched **once** per provider
+ *   instance and both ids are resolved from it; see `storyPointFieldId` and
+ *   `sprintFieldId`.
  */
 
 export interface JiraOptions {
@@ -72,7 +73,18 @@ interface JiraFieldDescriptor {
   id?: string
   name?: string
   custom?: boolean
-  schema?: { type?: string }
+  /**
+   * `type` is the JSON shape; `custom` is the plugin key that says what the
+   * field *is*. Sprint is identified by the second — `Sprint` is a name a team
+   * can give any field, and the greenhopper key is not.
+   */
+  schema?: { type?: string; custom?: string }
+}
+
+/** The two per-site custom field ids the ticket lane needs, or nothing. */
+interface CustomFieldIds {
+  points: string | null
+  sprint: string | null
 }
 
 interface JiraUser {
@@ -107,26 +119,31 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
   })
 
   /**
-   * The site's story point field id, resolved once and reused.
+   * The site's story point and sprint field ids, resolved once and reused.
+   *
+   * **One request answers both.** `/rest/api/3/field` returns the whole field
+   * list, so asking twice would spend a second round trip on a payload already
+   * in hand — and would let the two columns disagree about which fetch they came
+   * from if one call failed and the other did not.
    *
    * Memoised on the promise rather than on its result, so the several pages of
    * one search share a single lookup instead of racing to make the same call.
    * Providers are rebuilt per sync, so this is one extra GET per sync and a
    * transient failure is not remembered past it.
    *
-   * **A failure resolves to `null` rather than throwing.** The lookup needs no
+   * **A failure resolves to nulls rather than throwing.** The lookup needs no
    * permission the ticket search does not already have, but if it fails anyway
-   * the honest outcome is a board with no points on it -- not a board with no
-   * tickets on it. Story points are a column; the search is the lane.
+   * the honest outcome is a board with no points and no sprints on it -- not a
+   * board with no tickets on it. Those are columns; the search is the lane.
    */
-  let pointsFieldLookup: Promise<string | null> | undefined
+  let fieldLookup: Promise<CustomFieldIds> | undefined
 
-  const storyPointsField = (): Promise<string | null> => {
-    pointsFieldLookup ??= client
+  const customFields = (): Promise<CustomFieldIds> => {
+    fieldLookup ??= client
       .get<JiraFieldDescriptor[]>('/rest/api/3/field')
-      .then(storyPointFieldId)
-      .catch(() => null)
-    return pointsFieldLookup
+      .then((fields) => ({ points: storyPointFieldId(fields), sprint: sprintFieldId(fields) }))
+      .catch(() => ({ points: null, sprint: null }))
+    return fieldLookup
   }
 
   return {
@@ -136,7 +153,7 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
     },
 
     async searchIssues({ jql, pageSize, pageToken }) {
-      const pointsField = await storyPointsField()
+      const custom = await customFields()
 
       const response = await client.post<JiraSearchResponse>('/rest/api/3/search/jql', {
         jql,
@@ -149,10 +166,11 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
           'priority',
           'created',
           'updated',
-          // Only when the site actually has one. Naming a field id that does not
-          // exist is not ignored -- Jira rejects the whole search, which would
-          // take the ticket lane down over a column.
-          ...(pointsField === null ? [] : [pointsField]),
+          // Only when the site actually has them. Naming a field id that does
+          // not exist is not ignored -- Jira rejects the whole search, which
+          // would take the ticket lane down over a column.
+          ...(custom.points === null ? [] : [custom.points]),
+          ...(custom.sprint === null ? [] : [custom.sprint]),
         ],
         // Omitted entirely on the first call. The endpoint rejects a null token
         // rather than treating it as "start from the beginning".
@@ -161,7 +179,7 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
 
       const fetchedAt = now().toISOString()
       const tickets = (response.issues ?? []).map((issue) =>
-        toTicket(issue, options.site, options.connectionId ?? '', fetchedAt, pointsField),
+        toTicket(issue, options.site, options.connectionId ?? '', fetchedAt, custom),
       )
 
       return {
@@ -256,7 +274,7 @@ function toTicket(
   site: string,
   connectionId: string,
   fetchedAt: string,
-  pointsField: string | null,
+  custom: CustomFieldIds,
 ): Ticket {
   const fields = issue.fields ?? {}
   const statusName = fields.status?.name ?? 'Unknown'
@@ -274,7 +292,8 @@ function toTicket(
     // Jira's own word for it, unmapped. An unset priority is null, never the
     // bottom of a scale this code does not know the shape of.
     priority: nonEmpty(fields.priority?.name),
-    storyPoints: pointsField === null ? null : toPoints(fields[pointsField]),
+    storyPoints: custom.points === null ? null : toPoints(fields[custom.points]),
+    sprint: custom.sprint === null ? null : currentSprint(fields[custom.sprint]),
     createdAt: fields.created ?? fetchedAt,
     updatedAt: fields.updated ?? fetchedAt,
     // Filled in from the changelog, which is a separate call. Null until then,
@@ -342,6 +361,122 @@ export function toPoints(value: unknown): number | null {
   if (typeof value === 'string' && value.trim() !== '') {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+/** The plugin key Jira Software stamps on the sprint field, on every site. */
+const SPRINT_SCHEMA = 'com.pyxis.greenhopper.jira:gh-sprint'
+
+/**
+ * Which of a site's fields holds sprints.
+ *
+ * Resolved by **schema key first, name second**, which is the opposite emphasis
+ * from `storyPointFieldId` and for a good reason: Jira Software stamps every
+ * sprint field with `com.pyxis.greenhopper.jira:gh-sprint` regardless of what
+ * the site calls it, so there is one exact answer available here that the story
+ * point lookup simply does not have. A site that has been renamed to "Iteration"
+ * still matches; a text field somebody called "Sprint" does not.
+ *
+ * The name match is a fallback for a payload that omits `schema` — some Jira
+ * deployments return the field list without it — and is deliberately narrow: an
+ * exact `sprint`, not a prefix. `Sprint Goal` is a different field and putting
+ * its text in this column would be a confident wrong answer.
+ *
+ * `null` when nothing matches, which is a real answer: a site with no Jira
+ * Software project has no sprints at all.
+ */
+export function sprintFieldId(fields: unknown): string | null {
+  if (!Array.isArray(fields)) return null
+
+  const named = (fields as JiraFieldDescriptor[]).filter((f) => typeof f?.id === 'string')
+
+  const bySchema = named.find((f) => f.schema?.custom === SPRINT_SCHEMA)?.id
+  if (bySchema !== undefined) return bySchema
+
+  return (
+    named.find(
+      (f) =>
+        f.custom !== false &&
+        f.schema?.custom === undefined &&
+        (f.name ?? '').trim().toLowerCase() === 'sprint',
+    )?.id ?? null
+  )
+}
+
+/**
+ * The one sprint a ticket is *in*, out of everything its sprint field carries.
+ *
+ * The field is an array and a carried-over ticket keeps its old sprints on it —
+ * a ticket in its third sprint has three entries, two of them closed. Rendering
+ * the first would show a sprint that ended a month ago; rendering all of them
+ * would not fit a column and would not answer the question either. So: the
+ * **active** sprint if there is one, else the nearest **future** one, else the
+ * most recent **closed** one. Within a rank the last entry wins, because Jira
+ * returns them oldest first.
+ *
+ * Two payload shapes are accepted, because two are sent. Jira Cloud's v3 search
+ * returns objects; older deployments return the Java `toString` of the sprint
+ * object — `...Sprint@1[id=7,name=Sprint 12,state=CLOSED,...]` — and a site
+ * answering that would otherwise put the whole class name in the column.
+ *
+ * A ticket in no sprint has `null` or `[]` here, and that is `null`: not in a
+ * sprint is a fact, and "Backlog" would be a word this code invented.
+ */
+export function currentSprint(value: unknown): string | null {
+  const entries = (Array.isArray(value) ? value : [value]).flatMap((entry) => {
+    const parsed = toSprint(entry)
+    return parsed === null ? [] : [parsed]
+  })
+
+  if (entries.length === 0) return null
+
+  const rank = (state: string): number => {
+    switch (state) {
+      case 'active':
+        return 0
+      case 'future':
+        return 1
+      case 'closed':
+        return 3
+      // A state this code does not recognise sits between future and closed:
+      // worth showing over something known to be over, not over something known
+      // to be running.
+      default:
+        return 2
+    }
+  }
+
+  let best: { name: string; state: string } | null = null
+  for (const entry of entries) {
+    // `<=` rather than `<`, so the last entry of the winning rank is the one
+    // kept -- the newest closed sprint rather than the oldest.
+    if (best === null || rank(entry.state) <= rank(best.state)) best = entry
+  }
+
+  return best === null ? null : best.name
+}
+
+/** One sprint entry, in either of the two shapes Jira sends, or nothing. */
+function toSprint(entry: unknown): { name: string; state: string } | null {
+  if (typeof entry === 'string') {
+    // `name` can itself contain a comma, so the value runs to the next `key=`
+    // or to the closing bracket rather than to the next comma.
+    const name = /[[,]name=(.*?)(?:,\w+=|\]$)/.exec(entry)?.[1]
+    const state = /[[,]state=(\w+)/.exec(entry)?.[1]
+    return name === undefined || name.trim() === ''
+      ? null
+      : { name: name.trim(), state: (state ?? '').toLowerCase() }
+  }
+
+  if (typeof entry === 'object' && entry !== null) {
+    const record = entry as { name?: unknown; state?: unknown }
+    if (typeof record.name !== 'string' || record.name.trim() === '') return null
+    return {
+      name: record.name.trim(),
+      state: typeof record.state === 'string' ? record.state.toLowerCase() : '',
+    }
   }
 
   return null

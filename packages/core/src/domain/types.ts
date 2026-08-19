@@ -99,6 +99,25 @@ export interface Ticket {
    * it" and "it is a zero-point ticket" are different answers.
    */
   storyPoints: number | null
+  /**
+   * The sprint this ticket is currently in, by name.
+   *
+   * A ticket can be in **several** — Jira's sprint field is an array, and a
+   * ticket carried over from one sprint to the next keeps the closed one on it.
+   * So this is not "the sprint field", it is a choice made at ingest: the active
+   * sprint if there is one, else the nearest future sprint, else the most recent
+   * closed one. The operator's question is "which sprint is this in", and the
+   * answer they mean is the live one.
+   *
+   * The name only, and the tracker's own spelling of it — same discipline as
+   * `priority`. There is no id here because nothing joins on it.
+   *
+   * `null` is "not in a sprint" **or** "this site has no sprint field", and the
+   * two cannot be told apart per ticket for the same reason `storyPoints` cannot:
+   * sprint is a custom field with a per-site id, so a site where it could not be
+   * resolved reports null on every row. Neither is rendered as a sprint name.
+   */
+  sprint: string | null
   createdAt: Timestamp
   /** Displayed, never used for staleness — automation moves it (FR-027). */
   updatedAt: Timestamp

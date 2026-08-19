@@ -76,6 +76,10 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
       // because those are the rows a real backlog is mostly made of.
       priority: ['Highest', 'High', 'Medium', 'Low', null][i % 5] ?? null,
       storyPoints: [1, 2, 3, 5, null][i % 5] ?? null,
+      // Three sprints and a gap, on a different cycle from the other two, so a
+      // sort by any one of them has ties to keep stable rather than a column of
+      // distinct values that would order the same way however it was compared.
+      sprint: ['Sprint 12', 'Sprint 13', null][i % 3] ?? null,
       createdAt: '2026-08-01T09:00:00Z',
       updatedAt: ACTIVITY,
       lastRealActivityAt: ACTIVITY,

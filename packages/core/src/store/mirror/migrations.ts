@@ -187,4 +187,26 @@ export const MIRROR_MIGRATIONS: readonly Migration[] = [
       ALTER TABLE tickets ADD COLUMN story_points REAL;
     `,
   },
+  {
+    version: 3,
+    name: 'ticket-sprint',
+    /**
+     * The sprint name, as the ticket lane now shows it.
+     *
+     * Its own migration for the same reason version 2 was: a copy of 0.2.0 has a
+     * `mirror.db` at version 2 on disk, and widening version 2 in place would
+     * leave that file claiming a schema it does not have — every ticket write
+     * failing on an unknown column, on the one launch where nothing else had
+     * changed for the operator.
+     *
+     * The **name** and not an id, because nothing joins on a sprint. Nullable
+     * with no default, because null already means what it needs to mean: a
+     * ticket in no sprint, or a site with no sprint field. An empty string
+     * default would put a blank where a placeholder belongs and read as a sprint
+     * whose name nobody typed.
+     */
+    up: `
+      ALTER TABLE tickets ADD COLUMN sprint TEXT;
+    `,
+  },
 ]

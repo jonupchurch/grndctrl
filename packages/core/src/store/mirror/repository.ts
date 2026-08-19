@@ -129,6 +129,7 @@ export function mirrorRepository(db: Database): MirrorRepository {
       'is_blocked',
       'priority',
       'story_points',
+      'sprint',
       'created_at',
       'updated_at',
       'last_real_activity_at',
@@ -148,6 +149,7 @@ export function mirrorRepository(db: Database): MirrorRepository {
       t.isBlocked ? 1 : 0,
       t.priority,
       t.storyPoints,
+      t.sprint,
       t.createdAt,
       t.updatedAt,
       t.lastRealActivityAt,
@@ -271,6 +273,7 @@ export function mirrorRepository(db: Database): MirrorRepository {
         // Not `Number(...) || null` -- that reads a genuine 0-point estimate as
         // "unestimated" and puts a dash where the tracker says zero.
         storyPoints: nullableNumber(r['story_points']),
+        sprint: nullableString(r['sprint']),
         createdAt: String(r['created_at']),
         updatedAt: String(r['updated_at']),
         lastRealActivityAt: nullableString(r['last_real_activity_at']),

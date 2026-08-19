@@ -12,7 +12,7 @@ import { mirrorDbPath } from '../../src/store/paths.js'
 import type { Ticket } from '../../src/domain/types.js'
 
 /**
- * `priority` and `story_points` — the ticket lane's two newest columns.
+ * `priority`, `story_points` and `sprint` — the ticket lane's added columns.
  *
  * Two separate things are checked here and they fail in different ways.
  *
@@ -52,6 +52,7 @@ const ticket = (over: Partial<Ticket> & { issueKey: string }): Ticket => ({
   isBlocked: false,
   priority: null,
   storyPoints: null,
+  sprint: null,
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-08-10T00:00:00Z',
   lastRealActivityAt: null,
@@ -89,7 +90,10 @@ describe('upgrading a mirror that predates the columns', () => {
 
     const opened = openMirror({ dir })
     expect(opened.migration.from).toBe(1)
-    expect(opened.migration.applied).toEqual(['2_ticket-priority-and-points'])
+    expect(opened.migration.applied).toEqual([
+      '2_ticket-priority-and-points',
+      '3_ticket-sprint',
+    ])
     opened.db.close()
   })
 
@@ -115,6 +119,7 @@ describe('upgrading a mirror that predates the columns', () => {
 
     expect(row?.priority).toBeNull()
     expect(row?.storyPoints).toBeNull()
+    expect(row?.sprint).toBeNull()
     opened.db.close()
   })
 })
@@ -176,5 +181,23 @@ describe('storing priority and story points', () => {
     ])
 
     expect(rows.map((r) => r.priority).sort()).toEqual(['Blocker', 'P2 - Major'])
+  })
+
+  /**
+   * Sprint is the tracker's own name for it, stored whole.
+   *
+   * Teams name sprints anything — `Sprint 12`, `2026-W33`, `Mercury · Hardening`
+   * — and there is nothing to parse a number out of that is true across sites.
+   * A ticket in no sprint stays null rather than becoming an empty string, which
+   * the row would draw as a sprint whose name nobody typed.
+   */
+  it('round-trips a sprint name, and keeps “no sprint” unset', () => {
+    const rows = roundTrip([
+      ticket({ issueKey: 'MERC-1', sprint: 'Mercury · Hardening' }),
+      ticket({ issueKey: 'MERC-2', sprint: null }),
+    ])
+
+    expect(rows.find((r) => r.issueKey === 'MERC-1')?.sprint).toBe('Mercury · Hardening')
+    expect(rows.find((r) => r.issueKey === 'MERC-2')?.sprint).toBeNull()
   })
 })

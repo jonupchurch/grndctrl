@@ -73,6 +73,7 @@ export function ticket(over: Partial<Ticket> & { issueKey?: string } = {}): Tick
     isBlocked: false,
     priority: 'Medium',
     storyPoints: 3,
+    sprint: 'Sprint 12',
     createdAt: hoursAgo(200),
     updatedAt: hoursAgo(1),
     lastRealActivityAt: hoursAgo(2),
