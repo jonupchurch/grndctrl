@@ -107,14 +107,6 @@ export function Titlebar({
               {filter.only.jiraProjectKey}
             </button>
           )}
-          {filter.only.repoOwner !== null && filter.only.repoName !== null && (
-            <button
-              type="button"
-              onClick={() => void launch(`project:${filter.only?.id}`, 'repository')}
-            >
-              {filter.only.repoOwner}/{filter.only.repoName}
-            </button>
-          )}
           {filter.only.documentationUrl !== null && (
             <button
               type="button"

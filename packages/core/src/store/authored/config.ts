@@ -49,18 +49,13 @@ export function projectsRepository(db: Database): ProjectsRepository {
       db.prepare(
         `INSERT INTO projects
            (id, code, name, color_index, jira_connection_id, jira_project_key,
-            github_connection_id, repo_owner, repo_name, documentation_url,
-            ticket_key_pattern, checkout_paths, status_overrides)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            documentation_url, status_overrides)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            code = excluded.code, name = excluded.name, color_index = excluded.color_index,
            jira_connection_id = excluded.jira_connection_id,
            jira_project_key = excluded.jira_project_key,
-           github_connection_id = excluded.github_connection_id,
-           repo_owner = excluded.repo_owner, repo_name = excluded.repo_name,
            documentation_url = excluded.documentation_url,
-           ticket_key_pattern = excluded.ticket_key_pattern,
-           checkout_paths = excluded.checkout_paths,
            status_overrides = excluded.status_overrides`,
       ).run(
         project.id,
@@ -69,12 +64,7 @@ export function projectsRepository(db: Database): ProjectsRepository {
         project.colorIndex,
         project.jiraConnectionId,
         project.jiraProjectKey,
-        project.githubConnectionId,
-        project.repoOwner,
-        project.repoName,
         project.documentationUrl,
-        project.ticketKeyPattern,
-        JSON.stringify(project.checkoutPaths),
         JSON.stringify(project.statusOverrides),
       )
       return read(project.id) as Project
@@ -120,12 +110,7 @@ function toProject(row: Record<string, unknown>): Project {
     colorIndex: row['color_index'] === null || row['color_index'] === undefined ? null : Number(row['color_index']),
     jiraConnectionId: nullable(row['jira_connection_id']),
     jiraProjectKey: nullable(row['jira_project_key']),
-    githubConnectionId: nullable(row['github_connection_id']),
-    repoOwner: nullable(row['repo_owner']),
-    repoName: nullable(row['repo_name']),
     documentationUrl: nullable(row['documentation_url']),
-    ticketKeyPattern: String(row['ticket_key_pattern']),
-    checkoutPaths: safeJson<string[]>(row['checkout_paths'], []),
     statusOverrides: safeJson<Project['statusOverrides']>(row['status_overrides'], {}),
   }
 }

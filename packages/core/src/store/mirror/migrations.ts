@@ -209,4 +209,73 @@ export const MIRROR_MIGRATIONS: readonly Migration[] = [
       ALTER TABLE tickets ADD COLUMN sprint TEXT;
     `,
   },
+  {
+    version: 4,
+    name: 'remove-code-host-and-local-git',
+    // `tickets.connection_id` is ON DELETE CASCADE, so dropping `connections`
+    // during the rebuild would take every ticket with it -- silently, on the
+    // upgrade launch, leaving an empty lane above a freshness reading that still
+    // said "refreshed four minutes ago". See the flag's docstring.
+    rebuildsReferencedTable: true,
+    /**
+     * Two providers leave the mirror.
+     *
+     * This file is the disposable store, so this could be a file deletion. It is
+     * written as a migration anyway: an installed 0.3.0 has a `mirror.db` on
+     * disk, and a rebuild-on-launch would be a silent full resync at the worst
+     * moment -- the launch where nothing else changed for the operator, on a
+     * connection whose token may since have expired.
+     *
+     * **Order is load-bearing**, and one step happens outside this SQL entirely.
+     *
+     * `openMirror` reads the credential references of every connection of a
+     * removed kind *before* calling `migrate`, and hands them back so the caller
+     * can delete each secret from the OS keychain (FR-112). It has to happen
+     * first because after step 1 below there is nothing left to read them from,
+     * and it has to happen outside because a migration that reached into the
+     * keychain would be doing something this transaction cannot roll back.
+     *
+     * A secret left behind would be unreachable, unremovable through the
+     * interface, and still a secret.
+     */
+    up: `
+      -- 1. The rows themselves. Tickets cascade from this, which is correct:
+      --    a ticket belonging to a connection that is gone has no owner. There
+      --    are none, because no code host ever wrote a ticket.
+      DELETE FROM connections WHERE kind <> 'jira';
+
+      -- 2. Rebuild with the narrowed CHECK. SQLite cannot alter a constraint in
+      --    place, so this is the standard twelve-step dance in the four steps it
+      --    actually needs here: no index, no trigger and no view names this
+      --    table, and the foreign keys pointing *at* it are re-resolved by name
+      --    on rename because legacy_alter_table is off by default.
+      CREATE TABLE connections_new (
+        id              TEXT PRIMARY KEY,
+        kind            TEXT NOT NULL CHECK (kind IN ('jira')),
+        site_or_host    TEXT NOT NULL,
+        account_label   TEXT NOT NULL,
+        viewer_identity TEXT,
+        credential_ref  TEXT NOT NULL
+      );
+      INSERT INTO connections_new
+        SELECT id, kind, site_or_host, account_label, viewer_identity, credential_ref
+        FROM connections;
+      DROP TABLE connections;
+      ALTER TABLE connections_new RENAME TO connections;
+
+      -- 3. The five tables. Their indexes go with them, and comparisons
+      --    references branch_refs, so it goes first.
+      DROP TABLE IF EXISTS comparisons;
+      DROP TABLE IF EXISTS branch_refs;
+      DROP TABLE IF EXISTS check_results;
+      DROP TABLE IF EXISTS pull_requests;
+      DROP TABLE IF EXISTS local_workspaces;
+
+      -- 4. Freshness rows for the retired kinds, including the reserved 'local'
+      --    source id. Left behind, the header would go on reporting the age of
+      --    resources that no longer exist (FR-111) -- and 'never synced' against
+      --    a lane nobody can see is the most confusing possible reading.
+      DELETE FROM freshness WHERE resource_kind <> 'tickets';
+    `,
+  },
 ]

@@ -50,8 +50,8 @@ function seedAuthored(): void {
   const now = '2026-08-14T00:00:00Z'
 
   db.prepare(
-    `INSERT INTO projects (id, code, name, jira_project_key, repo_name, ticket_key_pattern)
-     VALUES ('p1', 'MERC', 'Mercury', 'MERC', 'mercury', '(MERC-\\d+)')`,
+    `INSERT INTO projects (id, code, name, jira_project_key)
+     VALUES ('p1', 'MERC', 'Mercury', 'MERC')`,
   ).run()
 
   for (const [id, type, body] of [

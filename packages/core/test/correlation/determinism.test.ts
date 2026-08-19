@@ -27,12 +27,7 @@ import { hoursAgo, input, keys, project, session, ticket } from './builders.js'
 function busyBoard() {
   const projects = [
     project(),
-    project({
-      id: 'p-atls',
-      code: 'ATLS',
-      jiraProjectKey: 'ATLS',
-      ticketKeyPattern: '(ATLS-\\d+)',
-    }),
+    project({ id: 'p-atls', code: 'ATLS', jiraProjectKey: 'ATLS' }),
   ]
 
   return input({

@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3'
 import type { CredentialStore } from '../auth/keychain.js'
-import { credentialRef, unavailableKeychain } from '../auth/keychain.js'
+import { credentialRef, parseCredentialRef, unavailableKeychain } from '../auth/keychain.js'
 import type { WorkItem } from '../domain/types.js'
 import type { Fetcher } from '../providers/http.js'
 import type { Envelope } from '../registry/envelope.js'
@@ -83,7 +83,8 @@ export interface CoreServicesOptions {
 
 export function createCoreServices(options: CoreServicesOptions): CoreServices {
   const open = { dir: options.dir, nativeBinding: options.nativeBinding }
-  const mirrorDb = openMirror(open).db
+  const openedMirror = openMirror(open)
+  const mirrorDb = openedMirror.db
   const authoredDb = openAuthored(open).db
 
   const mirror = mirrorRepository(mirrorDb)
@@ -113,6 +114,35 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   const outbox = outboxService({ outbox: outboxRepository(authoredDb), confirmations })
 
   const credentials = options.credentials ?? unavailableKeychain()
+
+  /*
+   * FR-112: delete the secrets belonging to connections the mirror migration
+   * removed.
+   *
+   * **The order is the whole thing, and it is enforced by position.**
+   * `openMirror` read these references before migration 4 dropped the rows
+   * holding them; after the migration there is nothing left that names them.
+   * Deleting first and reading after would find an empty list and leave a live
+   * token in the operator's keychain, unreachable and unremovable through any
+   * screen. `open.ts` has the read; `store/keychain-orphans.test.ts` has the
+   * ordering.
+   *
+   * Empty on every launch but the upgrade, and empty on that one too for an
+   * operator who never added a code host. Each deletion is caught on its own: a
+   * keyring that cannot be reached is a reason to leave the rest of the launch
+   * alone, not to fail it, and the alternative to a best-effort cleanup here is
+   * no cleanup at all.
+   */
+  for (const handle of openedMirror.orphanedCredentialRefs) {
+    const ref = parseCredentialRef(handle)
+    if (ref === null) continue
+    try {
+      credentials.delete(ref)
+    } catch {
+      // Nothing to report to. The secret belongs to a provider this application
+      // no longer speaks to, and a failed cleanup must not stop the app opening.
+    }
+  }
 
   /**
    * Providers are rebuilt per sync rather than cached.

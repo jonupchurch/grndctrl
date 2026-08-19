@@ -116,28 +116,31 @@ describe('a subject that has gone', () => {
     expect(note?.orphaned).toBe(false)
   })
 
-  it('answers per resource kind, not globally', () => {
-    // Branches have synced; tickets have not. One unsynced lane must not make
-    // the other lane's answers useless.
-    f.dropMirror()
-    f.mirror
-      .prepare(
-        `INSERT INTO connections (id, kind, site_or_host, account_label, credential_ref)
-         VALUES ('c-gh', 'github', 'github.com', 'work', 'grndctrl/c-gh')`,
-      )
-      .run()
-    f.mirror
-      .prepare(
-        `INSERT INTO freshness (connection_id, resource_kind, last_success_at)
-         VALUES ('c-gh', 'branches', '2026-08-14T09:00:00.000Z')`,
-      )
-      .run()
+  /**
+   * The three-valued answer, on a mirror that *has* synced.
+   *
+   * This test used to prove the answer was per resource kind rather than
+   * global: branches synced, tickets not, and one unsynced lane must not make
+   * the other lane's answers useless. There is one resource kind, so that
+   * particular pairing is unobservable — the code is unchanged and
+   * `hasEverSynced` still takes a kind.
+   *
+   * What replaces it is the distinction 006 created, which is the one an
+   * operator now meets: a ticket that really is gone reads `absent`, while a
+   * note on a pull request or a branch reads `unknown` — because those tables no
+   * longer exist and this application cannot tell. Reporting them `absent` would
+   * invite a cleanup of the operator's own writing on the strength of a claim it
+   * is not entitled to make.
+   */
+  it('distinguishes a subject that is gone from one it can no longer ask about', () => {
+    f.seedMirror()
+    f.mirror.prepare('DELETE FROM tickets').run()
 
     f.service.create({ subjectKey: SUBJECTS.ticket, type: 'todo', body: 'a' }, ctxFor('user'))
-    f.service.create({ subjectKey: SUBJECTS.branch, type: 'todo', body: 'b' }, ctxFor('user'))
+    f.service.create({ subjectKey: SUBJECTS.pull, type: 'todo', body: 'b' }, ctxFor('user'))
 
-    expect(f.service.list(SUBJECTS.ticket)[0]?.subjectPresence).toBe('unknown')
-    expect(f.service.list(SUBJECTS.branch)[0]?.subjectPresence).toBe('absent')
+    expect(f.service.list(SUBJECTS.ticket)[0]?.subjectPresence).toBe('absent')
+    expect(f.service.list(SUBJECTS.pull)[0]?.subjectPresence).toBe('unknown')
   })
 })
 

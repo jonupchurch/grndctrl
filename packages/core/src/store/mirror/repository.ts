@@ -2,14 +2,9 @@ import type { Database } from 'better-sqlite3'
 import type { NaturalKey, SubjectKind } from '../../domain/keys.js'
 import { subjectKindOf } from '../../domain/keys.js'
 import type {
-  BranchRef,
-  CheckResult,
-  Comparison,
   Connection,
   FailureReason,
   FreshnessRecord,
-  LocalWorkspace,
-  PullRequest,
   ResourceKind,
   Ticket,
   ViewerIdentity,
@@ -20,8 +15,15 @@ import type {
  *
  * Every write is an upsert keyed on the natural key, so a resync converges
  * rather than duplicating — and a partial sync leaves the rows it did not reach
- * untouched instead of deleting them. That is what lets one provider fail
- * without emptying its lane (XV).
+ * untouched instead of deleting them. That is what lets one connection fail
+ * without emptying the lane (XV).
+ *
+ * **Five entities left this file**: pull requests, check results, branch refs,
+ * comparisons and local workspaces. `replaceScoped` stays, with one caller.
+ * Its scoping — delete by connection, then insert — is the thing to keep hold
+ * of: it is what stopped one project's sync deleting another's rows on a shared
+ * connection, and 007 adds a second ticket query on the same connection, whose
+ * results have to go in through **one** call or the second discards the first.
  */
 
 export interface MirrorRepository {
@@ -33,20 +35,6 @@ export interface MirrorRepository {
   replaceTickets(connectionId: string, tickets: readonly Ticket[]): void
   listTickets(): Ticket[]
 
-  replacePullRequests(connectionId: string, pullRequests: readonly PullRequest[]): void
-  listPullRequests(): PullRequest[]
-
-  replaceChecks(connectionId: string, checks: readonly CheckResult[]): void
-  listChecks(): CheckResult[]
-
-  replaceBranches(connectionId: string, branches: readonly BranchRef[]): void
-  listBranches(): BranchRef[]
-
-  upsertComparisons(comparisons: readonly Comparison[]): void
-  listComparisons(): Comparison[]
-
-  replaceWorkspaces(workspaces: readonly LocalWorkspace[]): void
-  listWorkspaces(): LocalWorkspace[]
 
   /**
    * Does the mirror currently hold this subject?
@@ -159,62 +147,6 @@ export function mirrorRepository(db: Database): MirrorRepository {
     ],
   )
 
-  const replacePullsTx = replaceScoped<PullRequest>(
-    'pull_requests',
-    [
-      'key',
-      'connection_id',
-      'number',
-      'title',
-      'author',
-      'head_branch',
-      'head_sha',
-      'base_branch',
-      'state',
-      'is_draft',
-      'review_decision',
-      'requested_reviewers',
-      'unresolved_thread_count',
-      'merged_at',
-      'closed_at',
-      'last_real_activity_at',
-      'url',
-      'fetched_at',
-    ],
-    (p) => [
-      p.key,
-      p.connectionId,
-      p.number,
-      p.title,
-      JSON.stringify(p.author),
-      p.headBranch,
-      p.headSha,
-      p.baseBranch,
-      p.state,
-      p.isDraft ? 1 : 0,
-      p.reviewDecision,
-      JSON.stringify(p.requestedReviewers),
-      p.unresolvedThreadCount,
-      p.mergedAt,
-      p.closedAt,
-      p.lastRealActivityAt,
-      p.url,
-      p.fetchedAt,
-    ],
-  )
-
-  const replaceChecksTx = replaceScoped<CheckResult>(
-    'check_results',
-    ['key', 'connection_id', 'sha', 'name', 'state', 'is_required', 'url', 'completed_at', 'fetched_at'],
-    (c) => [c.key, c.connectionId, c.sha, c.name, c.state, c.isRequired ? 1 : 0, c.url, c.completedAt, c.fetchedAt],
-  )
-
-  const replaceBranchesTx = replaceScoped<BranchRef>(
-    'branch_refs',
-    ['key', 'connection_id', 'name', 'head_sha', 'updated_at', 'url', 'fetched_at'],
-    (b) => [b.key, b.connectionId, b.name, b.headSha, b.updatedAt, b.url, b.fetchedAt],
-  )
-
   return {
     upsertConnection(connection) {
       db.prepare(
@@ -283,145 +215,6 @@ export function mirrorRepository(db: Database): MirrorRepository {
       }))
     },
 
-    replacePullRequests: (connectionId, pulls) => void replacePullsTx(connectionId, pulls),
-
-    listPullRequests() {
-      return (db.prepare('SELECT * FROM pull_requests ORDER BY key').all() as Record<string, unknown>[]).map(
-        (r) => ({
-          key: r['key'] as NaturalKey,
-          connectionId: String(r['connection_id']),
-          number: Number(r['number']),
-          title: String(r['title']),
-          author: json<ViewerIdentity | null>(r['author'], null),
-          headBranch: String(r['head_branch']),
-          headSha: String(r['head_sha']),
-          baseBranch: String(r['base_branch']),
-          state: r['state'] as PullRequest['state'],
-          isDraft: r['is_draft'] === 1,
-          reviewDecision: (nullableString(r['review_decision']) ?? null) as PullRequest['reviewDecision'],
-          requestedReviewers: json<ViewerIdentity[]>(r['requested_reviewers'], []),
-          unresolvedThreadCount: Number(r['unresolved_thread_count']),
-          mergedAt: nullableString(r['merged_at']),
-          closedAt: nullableString(r['closed_at']),
-          lastRealActivityAt: nullableString(r['last_real_activity_at']),
-          url: String(r['url']),
-          fetchedAt: String(r['fetched_at']),
-        }),
-      )
-    },
-
-    replaceChecks: (connectionId, checks) => void replaceChecksTx(connectionId, checks),
-
-    listChecks() {
-      return (db.prepare('SELECT * FROM check_results ORDER BY key').all() as Record<string, unknown>[]).map(
-        (r) => ({
-          key: r['key'] as NaturalKey,
-          connectionId: String(r['connection_id']),
-          sha: String(r['sha']),
-          name: String(r['name']),
-          state: r['state'] as CheckResult['state'],
-          isRequired: r['is_required'] === 1,
-          url: String(r['url']),
-          completedAt: nullableString(r['completed_at']),
-          fetchedAt: String(r['fetched_at']),
-        }),
-      )
-    },
-
-    replaceBranches: (connectionId, branches) => void replaceBranchesTx(connectionId, branches),
-
-    listBranches() {
-      return (db.prepare('SELECT * FROM branch_refs ORDER BY key').all() as Record<string, unknown>[]).map(
-        (r) => ({
-          key: r['key'] as NaturalKey,
-          connectionId: String(r['connection_id']),
-          name: String(r['name']),
-          headSha: String(r['head_sha']),
-          updatedAt: String(r['updated_at']),
-          url: String(r['url']),
-          fetchedAt: String(r['fetched_at']),
-        }),
-      )
-    },
-
-    upsertComparisons(comparisons) {
-      const stmt = db.prepare(
-        `INSERT INTO comparisons (branch_key, base_ref, ahead_by, behind_by, compared_at_sha, fetched_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(branch_key, base_ref) DO UPDATE SET
-           ahead_by = excluded.ahead_by, behind_by = excluded.behind_by,
-           compared_at_sha = excluded.compared_at_sha, fetched_at = excluded.fetched_at`,
-      )
-      db.transaction(() => {
-        for (const c of comparisons) {
-          stmt.run(c.branchKey, c.baseRef, c.aheadBy, c.behindBy, c.comparedAtSha, c.fetchedAt)
-        }
-      })()
-    },
-
-    listComparisons() {
-      return (db.prepare('SELECT * FROM comparisons ORDER BY branch_key').all() as Record<string, unknown>[]).map(
-        (r) => ({
-          branchKey: r['branch_key'] as NaturalKey,
-          baseRef: String(r['base_ref']),
-          // Preserved as null rather than coerced. `?? 0` here would quietly
-          // turn "never pushed" into "nothing to push" (FR-018).
-          aheadBy: nullableNumber(r['ahead_by']),
-          behindBy: nullableNumber(r['behind_by']),
-          comparedAtSha: String(r['compared_at_sha']),
-          fetchedAt: String(r['fetched_at']),
-        }),
-      )
-    },
-
-    replaceWorkspaces(workspaces) {
-      const insert = db.prepare(
-        `INSERT INTO local_workspaces
-           (key, repo_path, canonical_remote, branch, worktree_id, is_primary_worktree,
-            worktree_present, has_uncommitted_changes, unpushed_commit_count, head_sha,
-            upstream_ref, read_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      db.transaction(() => {
-        db.prepare('DELETE FROM local_workspaces').run()
-        for (const w of workspaces) {
-          insert.run(
-            w.key,
-            w.repoPath,
-            w.canonicalRemote,
-            w.branch,
-            w.worktreeId,
-            w.isPrimaryWorktree ? 1 : 0,
-            w.worktreePresent ? 1 : 0,
-            w.hasUncommittedChanges ? 1 : 0,
-            w.unpushedCommitCount,
-            w.headSha,
-            w.upstreamRef,
-            w.readAt,
-          )
-        }
-      })()
-    },
-
-    listWorkspaces() {
-      return (db.prepare('SELECT * FROM local_workspaces ORDER BY key').all() as Record<string, unknown>[]).map(
-        (r) => ({
-          key: r['key'] as NaturalKey,
-          repoPath: String(r['repo_path']),
-          canonicalRemote: String(r['canonical_remote']),
-          branch: String(r['branch']),
-          worktreeId: String(r['worktree_id']),
-          isPrimaryWorktree: r['is_primary_worktree'] === 1,
-          worktreePresent: r['worktree_present'] === 1,
-          hasUncommittedChanges: r['has_uncommitted_changes'] === 1,
-          unpushedCommitCount: nullableNumber(r['unpushed_commit_count']),
-          headSha: String(r['head_sha']),
-          upstreamRef: nullableString(r['upstream_ref']),
-          readAt: String(r['read_at']),
-        }),
-      )
-    },
-
     hasSubject(key) {
       const kind = subjectKindOf(key)
       if (kind === null) return false
@@ -433,9 +226,9 @@ export function mirrorRepository(db: Database): MirrorRepository {
     },
 
     hasEverSynced(kind) {
-      // Local git has no connection row — it is not an authenticated provider —
-      // so its freshness is recorded under a reserved id. Either way the
-      // question is the same: has any connection ever succeeded for this kind?
+      // Has any connection ever succeeded for this kind? With two Jira sites and
+      // one never synced, the lane has real data and the question is answerable
+      // — which is the reason this is asked per kind rather than per row.
       const row = db
         .prepare('SELECT 1 FROM freshness WHERE resource_kind = ? AND last_success_at IS NOT NULL LIMIT 1')
         .get(kind)
@@ -493,16 +286,19 @@ export function mirrorRepository(db: Database): MirrorRepository {
  * it does not recognise before reaching here. No caller-supplied string ever
  * reaches the query text.
  *
- * `repository` is absent because the mirror has no repository table (a
- * repository is implied by its branches), and `session` because sessions live
- * in `authored.db`, which this file cannot see.
+ * `session` is absent because sessions live in `authored.db`, which this file
+ * cannot see. Four more kinds are absent now — pull request, branch, workspace,
+ * check — because their tables are dropped by migration 4.
+ *
+ * `subjectKindOf` still *parses* all of them, deliberately (T040): a note
+ * written before 006 carries such a key and has to stay readable. What changes
+ * here is that this map cannot answer for one, so `hasSubject` returns false and
+ * the presence resolver reports `unknown` rather than `absent`. That is the
+ * right answer: the note's subject may well still exist at the code host, and
+ * this application is simply no longer in a position to say.
  */
 const SUBJECT_TABLES: Partial<Record<SubjectKind, string>> = {
   ticket: 'tickets',
-  'pull-request': 'pull_requests',
-  branch: 'branch_refs',
-  workspace: 'local_workspaces',
-  check: 'check_results',
 }
 
 function nullableString(v: unknown): string | null {

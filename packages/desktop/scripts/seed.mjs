@@ -64,11 +64,16 @@ const { mirror, projects, sessions } = services
 
 // Connections first: every other table is keyed by one, and the freshness rows
 // hang off them.
+//
+// Only the Jira ones. A scenario written for 0.3.0 still names a
+// `githubConnectionId`, and seeding it would now fail on the CHECK constraint
+// migration 4 leaves behind. Ignored rather than made an error: these scenarios
+// are rewritten in M5, and a seed script that refused to load them until then
+// would take the whole end-to-end suite with it.
 const connectionIds = new Set()
 for (const project of input.projects ?? []) {
-  for (const id of [project.jiraConnectionId, project.githubConnectionId]) {
-    if (id !== null && id !== undefined) connectionIds.add(id)
-  }
+  const id = project.jiraConnectionId
+  if (id !== null && id !== undefined) connectionIds.add(id)
 }
 
 for (const id of connectionIds) {
@@ -76,8 +81,8 @@ for (const id of connectionIds) {
 
   mirror.upsertConnection({
     id,
-    kind: id.startsWith('jira') ? 'jira' : 'github',
-    siteOrHost: id.startsWith('jira') ? 'example.atlassian.net' : 'github.com',
+    kind: 'jira',
+    siteOrHost: 'example.atlassian.net',
     accountLabel: `${id} (seeded)`,
     // The viewer identity is what makes "mine" resolvable, and the scenarios
     // carry the account id their tickets are assigned to. Without it every row
@@ -90,7 +95,14 @@ for (const id of connectionIds) {
   })
 }
 
-for (const project of input.projects ?? []) projects.upsert(project)
+// The four removed columns are dropped on the way in, for the same reason: a
+// 0.3.0 scenario still carries them and `projects.upsert` no longer takes them.
+for (const project of input.projects ?? []) {
+  const { githubConnectionId, repoOwner, repoName, checkoutPaths, ticketKeyPattern, ...kept } =
+    project
+  void [githubConnectionId, repoOwner, repoName, checkoutPaths, ticketKeyPattern]
+  projects.upsert(kept)
+}
 
 const byConnection = (rows, key) => {
   const groups = new Map()
@@ -102,18 +114,17 @@ const byConnection = (rows, key) => {
   return groups
 }
 
+// Tickets only. A scenario's `pullRequests`, `checks`, `branches`,
+// `comparisons` and `workspaces` have no table to go into any more; they are
+// skipped here and removed from the scenarios themselves in M5.
 for (const [id, rows] of byConnection(input.tickets, 'connectionId')) mirror.replaceTickets(id, rows)
-for (const [id, rows] of byConnection(input.pullRequests, 'connectionId')) mirror.replacePullRequests(id, rows)
-for (const [id, rows] of byConnection(input.checks, 'connectionId')) mirror.replaceChecks(id, rows)
-for (const [id, rows] of byConnection(input.branches, 'connectionId')) mirror.replaceBranches(id, rows)
-
-mirror.upsertComparisons(input.comparisons ?? [])
-mirror.replaceWorkspaces(input.workspaces ?? [])
 
 // Freshness last, and from the scenario rather than from the clock: several of
 // these scenarios exist precisely to put a lane into `stale` or `failed`, and
 // stamping everything fresh would erase the thing being demonstrated.
-for (const entry of scenario.freshness ?? []) {
+for (const entry of (scenario.freshness ?? []).filter(
+  (e) => (e.resourceKind ?? e.kind) === 'tickets',
+)) {
   // The scenarios say `resourceKind`; the repository takes `kind`. A seed that
   // guessed would write NULL and the lane would read as never-synced, which is
   // a state these scenarios use deliberately elsewhere — so it has to be exact.

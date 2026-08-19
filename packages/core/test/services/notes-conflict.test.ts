@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { isOperationError, type OperationError } from '../../src/registry/errors.js'
-import { ctxFor, fixture, seedBranch, SUBJECTS, type Fixture } from './notes-fixture.js'
+import { ctxFor, fixture, seedTicket, SUBJECTS, type Fixture } from './notes-fixture.js'
 
 /**
  * FR-055: a write against a stale revision is rejected, and the rejection
@@ -141,24 +141,54 @@ describe('resolving a question', () => {
   })
 })
 
-describe('a branch deleted and recreated with the same name', () => {
+/**
+ * The property FR-050 and FR-056 are about, demonstrated on a ticket.
+ *
+ * It used to be demonstrated on a branch — deleted, force-pushed back under
+ * the same name, note re-attaching to a new row — which was the sharper
+ * version, because a branch really does come and go. A ticket moving out of the
+ * bound project and back is rarer but is the same mechanism: the note is
+ * attached to a natural key and never to a mirrored row id, so the row can be
+ * deleted and recreated underneath it.
+ */
+describe('a subject deleted and then reappearing', () => {
   it('re-attaches, because the key never depended on the row', () => {
     const note = f.service.create(
-      { subjectKey: SUBJECTS.branch, type: 'gotcha', body: 'Rebase this before merging.' },
+      { subjectKey: SUBJECTS.ticket, type: 'gotcha', body: 'Check the migration first.' },
       ctxFor('user'),
     )
 
-    f.mirror.prepare('DELETE FROM branch_refs').run()
-    expect(f.service.list(SUBJECTS.branch)[0]?.orphaned).toBe(true)
+    f.mirror.prepare('DELETE FROM tickets').run()
+    expect(f.service.list(SUBJECTS.ticket)[0]?.orphaned).toBe(true)
 
-    // Someone force-pushes the branch back. Same name, same remote, new row.
-    seedBranch(f.mirror)
+    // The ticket comes back on the next sync. Same key, new row.
+    seedTicket(f.mirror)
 
-    const [back] = f.service.list(SUBJECTS.branch)
+    const [back] = f.service.list(SUBJECTS.ticket)
     expect(back?.id).toBe(note.id)
     expect(back?.orphaned).toBe(false)
     // Still editable at the revision it had. Orphaning is not a state change.
     expect(back?.revision).toBe(1)
+  })
+
+  /**
+   * And a note on a subject whose *table* is gone is `unknown`, not orphaned.
+   *
+   * 006 removed the pull request, branch, checkout and check tables. The notes
+   * on them are kept (FR-109), and the honest answer about their subjects is
+   * that this application can no longer tell. Reporting them orphaned would be
+   * a claim it is not in a position to make, and would invite a cleanup of the
+   * operator's own writing on the strength of it.
+   */
+  it('reports a note on a removed subject kind as unknown rather than orphaned', () => {
+    f.service.create(
+      { subjectKey: SUBJECTS.pull, type: 'gotcha', body: 'The retry masks a 500.' },
+      ctxFor('user'),
+    )
+
+    const [note] = f.service.list(SUBJECTS.pull)
+    expect(note?.body).toBe('The retry masks a 500.')
+    expect(note?.orphaned).toBe(false)
   })
 })
 

@@ -140,16 +140,6 @@ export function connectionsService(deps: ConnectionsServiceDeps): ConnectionsSer
         return fail('credential', 'no secret is stored for this connection')
       }
 
-      // Still checked. A `github` row written by 0.3.0 is in the mirror until
-      // M4's migration drops it, and pointing a Jira client at `github.com`
-      // would report an authentication failure the operator cannot act on.
-      if (connection.kind !== 'jira') {
-        return fail(
-          'provider',
-          'This connection is for a code host, which Ground Control no longer reads. Remove it.',
-        )
-      }
-
       return testJira(connection, secret, deps)
     },
 

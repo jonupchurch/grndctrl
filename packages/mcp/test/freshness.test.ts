@@ -68,11 +68,14 @@ describe('every provider-derived read', () => {
     const at = (offsetSec: number) => new Date(Date.now() + offsetSec * 1000).toISOString()
 
     // Four connections, each in a different state, so the distinction is proved
-    // rather than assumed from one of them.
+    // rather than assumed from one of them. They used to be four *resource
+    // kinds* as well; with one kind left the four states are still four, which
+    // is the thing under test — freshness is keyed on the pair, and the
+    // connection half is the half an operator with two Jira sites has.
     h.services.mirror.recordSuccess('c-fresh', 'tickets', at(0))
-    h.services.mirror.recordSuccess('c-stale', 'pulls', at(-86_400))
-    h.services.mirror.recordSuccess('c-failed', 'branches', at(-60))
-    h.services.mirror.recordFailure('c-failed', 'branches', at(-10), 'auth', null)
+    h.services.mirror.recordSuccess('c-stale', 'tickets', at(-86_400))
+    h.services.mirror.recordSuccess('c-failed', 'tickets', at(-60))
+    h.services.mirror.recordFailure('c-failed', 'tickets', at(-10), 'auth', null)
     // c-never records nothing at all.
 
     const status = (await callTool('grndctrl_get_freshness')) as {
@@ -107,8 +110,8 @@ describe('every provider-derived read', () => {
   })
 
   it('marks the envelope partial when a provider failed', async () => {
-    h.services.mirror.recordSuccess('c-gh', 'pulls', new Date(Date.now() - 60_000).toISOString())
-    h.services.mirror.recordFailure('c-gh', 'pulls', new Date().toISOString(), 'rateLimit', null)
+    h.services.mirror.recordSuccess('c-jira', 'tickets', new Date(Date.now() - 60_000).toISOString())
+    h.services.mirror.recordFailure('c-jira', 'tickets', new Date().toISOString(), 'rateLimit', null)
 
     const board = (await callTool('grndctrl_get_board')) as { partial: boolean }
     // XV: the board still renders, and says it is incomplete. Hiding the lane

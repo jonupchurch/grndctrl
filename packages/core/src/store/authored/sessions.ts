@@ -33,7 +33,6 @@ export interface SessionPatch {
   lastRealActivityAt?: Timestamp
   reportedStatus?: string | null
   workItemKey?: NaturalKey | null
-  workspaceKey?: NaturalKey | null
   projectId?: string | null
   endedAt?: Timestamp | null
   outcome?: 'done' | 'failed' | null
@@ -60,13 +59,12 @@ export function sessionsRepository(db: Database): SessionsRepository {
    */
   const upsert = db.prepare(
     `INSERT INTO agent_sessions
-       (key, agent_id, session_id, project_id, work_item_key, workspace_key, reported_status,
+       (key, agent_id, session_id, project_id, work_item_key, reported_status,
         started_at, last_heartbeat_at, last_real_activity_at, ended_at, outcome, heartbeat_interval_sec)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(key) DO UPDATE SET
        project_id             = excluded.project_id,
        work_item_key          = excluded.work_item_key,
-       workspace_key          = excluded.workspace_key,
        reported_status        = excluded.reported_status,
        last_heartbeat_at      = excluded.last_heartbeat_at,
        ended_at               = NULL,
@@ -94,7 +92,6 @@ export function sessionsRepository(db: Database): SessionsRepository {
         session.sessionId,
         session.projectId,
         session.workItemKey,
-        session.workspaceKey,
         session.reportedStatus,
         session.startedAt,
         session.lastHeartbeatAt,
@@ -117,7 +114,6 @@ export function sessionsRepository(db: Database): SessionsRepository {
         lastRealActivityAt: 'last_real_activity_at',
         reportedStatus: 'reported_status',
         workItemKey: 'work_item_key',
-        workspaceKey: 'workspace_key',
         projectId: 'project_id',
         endedAt: 'ended_at',
         outcome: 'outcome',
@@ -150,7 +146,6 @@ function toSession(row: Record<string, unknown>): AgentSession {
     sessionId: String(row['session_id']),
     projectId: nullable(row['project_id']),
     workItemKey: nullable(row['work_item_key']) as NaturalKey | null,
-    workspaceKey: nullable(row['workspace_key']) as NaturalKey | null,
     reportedStatus: nullable(row['reported_status']),
     startedAt: String(row['started_at']),
     lastHeartbeatAt: String(row['last_heartbeat_at']),

@@ -25,7 +25,7 @@ interface Harness {
   /** Connections whose sync should throw rather than report. */
   throwing: Set<string>
   connections: { id: string; kind: ProviderKind }[]
-  intervals: { github: number; jira: number }
+  intervals: { jira: number }
   timers: { run: () => void; ms: number }[]
   cleared: unknown[]
 }
@@ -41,21 +41,24 @@ function harness(): Harness {
     failing: new Set(),
     throwing: new Set(),
     /*
-     * Two connections of two kinds, and the second kind is on borrowed time.
+     * Two connections of one kind, on one cadence.
      *
-     * Every timing assertion below rests on the two default cadences being
-     * different — 60s and 300s — which is what makes "each target holds its
-     * own cadence" and "backing one off does not move the other" observable at
-     * all. M4 narrows `ProviderKind` to `jira` and reshapes `pollIntervalSec` to
-     * one field, and this harness has to become two Jira connections at one
-     * cadence then. It is not done here because a `github` row is still in the
-     * mirror until M4's migration deletes it, and a scheduler that could not
-     * describe a connection it is being handed is a scheduler that would crash
-     * on the operator's existing database.
+     * They were two *kinds* on two cadences — 60s GitHub, 300s Jira — and the
+     * difference was what made "each target holds its own cadence" observable.
+     * With one provider that pairing is gone, and what these tests demonstrate
+     * instead is the case an operator actually has: two Jira sites, or a work
+     * account and a personal one. The properties that matter survive the change,
+     * because none of them was ever about the *kinds* being different:
+     *
+     * - backing one target off must not move the other;
+     * - the interval is re-read from settings rather than captured;
+     * - a hand refresh restarts that target's clock and nothing else's.
+     *
+     * Sorted so `jira-1` polls before `jira-2` and the assertions can name them.
      */
     connections: [
-      { id: 'gh-1', kind: 'github' },
       { id: 'jira-1', kind: 'jira' },
+      { id: 'jira-2', kind: 'jira' },
     ],
     intervals: { ...DEFAULT_SETTINGS.pollIntervalSec },
     timers: [],
@@ -110,25 +113,26 @@ describe('poll scheduler', () => {
     // Every target is a connection. Local git used to be appended as a
     // pseudo-target under a reserved id, so the lane it fed aged and recovered
     // by the same rules as everything else; there is no such lane now.
-    expect(h.polls).toEqual(['gh-1', 'jira-1'])
+    expect(h.polls).toEqual(['jira-1', 'jira-2'])
   })
 
-  it('holds each provider to its own cadence', async () => {
+  it('holds each target to the cadence rather than polling every tick', async () => {
     const h = harness()
     const poller = scheduler(h.deps)
 
     await poller.tick()
     h.polls.length = 0
 
-    // 60s GitHub, 5min Jira. At two minutes GitHub is twice due and Jira is not
-    // due at all — the difference the two defaults exist to express.
-    for (let elapsed = 0; elapsed < 2 * MINUTE; elapsed += 15 * SECOND) {
+    // 300s, ticking every 15. Twenty ticks inside one interval must produce one
+    // poll each, not twenty — the scheduler's whole job is that the tick rate
+    // and the poll rate are different numbers.
+    for (let elapsed = 0; elapsed < 6 * MINUTE; elapsed += 15 * SECOND) {
       h.advance(15 * SECOND)
       await poller.tick()
     }
 
-    expect(h.polls.filter((id) => id === 'gh-1')).toHaveLength(2)
-    expect(h.polls.filter((id) => id === 'jira-1')).toHaveLength(0)
+    expect(h.polls.filter((id) => id === 'jira-2')).toHaveLength(1)
+    expect(h.polls.filter((id) => id === 'jira-2')).toHaveLength(1)
   })
 
   it('takes the interval from settings, read fresh rather than captured', async () => {
@@ -141,90 +145,91 @@ describe('poll scheduler', () => {
     // Changed in Settings after the scheduler started. A scheduler that read
     // its intervals once at construction would keep the old cadence until the
     // app restarted, which is exactly the kind of setting that looks broken.
-    h.intervals.github = 600
-    h.advance(2 * MINUTE)
+    h.intervals.jira = 1_200
+    h.advance(6 * MINUTE)
     await poller.tick()
 
-    expect(h.polls).not.toContain('gh-1')
+    expect(h.polls).not.toContain('jira-2')
 
-    h.advance(9 * MINUTE)
+    h.advance(15 * MINUTE)
     await poller.tick()
-    expect(h.polls).toContain('gh-1')
+    expect(h.polls).toContain('jira-2')
   })
 
   it('backs a failing connection off, and only that connection', async () => {
     const h = harness()
     const poller = scheduler(h.deps)
 
-    h.failing.add('gh-1')
+    h.failing.add('jira-1')
     await poller.tick()
     h.polls.length = 0
 
-    // One failure doubles it: not due at 60s.
-    h.advance(70 * SECOND)
+    // One failure doubles the 300s base: not due at 300s.
+    h.advance(310 * SECOND)
     await poller.tick()
-    expect(h.polls).not.toContain('gh-1')
+    expect(h.polls).not.toContain('jira-1')
 
-    // Due at 120s.
-    h.advance(60 * SECOND)
+    // Due at 600s.
+    h.advance(300 * SECOND)
     await poller.tick()
-    expect(h.polls).toContain('gh-1')
-
-    // Two failures now — 240s — while the other connection, which is fine,
-    // kept its own cadence throughout. XV in the time dimension: one connection
-    // failing must not change what any other connection does. The healthy
-    // target used to be local git; it is now the Jira connection, which is due
-    // at 300s and so is polled inside this window.
-    //
-    // The window is chosen so both halves are live at once: at t=310s the failing
-    // connection is not due (last polled at 130s, backed off to 240s) and the
-    // healthy one is (last polled at 0s, due every 300s). A window where the
-    // second was also not due would make the first assertion pass for the wrong
-    // reason.
-    h.polls.length = 0
-    h.advance(180 * SECOND)
-    await poller.tick()
-    expect(h.polls).not.toContain('gh-1')
     expect(h.polls).toContain('jira-1')
+
+    // Two failures now — 1200s — while the healthy connection kept its own
+    // cadence throughout. XV in the time dimension: one connection failing must
+    // not change what any other connection does.
+    //
+    // The window is chosen so both halves are live at once. At t=910s the failing
+    // target was last polled at 610s and is not due until 1810s; the healthy one
+    // was last polled at 610s (it is due every 300s) and is. A window where
+    // neither was due would make the first assertion pass for the wrong reason.
+    h.polls.length = 0
+    h.advance(300 * SECOND)
+    await poller.tick()
+    expect(h.polls).not.toContain('jira-1')
+    expect(h.polls).toContain('jira-2')
   })
 
   it('treats a thrown sync as a failure', async () => {
     const h = harness()
     const poller = scheduler(h.deps)
 
-    h.throwing.add('gh-1')
+    h.throwing.add('jira-1')
     await poller.tick()
 
-    expect(poller.state().find((s) => s.id === 'gh-1')?.failures).toBe(1)
+    expect(poller.state().find((s) => s.id === 'jira-1')?.failures).toBe(1)
   })
 
   it('recovers to the normal cadence as soon as a poll succeeds', async () => {
     const h = harness()
     const poller = scheduler(h.deps)
 
-    h.failing.add('gh-1')
+    h.failing.add('jira-1')
     await poller.tick()
-    h.advance(2 * MINUTE)
+    // Past the doubled 600s interval, so the second attempt actually happens.
+    h.advance(11 * MINUTE)
     await poller.tick()
-    expect(poller.state().find((s) => s.id === 'gh-1')?.failures).toBe(2)
+    expect(poller.state().find((s) => s.id === 'jira-1')?.failures).toBe(2)
 
-    // The operator fixes the credential.
-    h.failing.delete('gh-1')
-    h.advance(4 * MINUTE)
+    // The operator fixes the credential. Past the twice-doubled 1200s.
+    h.failing.delete('jira-1')
+    h.advance(21 * MINUTE)
     await poller.tick()
-    expect(poller.state().find((s) => s.id === 'gh-1')?.failures).toBe(0)
+    expect(poller.state().find((s) => s.id === 'jira-1')?.failures).toBe(0)
 
+    // Back on the ordinary 300s cadence, not the 1200s it had backed off to.
+    // That is the recovery being asserted: a target that failed twice and then
+    // succeeded must not keep waiting as though it were still broken.
     h.polls.length = 0
-    h.advance(61 * SECOND)
+    h.advance(301 * SECOND)
     await poller.tick()
-    expect(h.polls).toContain('gh-1')
+    expect(h.polls).toContain('jira-1')
   })
 
   it('caps the backoff at half an hour', async () => {
     const h = harness()
     const poller = scheduler(h.deps)
 
-    h.failing.add('jira-1')
+    h.failing.add('jira-2')
 
     // Eight failures, with 31 minutes between attempts — one minute more than
     // the cap. Capped, every attempt is due and all eight land. Uncapped, the
@@ -240,7 +245,7 @@ describe('poll scheduler', () => {
       h.advance(31 * MINUTE)
     }
 
-    expect(poller.state().find((s) => s.id === 'jira-1')?.failures).toBe(8)
+    expect(poller.state().find((s) => s.id === 'jira-2')?.failures).toBe(8)
   })
 
   it('does not start a second poll for a target still running', async () => {
@@ -254,7 +259,7 @@ describe('poll scheduler', () => {
       ...h.deps,
       sync: async (connectionId) => {
         h.polls.push(connectionId)
-        if (connectionId === 'gh-1') await blocked
+        if (connectionId === 'jira-1') await blocked
         return report(connectionId, true)
       },
     }
@@ -267,7 +272,7 @@ describe('poll scheduler', () => {
     // for each minute it was already late.
     h.advance(5 * MINUTE)
     await poller.tick()
-    expect(h.polls.filter((id) => id === 'gh-1')).toHaveLength(1)
+    expect(h.polls.filter((id) => id === 'jira-1')).toHaveLength(1)
 
     release?.()
     await first
@@ -280,15 +285,15 @@ describe('poll scheduler', () => {
     await poller.tick()
     h.polls.length = 0
 
-    h.connections.push({ id: 'gh-2', kind: 'github' })
+    h.connections.push({ id: 'jira-3', kind: 'jira' })
     await poller.tick()
-    expect(h.polls).toEqual(['gh-2'])
+    expect(h.polls).toEqual(['jira-3'])
 
     // Removed in Settings. Its backoff state goes with it, so re-adding a
     // connection that had been failing does not inherit a half-hour wait.
-    h.connections = h.connections.filter((c) => c.id !== 'gh-2')
+    h.connections = h.connections.filter((c) => c.id !== 'jira-3')
     await poller.tick()
-    expect(poller.state().map((s) => s.id)).not.toContain('gh-2')
+    expect(poller.state().map((s) => s.id)).not.toContain('jira-3')
   })
 
   it('restarts the clock when the operator refreshes by hand', async () => {
@@ -298,20 +303,23 @@ describe('poll scheduler', () => {
     await poller.tick()
     h.polls.length = 0
 
-    // 50 seconds later the operator clicks Refresh on the pulls lane. Without
-    // this, the automatic poll fires ten seconds afterwards and asks GitHub the
-    // same question twice.
-    h.advance(50 * SECOND)
-    const dispatch = poller.observing(async () => report('gh-1', true))
-    await dispatch('sync.now', { connectionId: 'gh-1' })
+    // Most of the way through the interval the operator presses Refresh.
+    // Without this, the automatic poll fires shortly afterwards and asks the
+    // tracker the same question twice.
+    h.advance(280 * SECOND)
+    const dispatch = poller.observing(async () => report('jira-1', true))
+    await dispatch('sync.now', { connectionId: 'jira-1' })
 
-    h.advance(20 * SECOND)
+    // Past when it *would* have been due, had the hand refresh not counted.
+    h.advance(40 * SECOND)
     await poller.tick()
-    expect(h.polls).not.toContain('gh-1')
+    expect(h.polls).not.toContain('jira-1')
 
-    h.advance(45 * SECOND)
+    // And due again 300s after the hand refresh, not after the last automatic
+    // poll — the clock restarted rather than being suppressed once.
+    h.advance(280 * SECOND)
     await poller.tick()
-    expect(h.polls).toContain('gh-1')
+    expect(h.polls).toContain('jira-1')
   })
 
   it('clears every target when a hand refresh names no connection', async () => {
@@ -326,8 +334,8 @@ describe('poll scheduler', () => {
       startedAt: '',
       finishedAt: '',
       results: [
-        { connectionId: 'gh-1', resourceKind: 'tickets' as const, ok: true, count: 1 },
-        { connectionId: 'jira-1', resourceKind: 'tickets' as const, ok: true, count: 2 },
+        { connectionId: 'jira-1', resourceKind: 'tickets' as const, ok: true, count: 1 },
+        { connectionId: 'jira-2', resourceKind: 'tickets' as const, ok: true, count: 2 },
       ],
     }))
     await dispatch('sync.now', {})
@@ -347,9 +355,9 @@ describe('poll scheduler', () => {
     const dispatch = poller.observing(async () => ({ ok: true }))
     await dispatch('notes.create', { body: 'x' })
 
-    h.advance(61 * SECOND)
+    h.advance(301 * SECOND)
     await poller.tick()
-    expect(h.polls).toContain('gh-1')
+    expect(h.polls).toContain('jira-1')
   })
 
   it('counts a failed hand refresh towards backoff', async () => {
@@ -357,10 +365,10 @@ describe('poll scheduler', () => {
     const poller = scheduler(h.deps)
 
     await poller.tick()
-    const dispatch = poller.observing(async () => report('gh-1', false))
-    await dispatch('sync.now', { connectionId: 'gh-1' })
+    const dispatch = poller.observing(async () => report('jira-1', false))
+    await dispatch('sync.now', { connectionId: 'jira-1' })
 
-    expect(poller.state().find((s) => s.id === 'gh-1')?.failures).toBe(1)
+    expect(poller.state().find((s) => s.id === 'jira-1')?.failures).toBe(1)
   })
 
   it('survives a tick taken while the service is closing', async () => {
@@ -390,7 +398,7 @@ describe('poll scheduler', () => {
     h.timers[0]?.run()
     await settle()
 
-    expect(h.polls).toEqual(['gh-1', 'jira-1'])
+    expect(h.polls).toEqual(['jira-1', 'jira-2'])
     expect(h.timers[1]?.ms).toBe(15_000)
 
     stop()

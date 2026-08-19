@@ -109,3 +109,6 @@ packages/desktop/native/*
 
 packages/desktop/test-results/
 packages/desktop/playwright-report/
+
+# A scratch data directory for launching the board by hand.
+.board-scratch/

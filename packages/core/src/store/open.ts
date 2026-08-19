@@ -4,12 +4,25 @@ import Database from 'better-sqlite3'
 import type { Database as Db } from 'better-sqlite3'
 import { AUTHORED_MIGRATIONS } from './authored/migrations.js'
 import { MIRROR_MIGRATIONS } from './mirror/migrations.js'
-import { migrate, type MigrationResult } from './migrate.js'
+import { currentVersion, migrate, type MigrationResult } from './migrate.js'
 import { authoredDbPath, mirrorDbPath } from './paths.js'
 
 export interface OpenedStore {
   db: Db
   migration: MigrationResult
+}
+
+export interface OpenedMirror extends OpenedStore {
+  /**
+   * Keychain handles belonging to connections migration 4 deleted (FR-112).
+   *
+   * Empty on every launch but the one that upgrades, and empty on that one too
+   * for an operator who never added a code host. **The caller must delete each
+   * secret**; nothing else can, because after the migration there is no row
+   * naming them and no screen that can reach them. A secret left behind is
+   * unreachable, unremovable through the interface, and still a secret.
+   */
+  orphanedCredentialRefs: string[]
 }
 
 export interface OpenOptions {
@@ -61,8 +74,41 @@ const isoNow = () => new Date().toISOString()
  * Deleting this file is supported and tested: the app rebuilds it from the
  * providers, and nothing the user authored is affected (constitution XIII).
  */
-export function openMirror(opts: OpenOptions = {}): OpenedStore {
-  return open(mirrorDbPath(opts.dir), MIRROR_MIGRATIONS, opts.now ?? isoNow, opts.nativeBinding)
+export function openMirror(opts: OpenOptions = {}): OpenedMirror {
+  const path = mirrorDbPath(opts.dir)
+  mkdirSync(dirname(path), { recursive: true })
+
+  const db = new Database(path, opts.nativeBinding === undefined ? {} : { nativeBinding: opts.nativeBinding })
+  db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
+  db.pragma('busy_timeout = 5000')
+
+  /*
+   * Read the credential references before migration 4 drops the rows holding
+   * them (FR-112). After it runs there is nothing left to read them from, which
+   * is why this is here rather than inside the migration — and it is outside
+   * the migration rather than in it because deleting from the OS keychain is
+   * something no transaction can roll back.
+   *
+   * Guarded on the version so it is one cheap query on the upgrade launch and
+   * nothing at all afterwards. `try` because a database that has never been
+   * created has no `connections` table to ask, which is the ordinary first-run
+   * case and not a failure.
+   */
+  const orphanedCredentialRefs: string[] = []
+  if (currentVersion(db) < 4) {
+    try {
+      const rows = db
+        .prepare(`SELECT credential_ref FROM connections WHERE kind <> 'jira'`)
+        .all() as { credential_ref: string }[]
+      orphanedCredentialRefs.push(...rows.map((r) => r.credential_ref).filter((r) => r !== ''))
+    } catch {
+      // No `connections` table yet. First run.
+    }
+  }
+
+  const migration = migrate(db, MIRROR_MIGRATIONS, opts.now ?? isoNow)
+  return { db, migration, orphanedCredentialRefs }
 }
 
 /**

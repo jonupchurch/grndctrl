@@ -50,10 +50,11 @@ test('the board says it cannot refresh, rather than ageing quietly', async () =>
   await expect(notice).toBeVisible()
   await expect(notice.getByText(/no stored credential/)).toBeVisible()
 
-  // Naming which ones. "A connection is broken" sends the operator to check all
-  // of them, which is the work the application is supposed to have done.
+  // Naming which one. "A connection is broken" sends the operator to check all
+  // of them, which is the work the application is supposed to have done. The
+  // GitHub connection that used to be named beside it is not seeded any more —
+  // the mirror's CHECK refuses the row.
   await expect(notice.getByText(/Jira · example.atlassian.net/)).toBeVisible()
-  await expect(notice.getByText(/GitHub · github.com/)).toBeVisible()
 
   // And saying that pressing Refresh cannot help, because it cannot — that is
   // the sentence that distinguishes this from an ordinary stale lane.

@@ -43,7 +43,6 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
     repoOwner: 'acme',
     repoName: code.toLowerCase(),
     documentationUrl: null,
-    ticketKeyPattern: `(${code}-\\d+)`,
     checkoutPaths: [],
     statusOverrides: {},
   }))

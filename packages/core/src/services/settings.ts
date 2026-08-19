@@ -14,12 +14,15 @@ import { invalid } from '../registry/errors.js'
 export const DEFAULT_SETTINGS: Settings = {
   appearance: 'system',
   density: 'comfortable',
-  // 60s GitHub / 5min Jira: GitHub carries CI and review state, which move on a
-  // human timescale; Jira status changes do not reward a tighter loop, and the
-  // ticket poll costs two calls now that history is a separate fetch (R2).
-  pollIntervalSec: { github: 60, jira: 300 },
-  laneThresholdHours: { tickets: 72, pulls: 24, branches: 24 },
-  driftGraceHours: 24,
+  // 5min. Jira status changes do not reward a tighter loop, and the ticket poll
+  // costs two calls now that history is a separate fetch (R2). The 60s GitHub
+  // interval that sat beside it was for CI and review state, which move on a
+  // human timescale; nothing left here does.
+  pollIntervalSec: { jira: 300 },
+  // `sessions` takes the old `pulls` value of 24, which is a carry-over rather
+  // than a rename — see the type. A session that has not reported in a day is
+  // the thing this threshold is about.
+  laneThresholdHours: { tickets: 72, sessions: 24 },
   heartbeatMissMultiplier: 3,
   activeProjectId: null,
   mineOnly: false,
@@ -40,18 +43,14 @@ export const settingsSchema = z.object({
   appearance: z.enum(['system', 'light', 'dark']),
   density: z.enum(['comfortable', 'compact']),
   pollIntervalSec: z.object({
-    // Floors, not preferences. A 5-second GitHub poll spends the hourly rate
-    // limit on comparisons long before it spends it on anything useful (R3),
-    // and the failure looks like a broken app rather than a bad setting.
-    github: z.number().int().min(15).max(3600),
+    // A floor, not a preference. The failure from a too-tight poll looks like a
+    // broken app rather than a bad setting.
     jira: z.number().int().min(30).max(3600),
   }),
   laneThresholdHours: z.object({
     tickets: z.number().min(1).max(24 * 90),
-    pulls: z.number().min(1).max(24 * 90),
-    branches: z.number().min(1).max(24 * 90),
+    sessions: z.number().min(1).max(24 * 90),
   }),
-  driftGraceHours: z.number().min(0).max(24 * 30),
   // Below 2, one dropped heartbeat on a busy machine reads as a dead agent.
   heartbeatMissMultiplier: z.number().int().min(2).max(10),
   activeProjectId: z.string().nullable(),

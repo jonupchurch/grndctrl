@@ -196,31 +196,31 @@ const slot = (
 }
 
 export function Tickets({ items, projects, freshness, notes, now }: LaneProps): ReactElement {
-  // Still filtered, and still necessary at this point in 006: core has not
-  // narrowed yet, so it can still produce a work item built from a branch with
-  // no ticket on it. FR-106 makes `ticket` non-nullable at M4 and this filter
-  // becomes a no-op; it is removed then, with the type that permitted it.
-  const withTickets = items.filter((i) => i.ticket !== null)
-
-  // No `age` accessor, because this lane has no age column to click. The lane's
-  // sortable set is read off exactly this object, so the two cannot disagree.
+  // No `withTickets` filter, and no `?.` below. Every work item has a ticket
+  // (FR-106), so both were guarding against a state the type no longer permits
+  // — and a filter whose predicate is always true is a filter a future reader
+  // has to prove is dead.
+  //
+  // No `age` accessor either, because this lane has no age column to click. The
+  // lane's sortable set is read off exactly this object, so the two cannot
+  // disagree.
   const sort = useLaneSort<WorkItem>({
-    identifier: (i) => i.ticket?.issueKey ?? i.key,
-    title: (i) => i.ticket?.summary ?? '',
-    status: (i) => i.ticket?.statusName ?? null,
-    sprint: (i) => i.ticket?.sprint ?? null,
+    identifier: (i) => i.ticket.issueKey,
+    title: (i) => i.ticket.summary,
+    status: (i) => i.ticket.statusName,
+    sprint: (i) => i.ticket.sprint,
     // The one column whose sort key is not what the cell shows — `Highest` has
     // to come before `High`, which no alphabetical order produces. See
     // `priorityOrder`: it orders and never relabels.
-    priority: (i) => priorityOrder(i.ticket?.priority ?? null),
-    points: (i) => i.ticket?.storyPoints ?? null,
+    priority: (i) => priorityOrder(i.ticket.priority),
+    points: (i) => i.ticket.storyPoints,
   })
 
   return (
     <Lane
       title="Tickets"
       threshold="stale past 3d"
-      count={withTickets.length}
+      count={items.length}
       freshness={freshness}
       resource="Tickets"
       columns={{ identifier: 'Ticket', title: 'Summary', status: 'Status' }}
@@ -234,29 +234,27 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
         </EmptyState>
       }
     >
-      {sort.rows(withTickets).map((item) => (
+      {sort.rows(items).map((item) => (
         <Row
           key={item.key}
-          identifier={item.ticket?.issueKey ?? item.key}
-          title={item.ticket?.summary ?? ''}
+          identifier={item.ticket.issueKey}
+          title={item.ticket.summary}
           severity={item.severity}
           staleness={item.staleness}
           lastRealActivityAt={item.lastRealActivityAt}
           ballInCourt={item.ballInCourt}
           correlations={{ agent: item.sessions.length > 0 }}
-          {...(item.ticket === null ? {} : { status: item.ticket.statusName })}
+          status={item.ticket.statusName}
           // Always passed on this lane, because the lane is what declares the
           // columns: a row that omitted them would leave three tracks empty and
           // slide its own correlation badges under the "Priority" heading.
-          // `withTickets` has already excluded the null ticket; the fallback is
-          // here so a change to that filter cannot silently misalign the grid.
           metrics={{
-            sprint: item.ticket?.sprint ?? null,
-            priority: item.ticket?.priority ?? null,
-            points: item.ticket?.storyPoints ?? null,
+            sprint: item.ticket.sprint,
+            priority: item.ticket.priority,
+            points: item.ticket.storyPoints,
           }}
           {...slot(item.projectId, projects)}
-          {...noteSlot(notes, item.ticket?.key ?? item.key, item.ticket?.issueKey ?? item.key)}
+          {...noteSlot(notes, item.ticket.key, item.ticket.issueKey)}
           {...(now === undefined ? {} : { now })}
           onOpen={() => void launch(item.key, 'ticket')}
         />

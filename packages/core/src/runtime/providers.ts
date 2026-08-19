@@ -65,14 +65,6 @@ export function buildSyncTargets(options: BuildTargetsOptions): BuiltTargets {
       continue
     }
 
-    // Still checked, not assumed. A `github` row written by 0.3.0 survives in
-    // the mirror until M4's migration drops it, and building a Jira client
-    // against `github.com` with a GitHub token would authenticate as nobody and
-    // report an empty board — the plausible-wrong answer the paragraph above
-    // is about. It is skipped rather than reported `unavailable`, because it is
-    // not a connection the operator has to fix: it is one about to be deleted.
-    if (connection.kind !== 'jira') continue
-
     // The email is an identifier, not a secret, so it lives on the connection
     // row and only the API token goes to the keychain. Keeping the keychain
     // payload a pure secret is what lets the no-secrets audit scan for one thing

@@ -21,7 +21,16 @@ export type Timestamp = string
 // Mirrored
 // ---------------------------------------------------------------------------
 
-export type ProviderKind = 'jira' | 'github'
+/**
+ * One kind, and it stays a union rather than becoming a string.
+ *
+ * Connection ids, keychain references and the settings poll interval are all
+ * keyed by it, and a database written by 0.3.0 holds `github` rows until
+ * migration 4 deletes them. Keeping the name is what lets `buildSyncTargets`
+ * and `connections.test` recognise such a row and say something useful about
+ * it, rather than treating it as a Jira site that will not authenticate.
+ */
+export type ProviderKind = 'jira'
 
 export interface Connection {
   id: string
@@ -42,7 +51,11 @@ export interface ViewerIdentity {
   email: string | null
 }
 
-export type ResourceKind = 'tickets' | 'pulls' | 'checks' | 'branches' | 'comparisons' | 'local'
+/**
+ * One kind. Rows for the retired five are deleted by migration 4, or the header
+ * goes on reporting resources that no longer exist (FR-111).
+ */
+export type ResourceKind = 'tickets'
 
 export type FailureReason = 'auth' | 'rateLimit' | 'network' | 'notFound' | 'unknown'
 
@@ -147,87 +160,17 @@ export interface TicketActivity {
   countsAsReal: boolean
 }
 
-export type PullRequestState = 'open' | 'merged' | 'closed'
-export type ReviewDecision = 'approved' | 'changesRequested' | 'reviewRequired'
-
-export interface PullRequest {
-  key: NaturalKey
-  connectionId: string
-  number: number
-  title: string
-  author: ViewerIdentity | null
-  headBranch: string
-  /** The head commit. Checks are keyed by SHA, so this is how CI attaches to a PR. */
-  headSha: string
-  baseBranch: string
-  state: PullRequestState
-  isDraft: boolean
-  reviewDecision: ReviewDecision | null
-  requestedReviewers: ViewerIdentity[]
-  /** From `reviewThreads { isResolved, isOutdated }` — REST cannot supply this. */
-  unresolvedThreadCount: number
-  mergedAt: Timestamp | null
-  closedAt: Timestamp | null
-  lastRealActivityAt: Timestamp | null
-  url: string
-  fetchedAt: Timestamp
-}
-
-export type CheckState = 'success' | 'failure' | 'pending' | 'cancelled' | 'skipped'
-
-export interface CheckResult {
-  key: NaturalKey
-  connectionId: string
-  sha: string
-  name: string
-  state: CheckState
-  isRequired: boolean
-  url: string
-  completedAt: Timestamp | null
-  fetchedAt: Timestamp
-}
-
-export interface BranchRef {
-  key: NaturalKey
-  connectionId: string
-  name: string
-  headSha: string
-  updatedAt: Timestamp
-  url: string
-  fetchedAt: Timestamp
-}
-
-export interface Comparison {
-  branchKey: NaturalKey
-  baseRef: string
-  /**
-   * `null` means unknown — the code host has never seen this branch. Never
-   * coerce to zero: "no commits ahead" and "we have no idea" are different
-   * answers, and only one of them is true for an unpushed branch (FR-018).
-   */
-  aheadBy: number | null
-  behindBy: number | null
-  /** Skip the next comparison while the head has not moved (rate limit, R3). */
-  comparedAtSha: string
-  fetchedAt: Timestamp
-}
-
-/** What only local git knows. Never a network read (FR-017). */
-export interface LocalWorkspace {
-  key: NaturalKey
-  repoPath: string
-  canonicalRemote: string
-  branch: string
-  worktreeId: string
-  isPrimaryWorktree: boolean
-  worktreePresent: boolean
-  hasUncommittedChanges: boolean
-  /** `null` when there is no upstream — the branch has never been pushed. */
-  unpushedCommitCount: number | null
-  headSha: string
-  upstreamRef: string | null
-  readAt: Timestamp
-}
+/*
+ * `PullRequest`, `CheckResult`, `BranchRef`, `Comparison` and `LocalWorkspace`
+ * were here, with `PullRequestState`, `ReviewDecision` and `CheckState`.
+ *
+ * All five described a code host or a local checkout. `Comparison` is the one
+ * worth a sentence on the way out: it carried ahead/behind as `number | null`
+ * where `null` meant *the host has never seen this branch*, and the comment on
+ * it warned against coercing that to zero, because "no commits ahead" and "we
+ * have no idea" are different answers. That distinction outlived the type <E>
+ * `links.resolve` still returns `fellBack` for the same reason.
+ */
 
 // ---------------------------------------------------------------------------
 // Authored
@@ -239,14 +182,20 @@ export interface Project {
   name: string
   colorIndex: number | null
   jiraConnectionId: string | null
+  /**
+   * **Still nullable, and `projects.upsert` still refuses a null one.**
+   *
+   * Those are not in conflict. The write path requires it, because a project
+   * with no ticket project has nothing to show and the operator is standing
+   * there to be told so. The type permits it, because a database written by
+   * 0.3.0 can hold a repository-only project and 006 keeps that row rather than
+   * deleting the operator's data to satisfy a rule invented after it was
+   * written (FR-110). A non-nullable type here would make an existing row
+   * unrepresentable, which is a different way of losing it.
+   */
   jiraProjectKey: string | null
-  githubConnectionId: string | null
-  repoOwner: string | null
-  repoName: string | null
   /** Stored and linked only. Never fetched, never authenticated (FR-004). */
   documentationUrl: string | null
-  ticketKeyPattern: string
-  checkoutPaths: string[]
   statusOverrides: Record<string, 'blocked' | 'terminal' | 'in-progress' | 'backlog'>
 }
 
@@ -276,7 +225,6 @@ export interface AgentSession {
   sessionId: string
   projectId: string | null
   workItemKey: NaturalKey | null
-  workspaceKey: NaturalKey | null
   reportedStatus: string | null
   startedAt: Timestamp
   lastHeartbeatAt: Timestamp
@@ -287,7 +235,17 @@ export interface AgentSession {
   heartbeatIntervalSec: number
 }
 
-export type ActionKind = 'transition-ticket' | 'request-review' | 'cleanup-workspace' | 'investigate'
+/**
+ * What can still be *produced*, which is not what can still be *read*.
+ *
+ * `request-review` and `cleanup-workspace` are retired: one asked a code host
+ * for a review, the other cleaned up a checkout. The `outbox_actions.kind`
+ * column deliberately has no CHECK constraint, so a row of a retired kind
+ * written before the upgrade keeps reading, stays claimable and stays
+ * completable. An action the operator confirmed is theirs, and a narrowing type
+ * is not entitled to make it unopenable.
+ */
+export type ActionKind = 'transition-ticket' | 'investigate'
 
 export type ActionState = 'pending' | 'claimed' | 'complete' | 'failed' | 'expired' | 'cancelled'
 
@@ -332,8 +290,15 @@ export interface Settings {
   appearance: Appearance
   density: Density
   pollIntervalSec: Record<ProviderKind, number>
-  laneThresholdHours: { tickets: number; pulls: number; branches: number }
-  driftGraceHours: number
+  /**
+   * `sessions` is **new, and is not a rename of `pulls`.**
+   *
+   * It is the session lane's own staleness threshold. The old `pulls` value is
+   * carried across as its default by migration 2, so an operator who had tuned
+   * that number keeps it — but the two describe different things and the
+   * naming says so rather than quietly inheriting a meaning.
+   */
+  laneThresholdHours: { tickets: number; sessions: number }
   heartbeatMissMultiplier: number
   activeProjectId: string | null
   mineOnly: boolean
@@ -384,23 +349,11 @@ export interface WorkItem {
   resolution: 'full' | 'partial'
 }
 
-export type DriftRule = 'D1' | 'D2' | 'D3' | 'D4' | 'D5' | 'D6' | 'D7' | 'D8' | 'D9'
-
-export interface DriftFinding {
-  /** `drift:<rule>:<subjectKey>` — stable across restarts, so dismissals survive. */
-  id: string
-  rule: DriftRule
-  subjectKey: NaturalKey
-  projectId: string | null
-  summary: string
-  evidence: DriftEvidence[]
-  ageSec: number
-  suggestedAction: { kind: ActionKind; label: string } | null
-  dispatchable: boolean
-}
-
-export interface DriftEvidence {
-  side: string
-  fact: string
-  at: Timestamp | null
-}
+/*
+ * `DriftRule`, `DriftFinding` and `DriftEvidence` were here.
+ *
+ * See `store/authored/config.ts` for the consequence that outlives them: the
+ * D1-D9 identifier namespace is spent, because dismissal rows keyed on
+ * `drift:<rule>:<subject>` are retained (FR-122). Any future finding scheme
+ * starts at D10.
+ */

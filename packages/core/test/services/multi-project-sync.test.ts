@@ -34,44 +34,23 @@ let dir: string
 let db: Database
 let mirror: MirrorRepository
 
-const ALPHA = project({
-  id: 'p-alpha',
-  code: 'ALPHA',
-  jiraProjectKey: 'ALPHA',
-  ticketKeyPattern: '(ALPHA-\\d+)',
-  repoOwner: 'acme',
-  repoName: 'alpha',
-  checkoutPaths: ['D:\\work\\alpha'],
-})
+const ALPHA = project({ id: 'p-alpha', code: 'ALPHA', jiraProjectKey: 'ALPHA' })
 
-const BETA = project({
-  id: 'p-beta',
-  code: 'BETA',
-  jiraProjectKey: 'BETA',
-  ticketKeyPattern: '(BETA-\\d+)',
-  repoOwner: 'acme',
-  repoName: 'beta',
-  checkoutPaths: ['D:\\work\\beta'],
-})
+const BETA = project({ id: 'p-beta', code: 'BETA', jiraProjectKey: 'BETA' })
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'grndctrl-multi-'))
   db = openMirror({ dir }).db
   mirror = mirrorRepository(db)
 
-  for (const [id, kind, host] of [
-    ['jira-1', 'jira', 'acme.atlassian.net'],
-    ['gh-1', 'github', 'github.com'],
-  ] as const) {
-    mirror.upsertConnection({
-      id,
-      kind,
-      siteOrHost: host,
-      accountLabel: 'work',
-      viewerIdentity: null,
-      credentialRef: `grndctrl/${id}`,
-    })
-  }
+  mirror.upsertConnection({
+    id: 'jira-1',
+    kind: 'jira',
+    siteOrHost: 'acme.atlassian.net',
+    accountLabel: 'work',
+    viewerIdentity: null,
+    credentialRef: 'grndctrl/jira-1',
+  })
 })
 
 afterEach(() => {

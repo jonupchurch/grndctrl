@@ -117,4 +117,139 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: 'remove-code-host-and-local-git',
+    // `agent_sessions.project_id` is ON DELETE SET NULL, so dropping `projects`
+    // during the rebuild would unlink every session from its project. That is
+    // authored data, and losing it would not even show as a missing row -- the
+    // sessions would still be there, belonging to nothing.
+    rebuildsReferencedTable: true,
+    /**
+     * The one migration in this change that can lose the operator's data.
+     *
+     * Three tables move and three are **not opened**. That distinction is the
+     * whole design: `notes`, `outbox_actions` and `finding_dismissals` hold
+     * natural keys, action kinds and rule identifiers that no longer resolve to
+     * anything, and that is the correct state (FR-109, FR-117, FR-122). They are
+     * not "migrated with no changes" -- no statement below names them.
+     *
+     * ## `projects`, and the CHECK that is deliberately not replaced
+     *
+     * SQLite cannot drop a column named in a table constraint, and the v1 CHECK
+     * is `jira_project_key IS NOT NULL OR repo_name IS NOT NULL`. So `projects`
+     * needs a full rebuild whatever else happens.
+     *
+     * The obvious rebuild adds `CHECK (jira_project_key IS NOT NULL)` -- the
+     * surviving half of the disjunction. **That would delete the operator's
+     * data.** A database written by 0.3.0 can hold a repository-only project:
+     * legal then, refused by the new constraint, and the tidy way to make an
+     * INSERT ... SELECT satisfy a constraint is to filter out the row that
+     * violates it. There is no server-side copy of a project binding (XI).
+     *
+     * So the new table has **no** replacement CHECK, every row is copied, and
+     * the rule lives in `projects.upsert` instead -- where the operator is
+     * standing to be told why, in a sentence naming the field, rather than
+     * meeting SQLite's own wording after the fact.
+     *
+     * ## `agent_sessions`
+     *
+     * A plain column drop. No constraint, index or trigger names
+     * `workspace_key`, so nothing has to be rebuilt around it.
+     *
+     * ## `settings`
+     *
+     * A JSON payload in one row, reshaped in `after` because this is not a
+     * schema change and SQL cannot express it readably. It carries
+     * `laneThresholdHours.pulls` across to `sessions`, which is a **carry-over
+     * and not a rename**: the number meant "how long is too long for a pull
+     * request to sit" and now means the same thing about an agent session. The
+     * value is kept so an operator who tuned it does not silently lose the
+     * tuning; the name changes because the two describe different things.
+     */
+    up: `
+      -- The 12-step rebuild, in the steps this table actually needs. No index,
+      -- trigger or view names projects; the foreign key in agent_sessions points
+      -- at it and is re-resolved by name on rename.
+      CREATE TABLE projects_new (
+        id                 TEXT PRIMARY KEY,
+        code               TEXT NOT NULL UNIQUE,
+        name               TEXT NOT NULL,
+        color_index        INTEGER,
+        jira_connection_id TEXT,
+        jira_project_key   TEXT,
+        documentation_url  TEXT,
+        status_overrides   TEXT NOT NULL DEFAULT '{}'
+      );
+
+      -- Every row. No WHERE clause, and its absence is the point: a project with
+      -- no jira_project_key is the operator's row and comes across untouched.
+      INSERT INTO projects_new (id, code, name, color_index, jira_connection_id,
+                                jira_project_key, documentation_url, status_overrides)
+        SELECT id, code, name, color_index, jira_connection_id,
+               jira_project_key, documentation_url, status_overrides
+        FROM projects;
+
+      DROP TABLE projects;
+      ALTER TABLE projects_new RENAME TO projects;
+
+      ALTER TABLE agent_sessions DROP COLUMN workspace_key;
+    `,
+    after: (db) => {
+      const row = db.prepare('SELECT payload FROM settings WHERE id = 1').get() as
+        | { payload: string }
+        | undefined
+
+      // No settings row is the ordinary case for a database that has never been
+      // written to. There is nothing to reshape and nothing to default: the
+      // store already falls back to DEFAULT_SETTINGS when the row is absent.
+      if (row === undefined) return
+
+      let payload: Record<string, unknown>
+      try {
+        const parsed: unknown = JSON.parse(row.payload)
+        if (typeof parsed !== 'object' || parsed === null) return
+        payload = parsed as Record<string, unknown>
+      } catch {
+        // An unparseable payload is already handled downstream by falling back
+        // to defaults. Rewriting it here would replace one unknown with another.
+        return
+      }
+
+      const poll = asRecord(payload['pollIntervalSec'])
+      const lanes = asRecord(payload['laneThresholdHours'])
+
+      /*
+       * Idempotent (FR-113). Running this twice must be a no-op, because a
+       * migration that is only correct once is a migration that corrupts a
+       * database somebody restored from a backup.
+       *
+       * `??` throughout rather than a shape check: a payload already in the new
+       * shape has no `pulls` to carry, so `sessions` keeps the value it has.
+       */
+      const reshaped: Record<string, unknown> = {
+        ...payload,
+        pollIntervalSec: { jira: numberOr(poll?.['jira'], 300) },
+        laneThresholdHours: {
+          tickets: numberOr(lanes?.['tickets'], 72),
+          sessions: numberOr(lanes?.['sessions'] ?? lanes?.['pulls'], 24),
+        },
+      }
+
+      // `driftGraceHours` goes with the rules that read it. Deleted rather than
+      // left in place: it is a *setting*, and a stored preference nothing reads
+      // is one the interface would eventually offer again by accident.
+      delete reshaped['driftGraceHours']
+
+      db.prepare('UPDATE settings SET payload = ? WHERE id = 1').run(JSON.stringify(reshaped))
+    },
+  },
 ]
+
+function asRecord(v: unknown): Record<string, unknown> | undefined {
+  return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : undefined
+}
+
+function numberOr(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
+}

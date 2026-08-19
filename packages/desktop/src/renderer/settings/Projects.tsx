@@ -142,7 +142,7 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
   )
 
   const save = useMutation({
-    mutationFn: (input: Project & { ticketKeyPattern: string }) => call('projects.upsert', input),
+    mutationFn: (input: Project) => call('projects.upsert', input),
     onSuccess: () => onSaved(),
     onError: (e: Error) =>
       setError(e instanceof BridgeError ? e.message : 'Could not save that project.'),
@@ -169,12 +169,6 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
       jiraProjectKey: jiraProjectKey.trim(),
       documentationUrl: documentationUrl.trim() === '' ? null : documentationUrl.trim(),
       statusOverrides: project?.statusOverrides ?? {},
-      // Still sent, and no longer shown. The column is `NOT NULL` and the
-      // operation still requires it until M4 drops both; sending a derived value
-      // keeps this screen working across the intermediate commits without
-      // putting a field back on the form that nothing reads. It goes with the
-      // column, in the same change.
-      ticketKeyPattern: `(${escapeRegex(jiraProjectKey.trim())}-\\d+)`,
     })
   }
 
@@ -252,6 +246,3 @@ function ProjectForm({ project, connections, onSaved, onCancel }: ProjectFormPro
   )
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}

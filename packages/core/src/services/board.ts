@@ -71,14 +71,9 @@ export function freshnessFor(
 
   const staleAfter: Record<string, number> = {
     tickets: settings.pollIntervalSec.jira * 3,
-    pulls: settings.pollIntervalSec.github * 3,
-    checks: settings.pollIntervalSec.github * 3,
-    branches: settings.pollIntervalSec.github * 3,
-    comparisons: settings.pollIntervalSec.github * 3,
-    local: settings.pollIntervalSec.github * 3,
   }
 
-  const kinds: ResourceKind[] = ['tickets', 'pulls', 'checks', 'branches', 'comparisons', 'local']
+  const kinds: ResourceKind[] = ['tickets']
 
   for (const kind of kinds) {
     // Worst case across connections. With two Jira sites and one broken, the

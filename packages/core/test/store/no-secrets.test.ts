@@ -56,7 +56,7 @@ describe('no credential reaches disk', () => {
     mirror
       .prepare(
         `INSERT INTO connections (id, kind, site_or_host, account_label, credential_ref)
-         VALUES ('c1', 'github', 'github.com', 'work', ?)`,
+         VALUES ('c1', 'jira', 'acme.atlassian.net', 'work', ?)`,
       )
       .run(credentialRefString(ref))
 
@@ -83,8 +83,8 @@ describe('no credential reaches disk', () => {
     settingsStore(authored).update({ appearance: 'dark' })
     authored
       .prepare(
-        `INSERT INTO projects (id, code, name, jira_project_key, ticket_key_pattern)
-         VALUES ('p1', 'MERC', 'Mercury', 'MERC', '(MERC-\\d+)')`,
+        `INSERT INTO projects (id, code, name, jira_project_key)
+         VALUES ('p1', 'MERC', 'Mercury', 'MERC')`,
       )
       .run()
 
@@ -106,7 +106,7 @@ describe('no credential reaches disk', () => {
     mirror
       .prepare(
         `INSERT INTO connections (id, kind, site_or_host, account_label, credential_ref)
-         VALUES ('c1', 'github', 'github.com', 'work', 'grndctrl/c1')`,
+         VALUES ('c1', 'jira', 'acme.atlassian.net', 'work', 'grndctrl/c1')`,
       )
       .run()
     settingsStore(authored).update({ mineOnly: true })
@@ -127,8 +127,8 @@ describe('no credential reaches disk', () => {
   it('would actually detect a secret if one were written', () => {
     authored
       .prepare(
-        `INSERT INTO projects (id, code, name, jira_project_key, ticket_key_pattern)
-         VALUES ('leak', 'LEAK', ?, 'LEAK', '(LEAK-\\d+)')`,
+        `INSERT INTO projects (id, code, name, jira_project_key)
+         VALUES ('leak', 'LEAK', ?, 'LEAK')`,
       )
       .run(`token is ${SENTINEL}`)
 

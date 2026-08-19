@@ -55,12 +55,18 @@ const actionSchema = z.object({
   ),
 })
 
-const actionKindSchema = z.enum([
-  'transition-ticket',
-  'request-review',
-  'cleanup-workspace',
-  'investigate',
-])
+/**
+ * What can be *minted and enqueued*. Not what can be read.
+ *
+ * `request-review` and `cleanup-workspace` are retired with the code host and
+ * the checkout. This schema is on the two write operations only; `outbox.list`,
+ * `outbox.get` and `outbox.pending` return `actionSchema`, whose `kind` is a
+ * plain string for exactly this reason — an action the operator confirmed
+ * before the upgrade stays readable, claimable and completable. Narrowing the
+ * read schema would turn a retained row into one that cannot be fetched, which
+ * is a data loss dressed as a type change.
+ */
+const actionKindSchema = z.enum(['transition-ticket', 'investigate'])
 
 export function outboxOperations(service: OutboxService): Operation<never, never>[] {
   const ops = [

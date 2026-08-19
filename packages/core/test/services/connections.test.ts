@@ -180,37 +180,30 @@ describe('testing a connection', () => {
   })
 
   /**
-   * A code-host row written by 0.3.0 is still in the mirror until M4's
-   * migration drops it, and testing it must say something the operator can act
-   * on.
+   * A code-host connection cannot exist at all, and the store is what says so.
    *
-   * The test that was here checked the opposite direction: a GitHub connection
-   * with no repository bound, told which repository it needed, because a
-   * fine-grained token is scoped per repository and "can it read one" is not
-   * answerable without naming one. That whole flow is gone. What replaces it is
-   * the case that is now reachable — and the reason it is not simply deleted
-   * is that a row of the wrong kind reaching `testJira` would report an
-   * authentication failure against a host that was never a Jira site, sending
-   * the operator to re-issue a token that was never the problem.
+   * The test here was about a GitHub connection with no repository bound, being
+   * told which repository it needed. Then, briefly, it was about a code-host row
+   * left over from 0.3.0 being told to remove itself. Neither is reachable:
+   * migration 4 deletes the rows and leaves a CHECK behind, so this is not a
+   * case the service has to handle — it is a case the schema refuses.
+   *
+   * Worth a test rather than nothing, because "the type says one kind" and "the
+   * database will not hold another" are different guarantees, and only the
+   * second survives a hand-written INSERT or a future migration.
    */
-  it('tells the operator to remove a connection for a provider that is gone', async () => {
-    mirror.upsertConnection({
-      id: 'github',
-      kind: 'github',
-      siteOrHost: 'github.com',
-      accountLabel: 'jon',
-      viewerIdentity: null,
-      credentialRef: 'grndctrl/github',
-    })
-    store.set(credentialRef('github'), 'x')
+  it('cannot store a connection for a provider that no longer exists', () => {
+    expect(() =>
+      mirror.upsertConnection({
+        id: 'github',
+        kind: 'github' as never,
+        siteOrHost: 'github.com',
+        accountLabel: 'jon',
+        viewerIdentity: null,
+        credentialRef: 'grndctrl/github',
+      }),
+    ).toThrow(/CHECK constraint failed/)
 
-    const result = await connections.test({ connectionId: 'github' })
-
-    expect(result.ok).toBe(false)
-    expect(result.checks[0]?.name).toBe('provider')
-    expect(result.checks[0]?.detail).toMatch(/no longer reads/)
-    // Not an authentication failure. That is the wrong remedy and the whole
-    // point of reporting this separately.
-    expect(result.checks.map((c) => c.name)).not.toContain('authentication')
+    expect(mirror.listConnections().map((c) => c.id)).not.toContain('github')
   })
 })

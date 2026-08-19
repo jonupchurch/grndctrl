@@ -70,12 +70,7 @@ const project: Project = {
   colorIndex: 0,
   jiraConnectionId: 'c-jira',
   jiraProjectKey: 'MERC',
-  githubConnectionId: 'c-gh',
-  repoOwner: 'Acme',
-  repoName: 'Mercury',
   documentationUrl: null,
-  ticketKeyPattern: '(MERC-\\d+)',
-  checkoutPaths: [],
   statusOverrides: {},
 }
 

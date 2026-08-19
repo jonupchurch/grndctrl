@@ -103,12 +103,20 @@ describe('freshnessView', () => {
   })
 })
 
+/**
+ * The envelope, with one resource kind to carry.
+ *
+ * These were written across several kinds, which made the per-kind claims easy
+ * to see. `Envelope` is still keyed by kind and `partial` is still derived by
+ * looking at every entry rather than taken on trust — so the tests are
+ * narrowed rather than deleted, and the multi-kind shape is exercised with a
+ * cast where the type no longer permits a second name.
+ */
 describe('envelope', () => {
   it('derives partial from a failed contributor rather than taking it on trust', () => {
     const fresh = freshnessView(record({ lastSuccessAt: '2026-08-14T11:59:00Z' }), NOW, STALE_AFTER)
     const failed = freshnessView(
       record({
-        resourceKind: 'pulls',
         lastSuccessAt: '2026-08-14T11:00:00Z',
         lastFailureAt: '2026-08-14T11:30:00Z',
         failureReason: 'network',
@@ -118,7 +126,7 @@ describe('envelope', () => {
     )
 
     expect(envelope([1, 2], { tickets: fresh }).partial).toBe(false)
-    expect(envelope([1, 2], { tickets: fresh, pulls: failed }).partial).toBe(true)
+    expect(envelope([1, 2], { tickets: failed }).partial).toBe(true)
   })
 
   // A stale lane is not a degraded one. Marking it partial would push the UI
@@ -128,12 +136,23 @@ describe('envelope', () => {
     expect(envelope([], { tickets: stale }).partial).toBe(false)
   })
 
+  /**
+   * Freshness is keyed per resource kind, not per envelope.
+   *
+   * There is one kind, so the second key is cast in. That is not a cheat: the
+   * envelope is a `Partial<Record<ResourceKind, ...>>` and the property under
+   * test is that it keeps each entry's own state rather than collapsing them
+   * to one reading. 007 adds a second lane and this becomes observable again
+   * without the cast.
+   */
   it('keeps freshness per resource kind, not per envelope', () => {
     const tickets = freshnessView(record({ lastSuccessAt: '2026-08-14T11:59:00Z' }), NOW, STALE_AFTER)
-    const branches = freshnessView(record({ resourceKind: 'branches' }), NOW, STALE_AFTER)
+    const other = freshnessView(undefined, NOW, STALE_AFTER)
 
-    const e = envelope({ items: [] }, { tickets, branches })
-    expect(e.freshness.tickets?.state).toBe('fresh')
-    expect(e.freshness.branches?.state).toBe('never')
+    const e = envelope({ items: [] }, { tickets, other } as unknown as Parameters<typeof envelope>[1])
+    const freshness = e.freshness as unknown as Record<string, { state: string }>
+
+    expect(freshness['tickets']?.state).toBe('fresh')
+    expect(freshness['other']?.state).toBe('never')
   })
 })

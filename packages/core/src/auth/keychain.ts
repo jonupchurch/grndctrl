@@ -41,6 +41,25 @@ export function credentialRefString(ref: CredentialRef): string {
   return `${ref.service}/${ref.account}`
 }
 
+/**
+ * The stored handle, back into a reference.
+ *
+ * Needed by exactly one caller: the cleanup that deletes the secrets of
+ * connections the mirror migration removed (FR-112). It works from the stored
+ * `credential_ref` rather than from `credentialRef(connectionId)` on purpose —
+ * by the time the cleanup runs the connection row is gone, and the handle the
+ * row carried is the only evidence of where its secret actually lives.
+ *
+ * Splits on the **first** separator, so an account id containing a slash comes
+ * back whole. Returns `null` for anything that is not a handle, because a
+ * malformed one must not become a delete against `{ service: '', account: … }`.
+ */
+export function parseCredentialRef(handle: string): CredentialRef | null {
+  const at = handle.indexOf('/')
+  if (at <= 0 || at === handle.length - 1) return null
+  return { service: handle.slice(0, at), account: handle.slice(at + 1) }
+}
+
 /** Minimal shape of `@napi-rs/keyring`'s Entry, so the seam does not depend on the package's types. */
 interface KeyringEntry {
   setPassword(password: string): void

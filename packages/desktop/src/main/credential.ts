@@ -20,7 +20,7 @@ import type { Connection } from '@grndctrl/core'
  */
 
 export interface CredentialRequest {
-  kind: 'jira' | 'github'
+  kind: 'jira'
   siteOrHost: string
   accountLabel: string
   secret: string
@@ -62,7 +62,11 @@ function isRequest(value: unknown): value is CredentialRequest {
   const v = value as Record<string, unknown>
 
   return (
-    (v['kind'] === 'jira' || v['kind'] === 'github') &&
+    // Still an equality check rather than a `typeof`, and still exhaustive with
+    // one member: a renderer sending `github` is refused here rather than
+    // reaching core and being refused by a CHECK constraint, which would surface
+    // as a store failure the operator cannot read.
+    v['kind'] === 'jira' &&
     typeof v['siteOrHost'] === 'string' &&
     typeof v['accountLabel'] === 'string' &&
     typeof v['secret'] === 'string' &&

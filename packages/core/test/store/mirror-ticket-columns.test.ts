@@ -69,6 +69,62 @@ const connect = (db: Database.Database): void => {
   ).run()
 }
 
+/**
+ * The rebuild in migration 4, and the cascade it would otherwise fire.
+ *
+ * `tickets.connection_id` is `ON DELETE CASCADE` against `connections`, and
+ * `DROP TABLE` performs an implicit `DELETE FROM`. With foreign keys enabled,
+ * rebuilding `connections` to narrow its CHECK therefore deletes every ticket
+ * — silently, on the upgrade launch, leaving an empty lane sitting under a
+ * freshness reading that still says the data arrived four minutes ago.
+ *
+ * The mirror is disposable and the tickets would come back on the next sync,
+ * which is exactly what makes this hard to notice and worth asserting: the
+ * failure is a board that is briefly, confidently wrong rather than one that is
+ * broken.
+ */
+describe('migration 4 rebuilds a referenced table', () => {
+  it('keeps the tickets when connections is rebuilt', () => {
+    const db = new Database(mirrorDbPath(dir))
+    migrate(
+      db,
+      MIRROR_MIGRATIONS.filter((m) => m.version <= 3),
+      () => '2026-08-14T00:00:00Z',
+    )
+    connect(db)
+    db.prepare(
+      `INSERT INTO tickets (key, connection_id, issue_key, summary, status_name, status_category,
+                            created_at, updated_at, url, fetched_at)
+       VALUES (?, 'c1', 'MERC-1', 'A ticket', 'In Review', 'indeterminate',
+               '2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z',
+               'https://example.invalid/MERC-1', '2026-08-14T00:00:00Z')`,
+    ).run(ticketKey(SITE, 'MERC-1'))
+    db.close()
+
+    const opened = openMirror({ dir })
+    try {
+      expect(opened.migration.applied).toContain('4_remove-code-host-and-local-git')
+      expect(mirrorRepository(opened.db).listTickets()).toHaveLength(1)
+      // And the connection is still there to own it, so the ticket is not an
+      // orphan that a later foreign-key check would reject.
+      expect(mirrorRepository(opened.db).listConnections()).toHaveLength(1)
+    } finally {
+      opened.db.close()
+    }
+  })
+
+  it('leaves foreign keys enforced afterwards', () => {
+    // The pragma is turned off around the rebuild and has to come back on, or
+    // every later write in this process runs unenforced.
+    const opened = openMirror({ dir })
+    try {
+      expect(opened.db.pragma('foreign_keys', { simple: true })).toBe(1)
+    } finally {
+      opened.db.close()
+    }
+  })
+})
+
 describe('upgrading a mirror that predates the columns', () => {
   /** A `mirror.db` exactly as version 1 left it, with one ticket in it. */
   function seedVersionOne(): void {
@@ -93,6 +149,7 @@ describe('upgrading a mirror that predates the columns', () => {
     expect(opened.migration.applied).toEqual([
       '2_ticket-priority-and-points',
       '3_ticket-sprint',
+      '4_remove-code-host-and-local-git',
     ])
     opened.db.close()
   })

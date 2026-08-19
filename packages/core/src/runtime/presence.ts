@@ -7,24 +7,25 @@ import type { MirrorRepository } from '../store/mirror/repository.js'
 /**
  * "Does this subject still exist?" — asked across two database files.
  *
- * Notes and sessions are authored; tickets, pull requests and branches are
- * mirrored. Answering needs both, and neither store may hold a handle to the
- * other (XIII), so the join happens here in code — the same way the board joins
- * them, and for the same reason.
+ * Notes and sessions are authored; tickets are mirrored. Answering needs both,
+ * and neither store may hold a handle to the other (XIII), so the join happens
+ * here in code — the same way the board joins them, and for the same reason.
  *
  * The answer is three-valued. Two-valued would be a lie on first launch: an
  * unsynced mirror holds no tickets, and reporting *every* note as orphaned
  * because polling has not finished yet would be the most alarming possible
- * first screen, and wrong. Per resource kind rather than globally, so a synced
- * branch list still gives real answers while tickets are still loading.
+ * first screen, and wrong.
+ *
+ * **A note on a pull request, a branch, a checkout or a check now answers
+ * `unknown`**, and that is the correct answer rather than a gap. Those notes are
+ * retained (FR-109) and readable by key; what is gone is any store that could
+ * say whether their subject still exists. `absent` would be a claim this
+ * application is no longer in a position to make, and would invite a cleanup of
+ * the operator's own writing on the strength of it.
  */
 
 const RESOURCE_FOR: Partial<Record<SubjectKind, ResourceKind>> = {
   ticket: 'tickets',
-  'pull-request': 'pulls',
-  branch: 'branches',
-  workspace: 'local',
-  check: 'checks',
 }
 
 export interface PresenceDeps {
@@ -43,8 +44,9 @@ export function subjectPresenceResolver(deps: PresenceDeps): (key: NaturalKey) =
     if (kind === 'session') return deps.hasSession(key) ? 'present' : 'absent'
 
     const resource = RESOURCE_FOR[kind]
-    // A bare repository key has no mirrored row of its own — a repository is
-    // implied by its branches — so its presence genuinely cannot be answered.
+    // A bare repository key never had a mirrored row of its own; a pull request,
+    // branch, checkout or check no longer has one either. Both cases land here,
+    // and both are genuinely unanswerable rather than answerably absent.
     if (resource === undefined) return 'unknown'
 
     if (deps.mirror.hasSubject(key)) return 'present'

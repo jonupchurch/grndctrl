@@ -88,10 +88,13 @@ export function sessionsService(deps: SessionsServiceDeps): SessionsService {
 
   const view = (session: AgentSession, now: Date): SessionView => {
     const questions = new Set<string>(deps.openQuestionSubjects())
+    // The workspace was a third place a question could be attached, and it went
+    // with the checkout. Both surviving arms matter: a question written against
+    // the *session* is the agent stopping to ask, and one against the *ticket*
+    // is the operator or another agent asking about the work.
     const hasOpenQuestion =
       questions.has(session.key) ||
-      (session.workItemKey !== null && questions.has(session.workItemKey)) ||
-      (session.workspaceKey !== null && questions.has(session.workspaceKey))
+      (session.workItemKey !== null && questions.has(session.workItemKey))
 
     return {
       ...session,
@@ -173,7 +176,6 @@ export function sessionsService(deps: SessionsServiceDeps): SessionsService {
           sessionId: input.sessionId,
           projectId: input.projectId ?? null,
           workItemKey: input.workItemKey ?? null,
-          workspaceKey: input.workspaceKey ?? null,
           reportedStatus: input.reportedStatus ?? null,
           startedAt: at,
           lastHeartbeatAt: at,

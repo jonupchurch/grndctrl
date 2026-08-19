@@ -97,7 +97,6 @@ const projectSchema = z.object({
   jiraConnectionId: z.string().nullable(),
   jiraProjectKey: z.string().nullable(),
   documentationUrl: z.string().nullable(),
-  ticketKeyPattern: z.string(),
   statusOverrides: z.record(z.enum(['blocked', 'terminal', 'in-progress', 'backlog'])),
 })
 
@@ -216,37 +215,21 @@ export function configOperations(services: CoreServices): Operation<never, never
           throw invalid('A project must name a ticket project key. Without one it has nothing to show.')
         }
 
-        // The pattern is compiled here rather than at first use. An invalid
-        // regular expression saved now would fail inside correlation later,
-        // where the error has no obvious connection to what the user typed.
-        try {
-          const compiled = new RegExp(input.ticketKeyPattern)
-          if (compiled.source.indexOf('(') === -1) {
-            throw invalid('The ticket key pattern needs a capture group around the key.')
-          }
-        } catch (e) {
-          if (e instanceof SyntaxError) {
-            throw invalid(`That ticket key pattern is not a valid expression: ${e.message}`)
-          }
-          throw e
-        }
-
         /*
-         * The four removed fields are supplied here, not by the caller.
+         * The ticket-key pattern was validated here and is gone.
          *
-         * `Project` still declares them until M4 narrows the domain type and the
-         * authored migration drops the columns, so the store still writes them.
-         * Sending explicit nulls is the honest intermediate: the boundary no
-         * longer accepts a repository binding, and the row no longer gains one,
-         * one milestone before the column can safely go.
+         * It answered one question -- *does this branch or pull request name a
+         * ticket?* -- asked by `correlation/match.ts`, which 006 deletes.
+         * Nothing names a ticket from outside Jira any more, so the pattern had
+         * no reader: a setting the operator could carefully get right and which
+         * changed nothing, which is a lie the interface tells slowly. The column
+         * goes with it in authored migration 2.
+         *
+         * The validation was worth having while the field was: an invalid
+         * expression saved here would have failed inside correlation later,
+         * where the error has no obvious connection to what was typed.
          */
-        return services.projects.upsert({
-          ...input,
-          githubConnectionId: null,
-          repoOwner: null,
-          repoName: null,
-          checkoutPaths: [],
-        })
+        return services.projects.upsert(input)
       },
     }),
 

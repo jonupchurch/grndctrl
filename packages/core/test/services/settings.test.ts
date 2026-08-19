@@ -63,21 +63,21 @@ describe('settings', () => {
     expect(store.update(fromTheWire as Partial<Settings>).appearance).toBe('dark')
   })
 
-  // Floors, not preferences. A 5-second GitHub poll spends the hourly rate
-  // limit on branch comparisons, and the failure looks like a broken app rather
-  // than a bad setting.
+  // A floor, not a preference. A five-second poll spends the rate limit on
+  // nothing useful, and the failure looks like a broken app rather than a bad
+  // setting.
   it('rejects a poll interval that would burn the rate limit', () => {
     const store = settingsStore(db)
 
-    expect(() => store.update({ pollIntervalSec: { github: 5, jira: 300 } })).toThrow()
+    expect(() => store.update({ pollIntervalSec: { jira: 5 } })).toThrow()
     try {
-      store.update({ pollIntervalSec: { github: 5, jira: 300 } })
+      store.update({ pollIntervalSec: { jira: 5 } })
     } catch (e) {
       expect(isOperationError(e) && e.code).toBe('invalid')
     }
 
     // And the rejected update leaves the stored value alone.
-    expect(store.get().pollIntervalSec.github).toBe(DEFAULT_SETTINGS.pollIntervalSec.github)
+    expect(store.get().pollIntervalSec.jira).toBe(DEFAULT_SETTINGS.pollIntervalSec.jira)
   })
 
   it('rejects a heartbeat multiplier low enough to report live agents as dead', () => {

@@ -1,11 +1,7 @@
 import type {
   AgentSession as CoreAgentSession,
-  Comparison as CoreComparison,
-  DriftFinding as CoreDriftFinding,
-  LocalWorkspace as CoreWorkspace,
   Note as CoreNote,
   Project as CoreProject,
-  PullRequest as CorePullRequest,
   Ticket as CoreTicket,
   WorkItem as CoreWorkItem,
 } from '@grndctrl/core'
@@ -29,6 +25,12 @@ import type {
  * `Pick` keeps the original intent — only the fields the interface actually
  * renders get a name here — while making a field core does not have a compile
  * error rather than a confident wrong string on screen.
+ *
+ * **That is what caught 006's renderer work.** Every field this file no longer
+ * names was removed because `Pick` refused it, not because somebody went
+ * looking: five types and eleven fields, each one a compile error at exactly
+ * the moment core stopped providing it. A hand-written mirror would have
+ * compiled throughout and gone on reading `undefined`.
  */
 
 export type BallInCourt = CoreWorkItem['ballInCourt']
@@ -41,7 +43,7 @@ export type SessionState = 'running' | 'silent' | 'needs-you' | 'done' | 'failed
 
 export type Project = Pick<
   CoreProject,
-  'id' | 'code' | 'name' | 'colorIndex' | 'jiraProjectKey' | 'repoOwner' | 'repoName' | 'documentationUrl'
+  'id' | 'code' | 'name' | 'colorIndex' | 'jiraProjectKey' | 'documentationUrl'
 >
 
 export type Ticket = Pick<
@@ -62,27 +64,6 @@ export type Ticket = Pick<
   | 'sprint'
   | 'lastRealActivityAt'
 >
-
-export type PullRequest = Pick<
-  CorePullRequest,
-  | 'key'
-  | 'number'
-  | 'title'
-  | 'headBranch'
-  | 'state'
-  | 'isDraft'
-  | 'reviewDecision'
-  | 'unresolvedThreadCount'
-  | 'lastRealActivityAt'
->
-
-export type Workspace = Pick<
-  CoreWorkspace,
-  'key' | 'branch' | 'canonicalRemote' | 'hasUncommittedChanges' | 'unpushedCommitCount'
->
-
-/** Ahead/behind, which comes from the code host and never from local git (FR-018). */
-export type Comparison = Pick<CoreComparison, 'branchKey' | 'aheadBy' | 'behindBy'>
 
 export type AgentSession = Pick<
   CoreAgentSession,
@@ -107,19 +88,11 @@ export type WorkItem = Pick<
   | 'lastRealActivityAt'
   | 'resolution'
 > & {
-  ticket: Ticket | null
-  workspaces: Workspace[]
-  pullRequests: PullRequest[]
-  checks: { key: string; conclusion: string | null; status: string }[]
+  // Not nullable (FR-106). A work item is built from a ticket and there is no
+  // other way to construct one, so the lane's `withTickets` filter went with the
+  // null it was guarding against.
+  ticket: Ticket
   sessions: AgentSession[]
-  comparisons: Comparison[]
-}
-
-export type DriftFinding = Pick<
-  CoreDriftFinding,
-  'id' | 'rule' | 'subjectKey' | 'projectId' | 'summary' | 'ageSec' | 'suggestedAction' | 'dispatchable'
-> & {
-  evidence: { side: string; fact: string; at: string | null }[]
 }
 
 export type Note = Pick<
@@ -131,9 +104,9 @@ export type Note = Pick<
   | 'authorKind'
   | 'authorId'
   // A timestamp, not a boolean. The renderer declared `resolved: boolean` and
-  // filtered Attention nudges on `!n.resolved` — which read undefined on every
-  // note, negated to true, and passed all of them. It only looked correct
-  // because `notes.attention` already filters server-side.
+  // filtered on `!n.resolved` — which read undefined on every note, negated to
+  // true, and passed all of them. It only looked correct because the operation
+  // already filters server-side.
   | 'resolvedAt'
   | 'createdAt'
   | 'updatedAt'
@@ -143,8 +116,7 @@ export type Note = Pick<
 export interface BoardSummary {
   total: number
   yourCourt: number
-  drifting: number
   stalled: number
   agentsLive: number
-  lanes: { tickets: number; pulls: number; branches: number; sessions: number }
+  lanes: { tickets: number; sessions: number }
 }

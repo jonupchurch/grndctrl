@@ -80,9 +80,7 @@ export function App(): ReactElement {
    */
   const subjectKeys = useMemo(() => {
     const keys = new Set<string>()
-    for (const item of work.data?.data ?? []) {
-      if (item.ticket !== null) keys.add(item.ticket.key)
-    }
+    for (const item of work.data?.data ?? []) keys.add(item.ticket.key)
     // The operation caps at a thousand keys. A board past that has other
     // problems, but truncating silently would show empty badges on the tail and
     // read as "no notes" — so the slice is deliberate and the sort makes which

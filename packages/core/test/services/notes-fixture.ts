@@ -112,62 +112,43 @@ function wire(f: Fixture): void {
 }
 
 /**
- * The mirror as it looks after one successful sync of everything.
+ * The mirror as it looks after one successful sync.
  *
  * The freshness rows matter as much as the data rows: without them the mirror
  * has "never synced" and every presence answer is `unknown`, which is a
  * different assertion from the one most of these tests are making.
+ *
+ * **This used to seed five subject kinds and now seeds one.** The other four
+ * — pull request, branch, checkout, check — have no table left. The notes on
+ * them are still written by these tests, deliberately: FR-109 keeps them, and
+ * the interesting question about them has changed from "is the subject still
+ * there" to "does the note survive at all".
  */
 export function seedMirror(db: Database): void {
   const at = '2026-08-14T09:00:00.000Z'
 
   db.prepare(
     `INSERT OR REPLACE INTO connections (id, kind, site_or_host, account_label, credential_ref)
-     VALUES ('c-jira', 'jira', 'acme.atlassian.net', 'work', 'grndctrl/c-jira'),
-            ('c-gh', 'github', 'github.com', 'work', 'grndctrl/c-gh')`,
+     VALUES ('c-jira', 'jira', 'acme.atlassian.net', 'work', 'grndctrl/c-jira')`,
   ).run()
 
+  seedTicket(db)
+
+  db.prepare(
+    `INSERT OR REPLACE INTO freshness (connection_id, resource_kind, last_success_at)
+     VALUES ('c-jira', 'tickets', ?)`,
+  ).run(at)
+}
+
+/** One mirrored ticket. Separate so a test can delete it and put it back. */
+export function seedTicket(db: Database): void {
+  const at = '2026-08-14T09:00:00.000Z'
   db.prepare(
     `INSERT OR REPLACE INTO tickets (key, connection_id, issue_key, summary, status_name,
                                      status_category, created_at, updated_at, url, fetched_at)
      VALUES (?, 'c-jira', 'MERC-1184', 'Reconcile worktree state', 'In Review', 'indeterminate',
              ?, ?, 'https://acme.atlassian.net/browse/MERC-1184', ?)`,
   ).run(SUBJECTS.ticket, at, at, at)
-
-  db.prepare(
-    `INSERT OR REPLACE INTO pull_requests (key, connection_id, number, title, head_branch,
-                                           base_branch, state, url, fetched_at)
-     VALUES (?, 'c-gh', 451, 'Reconcile worktree state', 'feat/reconcile', 'main', 'open',
-             'https://github.com/Acme/Mercury/pull/451', ?)`,
-  ).run(SUBJECTS.pull, at)
-
-  seedBranch(db)
-
-  db.prepare(
-    `INSERT OR REPLACE INTO local_workspaces (key, repo_path, canonical_remote, branch, worktree_id,
-                                              head_sha, read_at)
-     VALUES (?, 'D:/code/mercury', 'github.com/acme/mercury', 'feat/reconcile', 'main', 'abc1234', ?)`,
-  ).run(SUBJECTS.workspace, at)
-
-  for (const [connection, kind] of [
-    ['c-jira', 'tickets'],
-    ['c-gh', 'pulls'],
-    ['c-gh', 'branches'],
-    ['c-gh', 'checks'],
-    ['local', 'local'],
-  ] as const) {
-    db.prepare(
-      `INSERT OR REPLACE INTO freshness (connection_id, resource_kind, last_success_at)
-       VALUES (?, ?, ?)`,
-    ).run(connection, kind, at)
-  }
-}
-
-export function seedBranch(db: Database): void {
-  db.prepare(
-    `INSERT OR REPLACE INTO branch_refs (key, connection_id, name, head_sha, updated_at, url, fetched_at)
-     VALUES (?, 'c-gh', 'feat/reconcile', 'abc1234', ?, 'https://github.com/Acme/Mercury/tree/feat/reconcile', ?)`,
-  ).run(SUBJECTS.branch, '2026-08-14T09:00:00.000Z', '2026-08-14T09:00:00.000Z')
 }
 
 export function seedSession(db: Database): void {

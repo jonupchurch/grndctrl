@@ -79,7 +79,7 @@ export function runCli(argv: readonly string[]): { output: string; exitCode: num
   const freshness = Object.fromEntries(
     kinds.map((kind) => {
       const record = (scenario.freshness ?? []).find((f) => f.resourceKind === kind)
-      const view = freshnessView(record, now.getTime(), settings.pollIntervalSec.github * 3)
+      const view = freshnessView(record, now.getTime(), settings.pollIntervalSec.jira * 3)
       return [kind, { state: view.state, ageSec: view.ageSec }]
     }),
   )

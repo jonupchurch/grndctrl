@@ -21,21 +21,17 @@ import { defineOperation } from '../types.js'
  */
 
 /*
- * `resourceKind` still names six kinds, and this is the one narrowing M2 does
- * not do.
+ * `resourceKind` named six kinds until the producer stopped producing them.
  *
- * The output of an operation is parsed against its schema, so an enum narrowed
- * to `['tickets']` while `syncCode` and `syncLocal` are still running would make
- * every refresh throw — on a value the application itself produced. The
- * producer goes in M3 (T026) and the enum goes with it, in the same commit.
- *
- * That is the whole ordering argument in one field: narrow the boundary before
- * the thing behind it stops producing, and the milestone that was supposed to be
- * green is a board whose Refresh button reports an internal error.
+ * An operation's output is parsed against its schema, so narrowing this while
+ * `syncCode` and `syncLocal` were still running would have made every refresh
+ * throw — on a value the application itself produced. That is the whole
+ * ordering argument in one field, and it is why this landed with the producer
+ * rather than with the rest of the boundary narrowing a milestone earlier.
  */
 const resultSchema = z.object({
   connectionId: z.string(),
-  resourceKind: z.enum(['tickets', 'pulls', 'checks', 'branches', 'comparisons', 'local']),
+  resourceKind: z.enum(['tickets']),
   ok: z.boolean(),
   count: z.number().int().nonnegative(),
   failureReason: z.enum(['auth', 'rateLimit', 'network', 'notFound', 'unknown']).optional(),
@@ -79,7 +75,9 @@ export function syncOperations(services: CoreServices): Operation<never, never>[
       providerDerived: false,
       handler: async (_input, ctx) => {
         const settings = services.settings.get()
-        const staleAfterSec = Math.max(settings.pollIntervalSec.jira, settings.pollIntervalSec.github) * 3
+        // Three polls' worth. It was the *larger* of two intervals, so a stale
+        // reading meant "even the slow provider should have refreshed by now".
+        const staleAfterSec = settings.pollIntervalSec.jira * 3
 
         return {
           connections: services.mirror.listFreshness().map((record) => {
