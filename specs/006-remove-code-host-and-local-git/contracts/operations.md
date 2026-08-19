@@ -10,7 +10,17 @@ Gate **XII** is what makes this list the whole surface: the IPC bridge, the loop
 
 ## Operations removed
 
-**None.** Every one of the 37 operations survives. That is worth stating rather than assuming — the removal is deep but it is about *what the operations return*, not about which questions can be asked.
+Three, all of them drift.
+
+| Operation | Why |
+|---|---|
+| `drift.list` | Nothing produces a finding. |
+| `drift.dismiss` | Nothing to dismiss. |
+| `drift.undismiss` | Nothing to restore. |
+
+The other 34 survive. That is worth stating rather than assuming — the removal is deep but mostly about *what the operations return*, not about which questions can be asked.
+
+**The eight outbox operations survive with no producer.** `outbox.mintConfirmation` and `outbox.enqueue` were reached from the confirm dialog behind a drift finding; nothing in the interface reaches them now. They stay because they are the agent-facing half of a durable store holding the operator's confirmed actions — see *The outbox question* in [spec.md](../spec.md). It is recorded as a gap, not as an oversight.
 
 ---
 
@@ -62,21 +72,21 @@ The output schema is `z.custom<WorkItem>` by design — 001 chose not to restate
 
 ### `settings.get` / `settings.update`
 
-`pollIntervalSec` and `laneThresholdHours` reshape as in [data-model.md](../data-model.md#settings-authored-one-json-row). `laneThresholdHours.sessions` is new and is not a rename of `pulls` — it is the threshold drift rule D7 measures against, which was borrowing `pulls` for lack of anything better.
+`pollIntervalSec` and `laneThresholdHours` reshape as in [data-model.md](../data-model.md#settings-authored-one-json-row). `laneThresholdHours.sessions` is new and is not a rename of `pulls` — it is the session lane's own staleness threshold, which takes the old `pulls` value as its default so a tuned number is not lost.
 
 ### `board.summary`
 
 `lanes` loses `pulls` and `branches`, keeping `tickets` and `sessions`.
 
-**`drifting`, `stalled`, `yourCourt` and `agentsLive` keep their meaning exactly** — each counts work items or sessions, and both still exist. The numbers get smaller; the definitions do not move.
+**`drifting` is removed with the tile it fed.** `stalled`, `yourCourt` and `agentsLive` keep their meaning exactly — each counts work items or sessions, and both still exist. The numbers get smaller; the definitions do not move.
 
 ---
 
 ## Operations unchanged
 
-`notes.*` (6), `sessions.*` (5), `outbox.*` (8), `drift.dismiss`, `drift.undismiss`, `connections.list`, `connections.remove`, `projects.remove`, `app.status`.
+`notes.*` (6), `sessions.*` (5), `outbox.*` (8), `connections.list`, `connections.remove`, `projects.remove`, `app.status`.
 
-`drift.list` is unchanged in signature and narrower in what it can return — three rules instead of nine.
+`drift.*` is gone; see above.
 
 ---
 

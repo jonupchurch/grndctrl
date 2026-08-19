@@ -1,4 +1,4 @@
-# Feature Specification: A ticket-and-agent board — removing the code host and local git
+# Feature Specification: A ticket-and-agent board — removing the code host, local git and drift
 
 **Feature Branch**: `006-remove-code-host-and-local-git`
 
@@ -6,9 +6,11 @@
 
 **Status**: Draft — planning complete, implementation not started
 
-**Input**: GitHub pull-request tracking is a nonstarter against the operator's company GitHub. Remove it entirely, and remove local repository checking with it.
+**Input**: GitHub pull-request tracking is a nonstarter against the operator's company GitHub. Remove it entirely, remove local repository checking with it, and remove the Attention region — confirmed by the operator against a marked-up screenshot of their own board on 2026-08-19, which struck through three regions: the pull request lane, the open branches lane, and Attention in full.
 
-> **Source of truth.** This spec amends [`001-ground-control-v1`](../001-ground-control-v1/spec.md) rather than replacing it. Where the two disagree about the code host or local git, this one wins; everything 001 says about tickets, sessions, notes, the outbox, freshness, persistence and platform still stands. Constitution v4.0.0 Part II (XI–XVIII) remain hard gates.
+> **Source of truth.** This spec amends [`001-ground-control-v1`](../001-ground-control-v1/spec.md) rather than replacing it. Where the two disagree about the code host, local git or drift, this one wins; everything 001 says about tickets, sessions, notes, freshness, persistence and platform still stands. Constitution v4.0.0 Part II (XI–XVIII) remain hard gates.
+>
+> **Sequenced with [`007`](../007-agent-console/spec.md).** This spec empties three regions of the board; 007 fills the space with four new ones and makes every section collapsible. They ship in one release. Read 006 for what goes and 007 for what arrives.
 
 ---
 
@@ -20,7 +22,9 @@ An empty lane is not neutral. This application's own rule is that an absence mus
 
 The local git reader goes with it, and not only because the operator asked. It exists to answer questions that only make sense next to a code host — *is this branch ahead of the base, did this merged PR leave uncommitted work behind, has this branch ever been pushed*. Ahead/behind cannot be computed without the code host at all (FR-018). Alone, local git can say "this checkout is dirty", which is a fact the operator already has in their own terminal.
 
-What remains is a board that joins **tickets and agent sessions** and reports where those two disagree. That is a smaller product than 001 described, and the spec says so plainly rather than pretending the scope is unchanged.
+Drift goes too, and that one is not forced by the missing provider — it is a judgement the operator made looking at their own board. Six of the nine rules needed a pull request or a workspace and were dying anyway. The three that survive compare a ticket against an agent session, and on a board with no agent sessions running two of them have nothing to say and the third (D3 — "in progress, nothing agrees") would fire on **every** in-progress ticket older than three days. A region that is empty most of the time and noisy the rest is worse than no region.
+
+What remains is a board that shows the operator's own tickets and their agents, accurately and with their age attached. That is a real thing to want. It is not what 001 set out to build, and the spec says so plainly rather than pretending the scope is unchanged.
 
 ---
 
@@ -31,11 +35,13 @@ This is a removal, and it removes real capability. Recording it here so that nob
 | Lost | Detail |
 |---|---|
 | **Two of three work lanes** | Pull requests and open branches. The board becomes one lane plus the session lane. |
-| **Six of nine drift rules** | D1, D4, D5, D6, D8, D9 all require a pull request or a workspace. See *Drift* below. |
+| **Drift detection, entirely** | All nine rules, the Attention region, finding dismissals, and the DRIFTING tile. Six of the nine needed a pull request or a workspace and would have died anyway; the operator struck the region itself, so the remaining three go with it. |
+| **The only route from the board to the outbox** | An action was minted by confirming a drift finding's suggestion. With no findings, nothing in the interface enqueues one. See *The outbox question* below. |
 | **Most of ball-in-court's evidence** | Three of its six inputs are pull-request facts. "Them" becomes reachable only through ticket assignment. |
 | **Four of severity's six sources** | Pull-request and workspace contributions go. Drift, ticket, session and staleness remain — all four severity bands stay reachable (see FR-104). |
 | **Two of four action kinds** | `request-review` and `cleanup-workspace` have nothing to act on. |
-| **The differentiator, narrowed** | 001's User Story 2 — "catch the sources disagreeing" — was the reason to build this. It survives, over two sources instead of five. |
+| **The differentiator, gone** | 001's User Story 2 — "catch the sources disagreeing" — was the reason to build this application. It does not survive. What remains is a board that shows the operator's tickets and their agents accurately and quickly, which is a real thing to want and is not the thing this was originally for. |
+| **001's User Story 5, unreachable** | "Act on what you found" ran through Attention. The outbox survives as an agent-facing store; nothing in the interface produces an action for it. |
 
 **The alternative that was considered and rejected**: keeping the code host behind a per-project toggle, so the capability exists for anyone whose GitHub is reachable. Rejected because a disabled feature is still a live provider seam, a live set of tables, a live set of drift rules and a live set of lanes that must be kept correct with no board anywhere exercising them — and this codebase's recurring defect is precisely the field that both sides agree on and nothing connects. The capability is in the git history and can be restored from it; carrying it dark cannot be.
 
@@ -47,7 +53,7 @@ This is a removal, and it removes real capability. Recording it here so that nob
 
 ### User Story 1 - The board is about tickets and agents, and says so (Priority: P1)
 
-The operator opens the board. There is one work lane — tickets assigned to them — with the Attention region beneath it, the headline counts above it, and the session and ball-in-court panels beside it. Nothing on screen refers to a pull request, a branch, a check, or a checkout. The freshness header reports one provider, because there is one.
+The operator opens the board. There is one work lane — tickets assigned to them — with the headline counts above it and the session and ball-in-court panels beside it. Nothing on screen refers to a pull request, a branch, a check, a checkout, or a drift finding. The freshness header reports one provider, because there is one.
 
 **Why this priority**: This is the whole change as the operator experiences it. Everything else in this spec is what has to be true underneath for this screen to be honest.
 
@@ -59,26 +65,38 @@ The operator opens the board. There is one work lane — tickets assigned to the
 2. **Given** a work item, **When** its row renders, **Then** the correlation badges show only the correlations that can still exist, and no slot is a permanent placeholder.
 3. **Given** the settings screen, **When** the operator edits a project, **Then** there is no repository field and no checkout-path field, and the form does not ask for a GitHub connection.
 4. **Given** the settings screen, **When** the operator opens connections, **Then** only ticket-tracker connections can be added, and no screen offers a GitHub token or names a GitHub permission.
-5. **Given** a headline count, **When** the operator reads it, **Then** every number it reports is derived from tickets, sessions, notes or drift — nothing counts a row that no longer exists.
+5. **Given** the headline counts, **When** the operator reads them, **Then** the DRIFTING tile is gone and every remaining number is derived from tickets or sessions — nothing counts a row that no longer exists.
+6. **Given** the board, **When** it is searched for an Attention region, a drift strip or a dismissal control, **Then** none exists.
 
 ---
 
-### User Story 2 - Drift still works, over the two sources that are left (Priority: P2)
+### User Story 2 - Drift leaves without taking anything else with it (Priority: P2)
 
-The operator's tickets and their agents still disagree, and the application still says so: a ticket nobody moved out of Todo while an agent works on it, a ticket that has sat In Progress for days with nothing running, an agent that has been going for hours while its ticket never moved. Findings that used to come from pull requests simply stop being raised.
+Drift detection is removed whole: nine rules, the Attention region, the dismissal store's readers and writers, the DRIFTING tile, and the confirm-and-dispatch route to the outbox. What must survive it is everything drift merely *touched* — the outbox's durable rows, the notes system, ball-in-court, and severity.
 
-**Why this priority**: This is what is left of the reason the product exists. If it does not survive the removal cleanly — in particular if a dismissed finding comes back — the removal has done damage the operator will notice before they notice the missing lanes.
+**Why this priority**: this is the removal most likely to take a bystander with it. Drift reaches into severity as an input, into the outbox as the thing that motivates an action, into notes through the question nudges Attention rendered, and into `authored.db` through the dismissals table. Each of those is a separate opportunity to delete something nobody asked to lose.
 
-**Independent Test**: Run the correlation engine against ticket-and-session fixtures with no network and no shell, and assert the exact finding set, including the fixtures that must produce none.
+**Independent Test**: run the correlation engine over ticket-and-session fixtures and assert it produces no findings and has no rule to produce them with, while severity, ball-in-court and note counts are unchanged for the same inputs.
 
 **Acceptance Scenarios**:
 
-1. **Given** a ticket in a backlog status with a live agent session, **When** correlation runs, **Then** D2 is raised naming the session as the work that has started.
-2. **Given** a ticket in progress with no session and no activity past the lane threshold, **When** correlation runs, **Then** D3 is raised, and its wording claims only what is still knowable — nothing about branches or pull requests.
-3. **Given** an agent running past the threshold on a ticket that has not moved, **When** correlation runs, **Then** D7 is raised.
-4. **Given** a finding that the operator dismissed before the upgrade, **When** the application starts after it, **Then** that dismissal is still in force and the finding does not reappear.
-5. **Given** any fixture at all, **When** correlation runs, **Then** no finding is produced carrying a retired rule identifier.
-6. **Given** correlation runs twice over unchanged inputs, **When** the results are compared, **Then** they are identical, including identifiers — as before.
+1. **Given** any input at all, **When** correlation runs, **Then** no drift finding is produced, because there is no rule left to produce one.
+2. **Given** a work item that would previously have earned `serious` from a drift finding, **When** severity is computed, **Then** the drift contribution is absent and the other contributions are unchanged — severity is narrowed, not rebalanced.
+3. **Given** `authored.db` holds finding dismissals written before the upgrade, **When** the upgrade completes, **Then** those rows are still present and untouched. They are the operator's decisions; nothing here is entitled to tidy them away.
+4. **Given** outbox actions in any state, **When** the upgrade completes, **Then** every one is still listed, still claimable if pending, and still reports its motivating finding identifier even though no finding can be produced for it any more.
+5. **Given** an open `question-for-human` note, **When** the board renders, **Then** it still drives its work item's ball-in-court to the operator. The nudge's *display* moves to 007's agent panel; its effect on ball-in-court is not part of Attention and does not leave with it.
+
+---
+
+## The outbox question
+
+Recorded as an open decision rather than answered here, because answering it inside a removal spec would be smuggling a second removal in.
+
+The outbox is eleven operations, a durable authored table, an audit trail, four MCP tools and constitution gate XVI's whole implementation. Its only *producer* was the confirm dialog behind a drift finding's suggested action. After this change an agent can still list, claim, complete and fail actions; nothing in the interface can create one.
+
+**Recommendation: keep it, and record the gap.** Three reasons. It is durable authored data with live agent-facing operations, so it is not dead code in the sense that matters. Removing two subsystems in one change compounds the risk on the one migration that can lose data. And [007](../007-agent-console/spec.md) adds an agent panel that is the natural place for an action to be raised from a ticket row later.
+
+**The counter-argument, stated fairly**: a feature nothing can trigger is exactly the "declared but never wired" shape this codebase keeps finding bugs in, and keeping it means keeping eleven operations honest with no board exercising them. If the operator would rather it went, it is a separate, cleanly-scoped removal — and it should be a separate one.
 
 ---
 
@@ -138,11 +156,15 @@ Numbering continues 001's single namespace, because the codebase cites these ide
 - **FR-100**: The system MUST NOT spawn a child process for any purpose.
 - **FR-101**: No screen, tool description, empty state, README, changelog header, or package description may claim that the system correlates pull requests, CI results, branches, or local checkouts.
 - **FR-102**: A project MUST be defined as one ticket project, an optional documentation URL, a short code, and a ticket-key pattern. Repository binding and checkout paths MUST NOT be part of it.
-- **FR-103**: Poll interval configuration MUST cover the one remaining provider. Lane threshold configuration MUST cover the ticket lane and the agent-session threshold that drift rule D7 depends on — D7 currently borrows the pull-request threshold, and MUST NOT be left reading a setting that no longer describes anything.
+- **FR-103**: Poll interval configuration MUST cover the one remaining provider. Lane threshold configuration MUST cover the ticket lane and the agent-session lane. The pull-request and branch thresholds MUST go with their lanes.
+- **FR-119**: Drift detection MUST be removed entirely — every rule, the Attention region, the DRIFTING tile, the dismissal read and write paths, and the confirm-and-dispatch route that ran through a finding's suggested action.
+- **FR-120**: Removing drift MUST NOT remove anything drift merely referenced. Severity loses its drift *contribution* and keeps every other source. Ball-in-court is unaffected. Note counts, the notes modal and the open-question effect on ball-in-court are unaffected.
+- **FR-121**: An open `question-for-human` note MUST still drive its work item's ball-in-court to the operator. Attention was where such a note was *displayed*; that display moves to [007](../007-agent-console/spec.md), and the requirement that it be visible somewhere is met there, not dropped here.
+- **FR-122**: Stored finding dismissals MUST be retained untouched. They are the operator's decisions about their own board, and no part of a removal is entitled to delete them.
 
 ### What must still be true
 
-- **FR-104**: All four severity bands MUST remain reachable from the sources that remain, and this MUST be asserted by a test over a fixture rather than argued.
+- **FR-104**: All four severity bands MUST remain reachable from the sources that remain — ticket, session and staleness, with drift now gone from that list too — and this MUST be asserted by a test over a fixture rather than argued.
 - **FR-105**: Ball-in-court MUST continue to resolve to the operator, another person, or an agent, using only the evidence that remains, and MUST keep its fixed evaluation order so that the answer cannot depend on iteration order.
 - **FR-106**: Work items MUST continue to be keyed on the ticket. With no workspace to fall back to, a work item without a ticket MUST NOT be constructible.
 - **FR-107**: Correlation MUST remain deterministic and MUST remain executable without a display, a network, or a shell.
@@ -155,7 +177,7 @@ Numbering continues 001's single namespace, because the codebase cites these ide
 - **FR-111**: The mirror MUST drop the tables and indexes that held code-host and local data, and MUST NOT report freshness for a resource kind that no longer exists.
 - **FR-112**: Stored credentials for removed connections MUST be deleted from the operating system credential store as part of the upgrade, not merely unreferenced. A secret nothing can reach and no screen can show is a secret nobody will ever remove.
 - **FR-113**: The upgrade MUST be idempotent, and a database already upgraded MUST NOT be written again.
-- **FR-114**: Retired drift rule identifiers MUST NOT be reused for any future rule, because a dismissal is keyed on the rule identifier and reuse would resurrect a dismissed finding under a new meaning.
+- **FR-114**: The drift rule identifier namespace MUST be treated as spent. If drift ever returns, its rules MUST NOT be numbered D1–D9: a dismissal is keyed on `drift:<rule>:<subject>` and stored dismissals are retained by FR-122, so a new rule reusing an old number would arrive pre-dismissed on every subject where the old one was ever dismissed — silently, with nothing to notice it by.
 
 ### The agent surface
 
@@ -178,12 +200,16 @@ Numbering continues 001's single namespace, because the codebase cites these ide
 | FR-029 | **Amended** — severity keeps four of its six sources. Bounded by FR-104. |
 | FR-030 | **Amended** by FR-103 — thresholds for pulls and branches have no lanes. |
 | FR-032 | **Amended** by FR-105 — three of six inputs retire. |
-| FR-035 (D1, D4, D5, D6, D8, D9) | **Retired** — each needs a pull request or a workspace. Identifiers burned by FR-114. |
-| FR-035 (D2, D3, D7) | **Amended** — narrowed to the evidence that remains. Identifiers kept. |
+| FR-034, FR-035 (all nine rules), FR-036, FR-037, FR-039 | **Retired** — drift detection is removed whole (FR-119). Six rules needed a code host; the operator struck the region the other three appeared in. Identifier namespace spent by FR-114. |
+| FR-038 | **Retired as a capability, honoured as data** — nothing can be dismissed because nothing is found, and existing dismissals are retained untouched (FR-122). |
 | FR-041 | **Amended** by FR-115 — a session associates with a work item and a project, not a workspace. |
 | FR-047 | **Amended** — sessions stand beside tickets; there are no PRs to stand beside. |
 | FR-049 | **Amended** — notes attach to a ticket or a session going forward. Existing notes on other subjects are kept (FR-117). |
+| FR-053 | **Amended** — a question-for-human note keeps its effect on ball-in-court (FR-121); its display leaves Attention for 007's agent panel. |
 | FR-057 | **Unchanged and now trivially stronger** — read-only against providers, of which there is one. |
+| FR-058–FR-068 | **Unchanged in code, unreachable from the interface.** The outbox keeps every operation and every row; nothing on the board produces an action any more. See *The outbox question*. |
+| FR-072 | **Retired** — the Attention region is removed. |
+| FR-073 | **Amended** — the DRIFTING tile goes; the other three headline counts stand. |
 | FR-069 | **Amended** — one work lane plus the session lane. |
 | FR-075 | **Amended** — tickets open at the tracker; there are no other provider objects. |
 | FR-076 | **Retired** — no branch, no repository fallback. |
@@ -201,7 +227,8 @@ Numbering continues 001's single namespace, because the codebase cites these ide
 | **PullRequest, CheckResult, BranchRef, Comparison, LocalWorkspace** | Removed. |
 | **WorkItem** | Loses `workspaces`, `pullRequests`, `checks`, `comparisons`. Always has a ticket. |
 | **AgentSession** | Loses `workspaceKey`. |
-| **DriftFinding** | Rule union narrows to D2, D3, D7. |
+| **DriftFinding, DriftEvidence, DriftRule** | Removed. |
+| **FindingDismissal** | Rows retained untouched; nothing reads or writes them (FR-122). |
 | **OutboxAction** | Producible kinds narrow to `transition-ticket` and `investigate`. Stored rows of retired kinds still read. |
 | **Settings** | `pollIntervalSec` and `laneThresholdHours` reshape (FR-103). |
 | **Note** | Unchanged in shape. Gains permanently-orphaned instances. |
@@ -212,11 +239,13 @@ Numbering continues 001's single namespace, because the codebase cites these ide
 
 ### Measurable Outcomes
 
-- **SC-001**: The board renders one work lane and the session lane, and a full-text search of the rendered DOM for "pull request", "branch", "check", "repository" and "checkout" returns nothing.
+- **SC-001**: The board renders one work lane and the session lane, and a full-text search of the rendered DOM for "pull request", "branch", "check", "repository", "checkout" and "drift" returns nothing.
 - **SC-002**: The egress audit passes with exactly one provider host allowed, and the first-run download allowance still named separately.
 - **SC-003**: A search of the shipped tree finds no process spawn and no code-host client.
 - **SC-004**: An `authored.db` written by 0.3.0 upgrades with every row preserved, verified by count and content for all six tables.
-- **SC-005**: A finding dismissed before the upgrade is still dismissed after it.
+- **SC-005**: Every finding dismissal written before the upgrade is still in `authored.db` after it, byte for byte.
+- **SC-011**: No input to the correlation engine produces a drift finding, and there is no rule in the tree that could produce one.
+- **SC-012**: Every outbox row survives the upgrade in its existing state, and an action that was pending before it is still claimable after it.
 - **SC-006**: All four severity bands appear on a single seeded board, asserted from a fixture whose timestamps are relative to the run — which also returns `greyscale.spec.ts` to green.
 - **SC-007**: Correlation over unchanged fixtures is byte-identical across two runs, including finding identifiers.
 - **SC-008**: `npm run verify` is green, and the end-to-end suite is green **including** the three greyscale tests that fail on `main` today.
@@ -227,8 +256,9 @@ Numbering continues 001's single namespace, because the codebase cites these ide
 
 ## Assumptions
 
-1. **The ticket tracker stays.** This removal is about the code host and local git only. Jira remains reachable and remains the source of tickets.
+1. **The ticket tracker stays.** Jira remains reachable and remains the source of tickets.
 2. **The agent surface stays and matters more, not less.** With one provider left, agent sessions are half of what the board correlates.
-3. **No operator is relying on the removed lanes today.** The application is used on one machine by one person, who asked for the removal. If that changes, the git history holds the implementation.
+3. **No operator is relying on the removed regions today.** The application is used on one machine by one person, who marked up their own board to ask for this. If that changes, the git history holds the implementation.
+6. **The space these removals free is filled by [007](../007-agent-console/spec.md).** This spec is not a plan for a board with three holes in it. If 007 does not proceed, the resulting board is thin enough that the layout deserves a second look before release.
 4. **`mirror.db` may be dropped without ceremony.** It is disposable by construction and rebuilt from the provider. Only `authored.db` needs care.
 5. **A downgrade is not supported.** Schema versions move forward. A 0.3.0 binary meeting a post-removal database must refuse to start rather than half-read it.

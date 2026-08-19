@@ -37,12 +37,17 @@ GRNDCTRL_DATA_DIR=<scratch> npx electron .
 
 **Look at it.** This is the milestone whose verification is a human one.
 
-- One work lane, plus the session lane. No empty pull-request lane, no collapsed branch lane, nothing hidden — search the DOM and find nothing.
-- Attention beneath the tickets, panels beside them. Does the two-column layout still hold with one lane in the main column? *This is [a deferred decision](./plan.md#deferred-decisions); decide it here.*
+- One work lane, plus the session lane. No empty pull-request lane, no collapsed branch lane, no Attention region — search the DOM and find nothing.
+- Three tiles, not four. The DRIFTING tile is gone with what fed it.
+- **This is the thin board**: three tiles, one lane, two side panels. That is the intended intermediate state and it is what [007](../007-agent-console/quickstart.md) fills. Judge the direction here, not the layout.
 - Settings → Projects: no repository field, no checkout paths, no GitHub connection selector.
 - Settings → Connections: one provider kind, and no screen naming a GitHub permission.
 
-**The trap to check for explicitly**: open the error boundaries. There should still be one per lane and one around Attention. If they were removed as "obviously redundant now", gate XV has been quietly dropped — see [ipc-channels.md](./contracts/ipc-channels.md#what-must-not-be-removed-along-with-the-lanes).
+**Two traps to check for explicitly.**
+
+The error boundaries: there should still be one per remaining region. Attention had one and Attention is going, so it is easy to conclude the pattern went with it. It did not — see [ipc-channels.md](./contracts/ipc-channels.md#what-must-not-be-removed-along-with-the-lanes), and 007 adds four more regions that need it.
+
+The `notes.questions` query: Attention rendered the open question-for-human nudges, so deleting the component makes the query look orphaned. It is not — ball-in-court reads the same set, and 007's update panel is where the display lands. Removing it here silently breaks FR-121 and nothing fails.
 
 ---
 
@@ -67,10 +72,10 @@ node --experimental-strip-types packages/cli/bin/grndctrl-cli.js board --dir <sc
 npm run verify
 ```
 
-- The three surviving drift rules fire against ticket-and-session fixtures; the six retired ones cannot be produced by any input.
-- **Check the wording** of D2's and D3's summaries. They named branches and pull requests in text the operator reads; a rule that still says "with no branch, PR, or session" while only checking sessions is a rule that lies in the one place the operator looks.
-- Determinism holds: run correlation twice over unchanged fixtures and compare, including finding identifiers.
-- `severity.test.ts` asserts all four bands reachable (FR-104) — not by argument, by fixture.
+- No input produces a drift finding, because there is no rule left to produce one.
+- **Check what left with it.** The outbox's eight operations still registered. `notes.questions` still queried. An open question-for-human note still driving ball-in-court to the operator. Every dismissal row still in `authored.db`. This is the milestone's real risk — not that drift fails to leave, but that it takes a passenger.
+- Severity keeps every contribution except `inDrift`, unchanged, for the same inputs. A "tidy" rebalance while in there would be an undocumented product change.
+- Determinism holds: run correlation twice over unchanged fixtures and compare.
 
 ---
 
@@ -83,9 +88,9 @@ The one that can lose data.
 npm run verify
 ```
 
-- Every authored row present after upgrade: projects, notes, sessions, outbox actions, dismissals, settings. **By count and by content.**
+- Every authored row present after upgrade: projects, notes, sessions, outbox actions, dismissals, settings. **By count and by content.** The dismissals especially — they have no reader after this change, which makes deleting them look like tidiness (FR-122).
 - The repository-only project is still there and is shown as incomplete rather than as working.
-- A finding dismissed before the upgrade is still dismissed after it.
+- Every outbox row is still in its state, and a pending action is still claimable.
 - The removed connection's secret is **gone from the OS keychain**. Check the keychain directly — this is the assertion most easily satisfied by a test that only checks the row is gone.
 - Run the upgrade twice. The second run writes nothing.
 
@@ -130,7 +135,6 @@ On a machine with **no GitHub credential of any kind**:
 4. Sync.
 5. Tickets appear. Freshness reports one provider and a real age.
 6. Start an agent session against one of them over MCP; it appears in the session lane and takes its turn in ball-in-court.
-7. Let the session run past the threshold without moving the ticket; D7 appears in Attention.
-8. Dismiss it. Restart. It stays dismissed.
+7. Add a `question-for-human` note to a ticket; ball-in-court moves to you. *(Its display lands in [007's](../007-agent-console/quickstart.md) update panel — after 006 alone it has an effect and no visible home, which is why the two ship together.)*
 
 At no point is a GitHub token requested, a repository named, or a checkout path asked for.

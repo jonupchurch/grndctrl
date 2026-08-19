@@ -63,15 +63,25 @@ Loses `workspaceKey`. The column is dropped; it is not named in any constraint, 
 | `pollIntervalSec` | `{ github: 60, jira: 300 }` | `{ jira: 300 }` |
 | `laneThresholdHours` | `{ tickets: 72, pulls: 24, branches: 24 }` | `{ tickets: 72, sessions: 24 }` |
 
-`laneThresholdHours.sessions` is **new, and is not a rename**. Drift rule D7 — "an agent has been running a long time and the ticket never moved" — currently reads `laneThresholdHours.pulls`, a borrow that made sense while a pull-request lane gave that number meaning. It needs a threshold of its own that describes what it measures (FR-103). The migration carries the old `pulls` value across as the new default, so an operator who had tuned it keeps their number.
+`laneThresholdHours.sessions` is **new, and is not a rename**. It is the session lane's own staleness threshold. The old `pulls` value is carried across as its default so an operator who had tuned that number keeps it, but the two describe different things and the naming says so.
+
+*(Drift rule D7 used to read `laneThresholdHours.pulls` as "how long is too long for an agent to run" — a borrow that would have become a live bug the moment the field was deleted. With drift removed the bug cannot occur, but the session lane still wants a threshold of its own, so the field lands anyway.)*
 
 ### WorkItem *(derived)*
 
 Loses `workspaces`, `pullRequests`, `checks`, `comparisons`. `ticket` stops being nullable: with no workspace to key on, a work item without a ticket cannot be constructed (FR-106). `key` is always the ticket's key.
 
-### DriftFinding *(derived)*
+### DriftFinding, DriftEvidence, DriftRule *(derived)*
 
-`rule` narrows to `'D2' | 'D3' | 'D7'`. **D1, D4, D5, D6, D8 and D9 are burned** and must never be reused — a dismissal is keyed on `drift:<rule>:<subject>`, so a future rule numbered D1 would arrive pre-dismissed on every ticket where the old D1 was ever dismissed. The next rule is D10.
+**Removed.** Drift detection goes whole.
+
+**The identifier namespace D1–D9 is spent.** Stored dismissals are retained (below), and a dismissal is keyed on `drift:<rule>:<subject>` — so if drift ever returns, a rule numbered D1 would arrive pre-dismissed on every subject where the old D1 was ever dismissed, silently, with nothing to notice it by. Any future rule starts at D10.
+
+### FindingDismissal *(authored)*
+
+**Rows retained, untouched, with no reader and no writer.**
+
+This is the one entity in this change that ends up inert rather than gone, and that is deliberate. The rows are the operator's decisions about their own board. A removal is not entitled to delete them, and "the table has no reader now" is an argument for leaving it alone, not for dropping it — the migration does not open it, and the migration test counts its rows to prove that.
 
 ### OutboxAction *(authored)*
 
@@ -85,7 +95,9 @@ Producible kinds narrow to `transition-ticket` and `investigate`. `request-revie
 
 ## Entities unchanged
 
-`Ticket`, `TicketActivity`, `Note`, `FindingDismissal`, `ActionHistoryEntry`, `ViewerIdentity`, `FreshnessRecord`, and the derived `Severity`, `StalenessBand`, `BallInCourt`.
+`Ticket`, `TicketActivity`, `Note`, `ActionHistoryEntry`, `ViewerIdentity`, `FreshnessRecord`, and the derived `Severity`, `StalenessBand`, `BallInCourt`.
+
+`Severity` keeps its type and loses one of its *contributions* — `inDrift` goes as an input. `serious` stays reachable from a silent agent session and from 2× staleness, so no band is lost with it.
 
 ---
 
@@ -112,7 +124,7 @@ The one that can lose data. Every step is a copy, in one transaction.
 1. **`projects`** — 12-step rebuild. New table without the four removed columns and without the old CHECK; `INSERT INTO … SELECT` the retained columns for **every** row, including projects with no `jira_project_key`; drop the old; rename.
 2. **`agent_sessions`** — `ALTER TABLE agent_sessions DROP COLUMN workspace_key`. No constraint names it.
 3. **`settings`** — read the single payload row, reshape `pollIntervalSec` and `laneThresholdHours` (carrying `pulls` → `sessions`), write it back. Idempotent: a payload already in the new shape is left alone (FR-113).
-4. **`notes`, `outbox_actions`, `finding_dismissals`** — untouched. Not "migrated with no changes": genuinely not opened. They hold keys and kinds that no longer resolve, and that is the correct state (FR-109, FR-114, FR-117).
+4. **`notes`, `outbox_actions`, `finding_dismissals`** — untouched. Not "migrated with no changes": genuinely not opened. They hold keys, kinds and rule identifiers that no longer resolve, and that is the correct state (FR-109, FR-117, FR-122).
 
 **What the test must hold**: a database written by 0.3.0 containing at least one project of each shape (Jira+repo, Jira only, repo only), notes on all five subject kinds, sessions with and without a workspace key, outbox actions of all four kinds, and a dismissal for a rule about to be retired. After the upgrade: every row present, every count equal, the repo-only project still there, the dismissal still suppressing.
 

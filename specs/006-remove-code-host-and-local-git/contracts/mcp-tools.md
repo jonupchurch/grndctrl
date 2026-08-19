@@ -10,7 +10,7 @@ Amends [001's MCP contract](../../001-ground-control-v1/contracts/mcp-tools.md).
 
 ## Tools removed
 
-**None.** All tools survive; three change.
+`grndctrl_list_drift`. Nothing produces a finding, so a tool that returns them would return an empty array forever — which an agent reads as "the systems agree", a much stronger claim than "we stopped looking".
 
 ---
 
@@ -52,7 +52,6 @@ The current text promises data that will never arrive. Each of these is a rewrit
 | Tool | Currently says | Must say |
 |---|---|---|
 | `grndctrl_list_work` | "ticket, branches, pull requests, CI checks and agent sessions joined into one row each" | tickets and agent sessions joined into one row each, with severity, staleness and whose move it is |
-| `grndctrl_list_drift` | "a merged pull request against an open ticket, a branch with no ticket, a ticket in review with nothing to review" | the three disagreements that remain — work started with the ticket not moved, a ticket in progress with nothing running, an agent running with the ticket not moved |
 | `grndctrl_list_projects` | "each one a Jira project plus a repository" | each one a Jira project |
 | `grndctrl_list_notes` | "attached to a ticket, pull request, branch, workspace or session" | attached to a ticket or a session — **and must still say** that notes on other subject kinds exist from before and are readable by key |
 

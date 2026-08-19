@@ -1,4 +1,4 @@
-# Implementation Plan: removing the code host and local git
+# Implementation Plan: removing the code host, local git and drift
 
 **Feature**: `006-remove-code-host-and-local-git` · **Date**: 2026-08-19
 
@@ -8,7 +8,9 @@
 
 ## Summary
 
-Remove the GitHub provider, the local git reader, and everything downstream of them, leaving a board that correlates **tickets and agent sessions** and reports where those two disagree. Sixty-odd source files across five packages are touched; five mirror tables and four project columns go; six of nine drift rules retire; nothing the operator has written is lost.
+Remove the GitHub provider, the local git reader, the drift engine and the Attention region, leaving a board that shows **the operator's tickets and their agents**. Seventy-odd source files across five packages are touched; five mirror tables and four project columns go; all nine drift rules go with the region that displayed them; nothing the operator has written is lost.
+
+Paired with [007](../007-agent-console/plan.md), which fills the freed space. They ship as one release.
 
 The plan's whole shape comes from one decision in [R7](./research.md#r7--in-what-order-can-this-be-done-so-that-every-commit-is-green): work **outside in**, renderer first, so that every commit builds and the resulting board can be looked at before the engine underneath it is dismantled.
 
@@ -23,6 +25,7 @@ The plan's whole shape comes from one decision in [R7](./research.md#r7--in-what
 | **Testing** | Vitest for units, Playwright + real Electron for end-to-end — unchanged |
 | **Scale** | Smaller than before: one provider, one work lane |
 | **Schema versions after this change** | mirror **4**, authored **2** |
+| **Sequenced with** | [007 — the agent console](../007-agent-console/plan.md), which lands after M6 |
 | **Version** | Minor at least; see *Versioning* below |
 
 **Nothing is added.** No new dependency, no new module, no new abstraction. The only files created are two migrations and their tests, plus rebuilt fixtures. Every other change is a deletion or a narrowing. A removal that grows the tree has misunderstood itself.
@@ -39,8 +42,8 @@ The plan's whole shape comes from one decision in [R7](./research.md#r7--in-what
 | **XII** — everything reachable through the registry | **Held.** Operations are removed from the registry, not bypassed. The three adapters stay three translations of one list. |
 | **XIII** — mirrored and authored data separate, no cross-file reference | **Exercised, and this is the proof.** Five mirror tables drop with no cascade and no authored change, which is exactly what XIII was for. The authored migration is separate and touches nothing mirrored. |
 | **XIV** — no provider data without its freshness | **Held and narrowed.** Freshness rows for retired resource kinds are deleted so the header cannot report a resource that no longer exists. |
-| **XV** — degrade honestly, never blank | **Re-read carefully.** With one provider, "one lane failing must not blank the others" has less to bite on — but the session lane and Attention are still separately fallible, so the error boundaries stay. The removal must not be an excuse to remove them. |
-| **XVI** — never hold write authority | **Held, trivially stronger.** Two write-shaped action kinds retire; the remaining ones still require per-action confirmation. |
+| **XV** — degrade honestly, never blank | **Re-read carefully, and the reading changed.** Attention was one of the independently-failing regions the boundaries protected, and it is going. The ticket lane, the session lane and the connection notice remain separately fallible, and 007 adds four more regions — so the boundaries stay and gain occupants. The removal must not be an excuse to delete them. |
+| **XVI** — never hold write authority | **Held, and now vacuously so.** Two action kinds retire and the interface loses its only route to minting a confirmation. The gate is not weakened — it is unexercised, which is worth naming because an unexercised gate is one nobody notices breaking. See *The outbox question* in the spec. |
 | **XVII** — Windows first-class | **Held, and cheaper.** The largest source of Windows-specific complexity was the git path handling, which goes entirely. |
 | **XVIII** — determinism | **Held.** Correlation stays a pure function of two stores; FR-107 and SC-007 assert it over the narrowed inputs. |
 
@@ -91,7 +94,7 @@ packages/core/src/
 │   ├── severity.ts      NARROW — two of six source groups
 │   ├── activity.ts      KEEP — ticket activity only, already
 │   └── staleness.ts     KEEP
-├── drift/rules.ts       NARROW — six rules out, three rewritten
+├── drift/               DELETE (4 files) — rules, dismissal, id, index
 ├── services/
 │   ├── sync.ts          NARROW — syncCode and syncLocal go; syncTickets stays
 │   ├── links.ts         NARROW — four link kinds go
@@ -104,12 +107,16 @@ packages/core/src/
 ├── store/
 │   ├── mirror/          migration 4 + repository narrowing
 │   └── authored/        migration 2 (the risky one — see R4)
-├── registry/ops/        NARROW — config, links, sync, work
+├── registry/ops/        NARROW — config, links, sync, work; DELETE drift.ts
 └── runtime/             NARROW — providers, scheduler
 
 packages/desktop/src/renderer/
 ├── lanes/Lanes.tsx      NARROW — PullRequests and Branches components go
 ├── components/Row.tsx   NARROW — correlation badges narrow
+├── components/Attention.tsx      DELETE
+├── components/ConfirmAction.tsx  DELETE
+├── components/ActionState.tsx    DELETE (only Attention rendered it)
+├── components/StatTiles.tsx      NARROW — the DRIFTING tile goes
 ├── settings/Projects.tsx    NARROW — repository and checkout fields go
 ├── settings/Connections.tsx NARROW — one provider kind
 └── types.ts             NARROW — mirrors core
@@ -134,11 +141,13 @@ Each is a commit or a small run of them, each green, each independently verifiab
 
 ### M1 — The board becomes what it will be
 
-Renderer only. Remove the pull-request and branch lanes, the repository and checkout fields from project settings, the GitHub arm of the connections screen. Core still fetches everything; nothing renders it.
+Renderer only. Remove the pull-request and branch lanes, the Attention region with its confirm dialog, the DRIFTING tile, the repository and checkout fields from project settings, and the GitHub arm of the connections screen. Core still fetches and still detects drift; nothing renders any of it.
 
 **Why first**: it is the whole change as the operator sees it, and it is reversible in one revert. If a ticket-only board turns out to be too thin to be worth using, that is far better learned now than after the engine is gone.
 
-**Verifiable**: launch on a seeded scenario; one work lane plus sessions; settings offers no repository field.
+**Verifiable**: launch on a seeded scenario; one work lane plus sessions; three tiles; no Attention region; settings offers no repository field.
+
+**The thin-board moment.** After M1 the board is four tiles, two ticket rows and two mostly-empty side panels. That is the honest intermediate state and it is why [007](../007-agent-console/plan.md) exists. It is also the best possible moment to confirm the removal is right, because nothing underneath has been dismantled yet.
 
 ### M2 — The adapters stop offering what the board no longer shows
 
@@ -148,9 +157,9 @@ Registry operations, MCP tools, CLI. `links.resolve` loses four kinds; `sessions
 
 ### M3 — The engine narrows
 
-Correlation, drift, severity, ball, links. Delete the GitHub and git providers, their sync arms, their fixtures and their tests. This is the largest milestone and the first where behaviour rather than presentation changes.
+Correlation, severity, ball, links. Delete the GitHub and git providers, the whole `drift/` package, their sync arms, their fixtures and their tests. This is the largest milestone and the first where behaviour rather than presentation changes.
 
-**The care point**: drift rule identifiers. D2, D3 and D7 keep their numbers and lose evidence; the other six are retired and burned.
+**The care point**: what drift *touched* must not leave with it. Severity loses one contribution and keeps the rest. The dismissals table keeps its rows. The outbox keeps every operation. An open question-for-human note keeps its effect on ball-in-court — Attention displayed it, and display is the only thing Attention owned.
 
 ### M4 — Types and store
 
@@ -202,7 +211,8 @@ Named here so they are decisions rather than oversights.
 | Risk | Why it is real here | Mitigation |
 |---|---|---|
 | **The authored migration loses a project row** | It is a 12-step table rebuild ([R4](./research.md#r4--can-the-authored-store-be-narrowed-without-losing-rows--changes-the-design)), which writes every row, on the one database that must never lose one. | A test that starts from a real 0.3.0 database, including a repo-only project. Probed by making the copy step drop a row and confirming the test fails. |
-| **A dismissed finding comes back** | Dismissals key on `drift:<rule>:<subject>`. Any renumbering resurrects them. | Identifiers burned (FR-114); a test asserts a pre-upgrade dismissal still suppresses. |
+| **Something drift merely touched leaves with it** | Drift reaches into severity, the outbox, the notes nudges and an authored table. Four separate chances to delete a bystander. | FR-120/FR-121/FR-122 name each one; a test holds severity's remaining contributions, the outbox row count, and the question-note effect on ball-in-court across the change. |
+| **The dismissals table is "cleaned up"** | It has no reader and no writer after this. Deleting it looks like tidiness. | FR-122 forbids it; the migration explicitly does not open the table, and the migration test counts its rows. |
 | **Keychain secrets orphaned** | Dropping a connection row leaves its secret unreferenced and unreachable — no screen can show it, so nobody removes it. | Read refs before dropping rows; delete each. Ordering has its own test. |
 | **Removing the wrong GitHub host from the egress audit** | `github.com` is in the *first-run* allowance for the Electron native module download. Removing it breaks every fresh install, and the symptom is far from the cause. | [R6](./research.md#r6--what-does-removing-local-git-buy-besides-the-lanes) states the distinction; SC-002 asserts both halves. |
 | **A test that passes because it tests nothing** | Removal tests assert absence. An assertion that something is missing passes trivially if the selector was wrong. | Every absence assertion pairs with a presence assertion that must find something in the same query — the pattern already used by `board.spec.ts`. |
