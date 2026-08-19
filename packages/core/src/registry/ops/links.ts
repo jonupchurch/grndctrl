@@ -15,33 +15,34 @@ import { naturalKeySchema } from './schemas.js'
  *
  * The output is a plain URL rather than an envelope. It is derived from provider
  * data, but it is not *information about* the provider's state: a link is right
- * or it is broken, and "this link is four minutes old" would be noise. What the
- * output does carry is `fellBack`, so the UI can say why a branch row opened the
- * repository instead of the branch (FR-076).
+ * or it is broken, and "this link is four minutes old" would be noise.
+ *
+ * **`target` lost four of its seven members** with the code host and the local
+ * checkout. They are enumerated in the schema rather than left open, so a caller
+ * asking for `pull-request` gets a validation error naming the targets that do
+ * exist. Falling back to the ticket would answer that caller, wrongly, in a way
+ * it could not detect.
  */
 export function linksOperations(services: CoreServices): Operation<never, never>[] {
   const ops = [
     defineOperation({
       name: 'links.resolve',
       description:
-        'Resolve a subject to the https URL it opens. Refuses any other scheme. Falls back to the repository for a branch the host has never seen.',
+        'Resolve a subject to the https URL it opens: a ticket, a project board, or a project’s documentation link. Refuses any other scheme.',
       input: z.object({
         subjectKey: naturalKeySchema,
-        target: z
-          .enum([
-            'default',
-            'ticket',
-            'pull-request',
-            'repository',
-            'branch',
-            'documentation',
-            'check',
-          ])
-          .optional(),
+        target: z.enum(['default', 'ticket', 'documentation']).optional(),
       }),
       output: z.object({
         url: z.string().url(),
-        /** True when the exact page did not exist and something broader was opened. */
+        /**
+         * True when the exact page did not exist and something broader was
+         * opened. **Permanently `false`**: the only case that set it was a
+         * branch with no page falling back to its repository. Kept because the
+         * distinction it draws is real and a caller reading it is told the
+         * truth, and documented as always-false here so that is written down
+         * rather than left to be discovered.
+         */
         fellBack: z.boolean(),
       }),
       exposure: 'all',
@@ -53,10 +54,7 @@ export function linksOperations(services: CoreServices): Operation<never, never>
         // type parameters, and the coalesce reads the same.
         resolveLink(input.subjectKey, input.target ?? 'default', {
           tickets: services.mirror.listTickets(),
-          pullRequests: services.mirror.listPullRequests(),
-          branches: services.mirror.listBranches(),
           projects: services.projects.list(),
-          checks: services.mirror.listChecks(),
           connections: services.mirror.listConnections(),
         }),
     }),

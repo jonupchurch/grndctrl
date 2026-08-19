@@ -1,36 +1,31 @@
-import { subjectKindOf, type NaturalKey } from '../domain/keys.js'
-import type { BranchRef, Project, PullRequest, Ticket } from '../domain/types.js'
+import { subjectKindOf } from '../domain/keys.js'
+import type { Project, Ticket } from '../domain/types.js'
 import { invalid, notFound } from '../registry/errors.js'
 
 /**
  * The only place a URL is produced.
  *
  * "Everything is a launcher" (FR-075) means every row on the board opens
- * something in a browser, and every one of those URLs comes from provider data
- * — ticket links, PR links, check-run links. Provider data is hostile input:
- * it is exactly where a `javascript:` or `file:` scheme would arrive from.
+ * something in a browser, and every one of those URLs comes from provider data.
+ * Provider data is hostile input: it is exactly where a `javascript:` or `file:`
+ * scheme would arrive from.
  *
  * Centralising resolution here means the scheme check happens once, in code
  * with no UI around it, and the Electron main process can pass the result to
  * `shell.openExternal` knowing it was validated by something testable
  * (FR-077).
+ *
+ * **Four of the seven targets are gone**, with the code host and the local
+ * checkout that produced them. A removed target is an explicit error and never
+ * a fallback to the ticket: a caller asking for a pull-request link and being
+ * handed the ticket page has been answered, wrongly, in a way it cannot detect.
  */
 
-export type LinkTarget =
-  | 'default'
-  | 'ticket'
-  | 'pull-request'
-  | 'repository'
-  | 'branch'
-  | 'documentation'
-  | 'check'
+export type LinkTarget = 'default' | 'ticket' | 'documentation'
 
 export interface LinkSources {
   tickets: readonly Ticket[]
-  pullRequests: readonly PullRequest[]
-  branches: readonly BranchRef[]
   projects: readonly Project[]
-  checks: readonly { key: NaturalKey; url: string }[]
   /**
    * Needed only for a Jira *project* link, which is the one URL in the product
    * that cannot be read off a mirrored row: no ticket carries its project's
@@ -86,56 +81,40 @@ export function resolveLink(
     return { url, fellBack: false }
   }
 
-  if (kind === 'pull-request') {
-    const pr = sources.pullRequests.find((p) => p.key === subjectKey)
-    const url = safeExternalUrl(pr?.url)
-    if (url === null) throw notFound('That pull request has no usable link.')
-    return { url, fellBack: false }
-  }
-
-  if (kind === 'check') {
-    const check = sources.checks.find((c) => c.key === subjectKey)
-    const url = safeExternalUrl(check?.url)
-    if (url === null) throw notFound('That check has no usable link.')
-    return { url, fellBack: false }
-  }
-
-  if (kind === 'branch' || kind === 'workspace') {
-    const branchName = branchNameOf(subjectKey)
-    const ref = sources.branches.find((b) => b.name === branchName)
-
-    const branchUrl = safeExternalUrl(ref?.url)
-    if (branchUrl !== null) return { url: branchUrl, fellBack: false }
-
-    // FR-076: a branch the code host has never seen has no page to open. The
-    // repository is the honest fallback -- and `fellBack` is returned rather
-    // than hidden, so the UI can say why it did not land where the user
-    // expected.
-    const repoUrl = repositoryUrlFor(subjectKey, sources.projects)
-    if (repoUrl === null) throw notFound('That branch has no link and no repository to fall back to.')
-    return { url: repoUrl, fellBack: true }
-  }
-
-  if (kind === 'repository') {
-    const url = repositoryUrlFor(subjectKey, sources.projects)
-    if (url === null) throw notFound('That repository has no usable link.')
-    return { url, fellBack: false }
-  }
+  /*
+   * Four arms were here: pull request, check, branch-or-workspace, repository.
+   *
+   * The branch arm was the interesting one and is the reason `fellBack` exists.
+   * A branch the code host had never seen has no page to open, so it answered
+   * with the repository and said it had done so — the difference between
+   * "this is the page you asked for" and "this is the nearest one we could
+   * find". Nothing sets it now, and the field stays in the result for the reason
+   * recorded in the contract: a caller reading it is told the truth, and the
+   * next link kind that needs the distinction will want it back.
+   *
+   * A subject key of a removed kind still *parses*. `subjectKindOf` keeps every
+   * kind it can recognise, deliberately: a note written before this change
+   * carries one, and a parser that stopped recognising it would turn a retained
+   * note into an unreadable one. Such a key simply has nowhere to open, which is
+   * what the throw below says.
+   */
 
   // Agent sessions have no web page, and inventing one would be worse than
   // saying so -- a link that goes somewhere plausible and wrong is a bug the
-  // user has to discover by clicking (FR-048).
+  // user has to discover by clicking (FR-048). The same is now true of a pull
+  // request, a branch or a check recorded before 006.
   throw notFound('That row has no page to open.')
 }
 
 /**
- * The three links the header offers when the filter narrows to one project
- * (FR-070): its Jira board, its repository, and its documentation.
+ * The two links the header offers when the filter narrows to one project
+ * (FR-070): its Jira board and its documentation. There were three, and the
+ * repository went with the provider that served it.
  *
- * Each is `notFound` when that half of the binding is not configured, rather
- * than falling back to something else. A project with no repository bound has
- * no repository to open, and quietly opening the Jira board instead would be a
- * link that goes somewhere plausible and wrong.
+ * Each is `notFound` when that binding is not configured, rather than falling
+ * back to something else. A project with no documentation link has none to open,
+ * and quietly opening the Jira board instead would be a link that goes somewhere
+ * plausible and wrong.
  */
 function resolveProject(
   subjectKey: string,
@@ -149,15 +128,6 @@ function resolveProject(
   if (target === 'documentation') {
     const url = safeExternalUrl(project.documentationUrl)
     if (url === null) throw notFound('No documentation link is configured for this project.')
-    return { url, fellBack: false }
-  }
-
-  if (target === 'repository') {
-    if (project.repoOwner === null || project.repoName === null) {
-      throw notFound('No repository is bound to this project.')
-    }
-    const url = safeExternalUrl(`https://github.com/${project.repoOwner}/${project.repoName}`)
-    if (url === null) throw notFound('That repository has no usable link.')
     return { url, fellBack: false }
   }
 
@@ -180,39 +150,14 @@ function resolveProject(
 /**
  * Which project a subject belongs to.
  *
- * Matched on the two bindings a project has — its Jira key and its repository —
- * because that is the only relationship that exists here. Correlation does the
- * richer version of this; a link does not need it.
+ * Matched on the one binding a project has — its Jira key. It matched on the
+ * repository too, which was the arm that made this work for a pull request or a
+ * branch; those subjects no longer reach here. Correlation does the richer
+ * version of this; a link does not need it.
  */
 function projectForSubject(subjectKey: string, projects: readonly Project[]): Project | undefined {
-  return projects.find((project) => {
-    if (project.jiraProjectKey !== null && subjectKey.includes(`/${project.jiraProjectKey}-`)) {
-      return true
-    }
-    if (project.repoOwner === null || project.repoName === null) return false
-    return subjectKey.toLowerCase().includes(`${project.repoOwner}/${project.repoName}`.toLowerCase())
-  })
-}
-
-/** `repo:github.com/acme/mercury#feature/x` or `ws:...#branch@worktree`. */
-function branchNameOf(subjectKey: string): string | null {
-  const hash = subjectKey.indexOf('#')
-  if (hash === -1) return null
-  const rest = subjectKey.slice(hash + 1)
-  const at = rest.lastIndexOf('@')
-  return at === -1 ? rest : rest.slice(0, at)
-}
-
-function repositoryUrlFor(subjectKey: string, projects: readonly Project[]): string | null {
-  const hash = subjectKey.indexOf('#')
-  const prefix = subjectKey.slice(subjectKey.indexOf(':') + 1, hash === -1 ? undefined : hash)
-
-  for (const project of projects) {
-    if (project.repoOwner === null || project.repoName === null) continue
-    const remote = `github.com/${project.repoOwner}/${project.repoName}`.toLowerCase()
-    if (prefix.toLowerCase() === remote || prefix.toLowerCase() === `${project.repoOwner}/${project.repoName}`.toLowerCase()) {
-      return safeExternalUrl(`https://github.com/${project.repoOwner}/${project.repoName}`)
-    }
-  }
-  return null
+  return projects.find(
+    (project) =>
+      project.jiraProjectKey !== null && subjectKey.includes(`/${project.jiraProjectKey}-`),
+  )
 }

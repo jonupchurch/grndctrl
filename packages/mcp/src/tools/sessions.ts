@@ -29,7 +29,9 @@ export const sessionsTools: readonly ToolBinding[] = [
         .max(3600)
         .describe('How often you will heartbeat. Be honest — silence is derived from it.'),
       workItemKey: subjectKey.nullable().optional().describe('What you are working on, if known.'),
-      workspaceKey: subjectKey.nullable().optional().describe('The repo/branch checkout you are in.'),
+      // `workspaceKey` was here — "The repo/branch checkout you are in."
+      // Removed with the local git reader, and `sessions.start` is strict, so an
+      // agent still sending it is told rather than quietly ignored (FR-115).
       projectId: z.string().nullable().optional(),
       reportedStatus: z
         .string()
@@ -57,7 +59,6 @@ export const sessionsTools: readonly ToolBinding[] = [
       ...agentRef,
       reportedStatus: z.string().max(500).nullable().optional(),
       workItemKey: subjectKey.nullable().optional(),
-      workspaceKey: subjectKey.nullable().optional(),
     },
     mutates: true,
   },

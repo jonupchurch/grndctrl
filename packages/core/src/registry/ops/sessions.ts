@@ -28,13 +28,24 @@ const sessionRef = {
   at: timestampSchema.optional(),
 }
 
+/**
+ * `workspaceKey` is gone from the input and stays out of the output.
+ *
+ * It named the checkout an agent was working in, which came from the local git
+ * reader. A caller that still sends it is **rejected rather than ignored**
+ * (FR-115), which is what the `.strict()` on the two inputs below is for.
+ *
+ * Accepting and dropping it was the obvious alternative and is worse: it is
+ * exactly the shape this codebase keeps finding bugs in — a field both sides
+ * agree on that nothing connects. An agent that keeps sending it would go on
+ * believing the board knows which checkout it is in.
+ */
 const sessionSchema = z.object({
   key: z.string(),
   agentId: z.string(),
   sessionId: z.string(),
   projectId: z.string().nullable(),
   workItemKey: z.string().nullable(),
-  workspaceKey: z.string().nullable(),
   reportedStatus: z.string().nullable(),
   startedAt: z.string(),
   lastHeartbeatAt: z.string(),
@@ -64,14 +75,19 @@ export function sessionsOperations(service: SessionsService): Operation<never, n
       name: 'sessions.start',
       description:
         'Open a session, or resume one with the same agent and session id. Declares the heartbeat interval.',
-      input: z.object({
-        ...sessionRef,
-        projectId: z.string().nullable().optional(),
-        workItemKey: naturalKeySchema.nullable().optional(),
-        workspaceKey: naturalKeySchema.nullable().optional(),
-        reportedStatus: z.string().max(500).nullable().optional(),
-        heartbeatIntervalSec: z.number().int().min(5).max(3600),
-      }),
+      input: z
+        .object({
+          ...sessionRef,
+          projectId: z.string().nullable().optional(),
+          workItemKey: naturalKeySchema.nullable().optional(),
+          reportedStatus: z.string().max(500).nullable().optional(),
+          heartbeatIntervalSec: z.number().int().min(5).max(3600),
+        })
+        // Strict, so `workspaceKey` comes back named in the error rather than
+        // being silently stripped. Zod's default is to drop what it does not
+        // recognise, which here would mean an agent sending a checkout every
+        // session and never learning that nothing receives it.
+        .strict(),
       output: sessionSchema,
       exposure: 'all',
       mutates: true,
@@ -95,12 +111,13 @@ export function sessionsOperations(service: SessionsService): Operation<never, n
       name: 'sessions.activity',
       description:
         'Report that real work happened, optionally with a one-line status. Advances both the activity clock and the heartbeat.',
-      input: z.object({
-        ...sessionRef,
-        reportedStatus: z.string().max(500).nullable().optional(),
-        workItemKey: naturalKeySchema.nullable().optional(),
-        workspaceKey: naturalKeySchema.nullable().optional(),
-      }),
+      input: z
+        .object({
+          ...sessionRef,
+          reportedStatus: z.string().max(500).nullable().optional(),
+          workItemKey: naturalKeySchema.nullable().optional(),
+        })
+        .strict(),
       output: sessionSchema,
       exposure: 'all',
       mutates: true,

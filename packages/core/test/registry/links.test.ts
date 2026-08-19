@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { branchKey, pullRequestKey, ticketKey, type NaturalKey } from '../../src/domain/keys.js'
-import type { BranchRef, Project, PullRequest, Ticket } from '../../src/domain/types.js'
+import { pullRequestKey, ticketKey, type NaturalKey } from '../../src/domain/keys.js'
+import type { Project, Ticket } from '../../src/domain/types.js'
 import { isOperationError } from '../../src/registry/errors.js'
 import { resolveLink, safeExternalUrl } from '../../src/services/links.js'
 import { tempServices } from '../helpers/services.js'
@@ -9,18 +9,23 @@ import { tempServices } from '../helpers/services.js'
  * FR-077: every URL the product opens comes from provider data, and provider
  * data is hostile input.
  *
- * The concrete attack this closes: a Jira issue whose `self` link, or a check
- * run whose `details_url`, is `javascript:` or `file:`. Handed to
- * `shell.openExternal` unchecked, the first executes in whatever context the
- * shell provides and the second opens a local file — from a string that arrived
- * over the network. So resolution happens in exactly one place, and that place
- * accepts one scheme.
+ * The concrete attack this closes: a Jira issue whose `self` link is
+ * `javascript:` or `file:`. Handed to `shell.openExternal` unchecked, the first
+ * executes in whatever context the shell provides and the second opens a local
+ * file — from a string that arrived over the network. So resolution happens in
+ * exactly one place, and that place accepts one scheme.
+ *
+ * **Three of the four hostile-input cases here were removed with their targets**
+ * and one was replaced rather than dropped. A pull request, a check run and a
+ * branch can no longer be resolved at all, so their poisoned URLs have nowhere
+ * to arrive; what stays is a test that a key of a removed kind is *refused*
+ * rather than resolved to something plausible, which is the property the removal
+ * has to preserve.
  */
 
-const REMOTE = 'git@github.com:Acme/Mercury.git'
 const TICKET = ticketKey('acme.atlassian.net', 'MERC-1184')
+/** A key of a kind that no longer resolves. It still parses, deliberately. */
 const PULL = pullRequestKey('Acme', 'Mercury', 451)
-const BRANCH = branchKey(REMOTE, 'feat/reconcile')
 
 const HOSTILE = [
   'javascript:alert(document.cookie)',
@@ -58,41 +63,6 @@ function ticket(url: string): Ticket {
   }
 }
 
-function pull(url: string): PullRequest {
-  return {
-    key: PULL,
-    connectionId: 'c-gh',
-    number: 451,
-    title: 'Reconcile worktree state',
-    author: null,
-    headBranch: 'feat/reconcile',
-    headSha: 'abc1234',
-    baseBranch: 'main',
-    state: 'open',
-    isDraft: false,
-    reviewDecision: null,
-    requestedReviewers: [],
-    unresolvedThreadCount: 0,
-    mergedAt: null,
-    closedAt: null,
-    lastRealActivityAt: null,
-    url,
-    fetchedAt: '2026-08-14T09:00:00.000Z',
-  }
-}
-
-function branch(url: string): BranchRef {
-  return {
-    key: BRANCH,
-    connectionId: 'c-gh',
-    name: 'feat/reconcile',
-    headSha: 'abc1234',
-    updatedAt: '2026-08-14T09:00:00.000Z',
-    url,
-    fetchedAt: '2026-08-14T09:00:00.000Z',
-  }
-}
-
 const project: Project = {
   id: 'p1',
   code: 'MERC',
@@ -109,18 +79,9 @@ const project: Project = {
   statusOverrides: {},
 }
 
-const sources = (overrides: {
-  tickets?: Ticket[]
-  pullRequests?: PullRequest[]
-  branches?: BranchRef[]
-  projects?: Project[]
-  checks?: { key: NaturalKey; url: string }[]
-}) => ({
+const sources = (overrides: { tickets?: Ticket[]; projects?: Project[] }) => ({
   tickets: overrides.tickets ?? [],
-  pullRequests: overrides.pullRequests ?? [],
-  branches: overrides.branches ?? [],
   projects: overrides.projects ?? [project],
-  checks: overrides.checks ?? [],
 })
 
 describe('safeExternalUrl', () => {
@@ -158,32 +119,55 @@ describe('a hostile provider', () => {
     }
   })
 
-  it('cannot get a pull request row to open one either', () => {
-    for (const raw of HOSTILE) {
-      expect(() =>
-        resolveLink(PULL, 'pull-request', sources({ pullRequests: [pull(raw)] })),
-      ).toThrow()
+})
+
+/**
+ * A subject of a removed kind is refused, not redirected.
+ *
+ * This is the assertion that keeps the removal honest. `subjectKindOf` still
+ * recognises `pr:`, `repo:`, `ws:` and `check:` — deliberately, because a note
+ * written before this change carries one of those keys and must stay readable
+ * (T040). So the keys reach `resolveLink` and parse cleanly; what must not
+ * happen is that one of them lands on the ticket, or on the project board,
+ * because a caller handed a plausible-looking URL has been answered wrongly in a
+ * way it cannot detect.
+ */
+describe('a subject that can no longer be opened', () => {
+  it('refuses a pull request key rather than resolving it to something else', () => {
+    try {
+      const { url } = resolveLink(PULL, 'default', sources({ tickets: [ticket('https://ok.example/x')] }))
+      throw new Error(`resolved a pull request key to ${url} instead of refusing`)
+    } catch (e) {
+      expect(isOperationError(e) && e.code).toBe('not_found')
     }
   })
 
-  it('cannot get a check row to open one', () => {
-    for (const raw of HOSTILE) {
-      expect(() =>
-        resolveLink('check:acme/mercury@abc1234/build' as NaturalKey, 'check', sources({
-          checks: [{ key: 'check:acme/mercury@abc1234/build' as NaturalKey, url: raw }],
-        })),
-      ).toThrow()
+  it('refuses a branch, a repository and a check the same way', () => {
+    for (const key of [
+      'repo:github.com/Acme/Mercury#feat/reconcile',
+      'repo:github.com/Acme/Mercury',
+      'check:acme/mercury@abc1234/build',
+    ]) {
+      expect(() => resolveLink(key as NaturalKey, 'default', sources({}))).toThrow()
     }
   })
 
-  it('falls back to the repository rather than opening a poisoned branch URL', () => {
-    const { url, fellBack } = resolveLink(BRANCH, 'branch', sources({ branches: [branch(HOSTILE[0] as string)] }))
-
-    // The branch's own URL was refused, so this lands on the repository — the
-    // same path FR-076 takes for a branch that was never pushed, and `fellBack`
-    // says so rather than pretending it arrived where it meant to.
-    expect(url).toBe('https://github.com/Acme/Mercury')
-    expect(fellBack).toBe(true)
+  it('refuses a removed target at the schema, before any lookup', async () => {
+    const t = tempServices()
+    try {
+      const ctx = { authorKind: 'user' as const, authorId: null, surface: 'ipc' as const, now: () => new Date() }
+      // Not a fallback to the ticket. The enum is the whole check, and it has to
+      // be the *operation's* check rather than the service's: a caller reaching
+      // the registry with `target: 'branch'` must be told that target does not
+      // exist, whatever the service would have done with it.
+      for (const target of ['pull-request', 'repository', 'branch', 'check']) {
+        await expect(
+          t.registry.dispatch('links.resolve', { subjectKey: TICKET, target }, ctx),
+        ).rejects.toThrow(/Invalid input/)
+      }
+    } finally {
+      t.dispose()
+    }
   })
 })
 
@@ -241,26 +225,20 @@ describe('opening a project', () => {
     })
   })
 
-  it('opens the repository', () => {
-    expect(resolveLink('project:p1', 'repository', projectSources()).url).toBe(
-      'https://github.com/Acme/Mercury',
-    )
-  })
-
   it('opens the documentation link, which is stored and never fetched', () => {
     expect(resolveLink('project:p1', 'documentation', projectSources(withDocs)).url).toBe(
       'https://wiki.example/mercury',
     )
   })
 
-  // Each half of the binding is optional, and a missing half is `notFound`
-  // rather than a fallback to the other. A link that goes somewhere plausible
-  // and wrong is a bug the operator has to discover by clicking.
+  // A missing binding is `notFound` rather than a fallback to the other one. A
+  // link that goes somewhere plausible and wrong is a bug the operator has to
+  // discover by clicking. `noJira` is still reachable after 006: `projects.upsert`
+  // refuses to create one, but a row written by 0.3.0 can be repository-only and
+  // is deliberately kept (FR-110).
   it('refuses rather than substituting when a binding is missing', () => {
-    const noRepo: Project = { ...project, repoOwner: null, repoName: null }
     const noJira: Project = { ...project, jiraProjectKey: null }
 
-    expect(() => resolveLink('project:p1', 'repository', projectSources(noRepo))).toThrow()
     expect(() => resolveLink('project:p1', 'default', projectSources(noJira))).toThrow()
     expect(() => resolveLink('project:p1', 'documentation', projectSources())).toThrow()
   })
@@ -294,8 +272,6 @@ describe('documentation for a subject', () => {
       id: 'p2',
       code: 'ATLS',
       jiraProjectKey: 'ATLS',
-      repoOwner: 'Acme',
-      repoName: 'Atlas',
       documentationUrl: 'https://wiki.example/atlas',
     }
 

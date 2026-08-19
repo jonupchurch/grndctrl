@@ -73,11 +73,18 @@ describe('what the agent surface must not have', () => {
     }
   })
 
-  it('has no tool for cancelling an action or dismissing a finding', () => {
-    // Withdrawing consent and setting a finding aside are both the operator's.
-    // An agent that could dismiss drift could hide the evidence of its own
-    // mistake.
-    for (const operation of ['outbox.cancel', 'drift.dismiss', 'drift.undismiss']) {
+  it('has no tool for cancelling an action or minting a confirmation', () => {
+    // Withdrawing consent and granting it are both the operator's. An agent that
+    // could cancel an action could withdraw a decision it was asked to carry
+    // out, and one that could mint a confirmation could authorise itself.
+    //
+    // `drift.dismiss` and `drift.undismiss` were the other two names here, on
+    // the same reasoning: setting a finding aside was the operator's, and an
+    // agent that could dismiss drift could hide the evidence of its own mistake.
+    // They are gone with the operations. `outbox.mintConfirmation` takes their
+    // place rather than the list simply getting shorter, because it is the
+    // strongest remaining case of the same rule.
+    for (const operation of ['outbox.cancel', 'outbox.mintConfirmation']) {
       expect(exposedOperations()).not.toContain(operation)
     }
   })

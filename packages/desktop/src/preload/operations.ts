@@ -4,10 +4,10 @@
  * The tempting version of the preload is four lines: expose `invoke(name, input)`
  * and let the renderer name whichever operation it wants. That single function is
  * the difference between a bridge and a hole. It would hand a cross-site-scripted
- * renderer — one that rendered a pull request title containing markup, say — the
+ * renderer — one that rendered a ticket summary containing markup, say — the
  * whole registry, including the `ui-only` operations that exist precisely because
  * no automated caller should reach them: minting a confirmation token, enqueueing
- * an action, dismissing a drift finding.
+ * an action, removing a connection.
  *
  * So there is no `invoke`. There is this list, and one method per entry, each
  * closing over its own channel.
@@ -29,9 +29,6 @@ export const OPERATIONS = [
   'connections.list',
   'connections.remove',
   'connections.test',
-  'drift.dismiss',
-  'drift.list',
-  'drift.undismiss',
   'links.resolve',
   'notes.counts',
   'notes.create',

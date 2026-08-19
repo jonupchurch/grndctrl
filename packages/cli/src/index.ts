@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { correlate, detectDrift, DEFAULT_SETTINGS, freshnessView } from '@grndctrl/core'
+import { correlate, DEFAULT_SETTINGS, freshnessView } from '@grndctrl/core'
 import type { CorrelationInput, FreshnessRecord, ResourceKind, Settings } from '@grndctrl/core'
 import { renderBoard } from './board.js'
 import { importCredential } from './credential.js'
@@ -68,23 +68,14 @@ export function runCli(argv: readonly string[]): { output: string; exitCode: num
 
   const correlationInput: CorrelationInput = { ...scenario.input, settings, now }
 
-  // Two passes, matching buildBoard. Drift needs correlated work items, and
-  // severity needs to know which items are in drift (FR-029) -- a single pass
-  // renders a drifting row one severity lower than the real board would, which
-  // is exactly the sort of quiet disagreement this CLI exists to expose.
-  const first = correlate(correlationInput)
-  const findings = detectDrift({
-    workItems: first.workItems,
-    dangling: first.dangling,
-    settings,
-    now,
-  })
-  const { workItems } = correlate({
-    ...correlationInput,
-    driftSubjects: findings.map((f) => f.subjectKey),
-  })
+  // One pass. There were two, and the second existed only because severity had
+  // to know which items were in drift (FR-029) -- a single pass rendered a
+  // drifting row one severity lower than the real board did, which is exactly
+  // the quiet disagreement this CLI exists to expose. With drift gone the
+  // second pass has nothing to feed back, and `buildBoard` is single-pass too.
+  const { workItems } = correlate(correlationInput)
 
-  const kinds: ResourceKind[] = ['tickets', 'pulls', 'branches', 'local']
+  const kinds: ResourceKind[] = ['tickets']
   const freshness = Object.fromEntries(
     kinds.map((kind) => {
       const record = (scenario.freshness ?? []).find((f) => f.resourceKind === kind)
@@ -95,7 +86,6 @@ export function runCli(argv: readonly string[]): { output: string; exitCode: num
 
   const output = renderBoard({
     workItems,
-    findings,
     freshness,
     projectFilter: valueOf(argv, '--project'),
     now,
@@ -118,35 +108,6 @@ function runCredential(argv: readonly string[]): { output: string; exitCode: num
   const results: string[] = []
   let exitCode = 0
   let imported = 0
-
-  if ((env['GRNDCTRL_GITHUB_TOKEN'] ?? '') !== '') {
-    const account = env['GRNDCTRL_GITHUB_ACCOUNT'] ?? ''
-    if (account === '') {
-      return {
-        output: 'GRNDCTRL_GITHUB_ACCOUNT is empty. It is your GitHub login, not a secret — the board needs it to tell your pull requests from everyone else’s.',
-        exitCode: 1,
-      }
-    }
-
-    const result = importCredential(
-      {
-        // Stable, so re-running replaces the credential rather than
-        // accumulating orphaned connections nobody can see.
-        connectionId: 'github',
-        kind: 'github',
-        // `??` is wrong here: an empty variable is present-but-blank, which is
-        // what a template with the line already in it always produces.
-        siteOrHost: blank(env['GRNDCTRL_GITHUB_HOST']) ?? 'github.com',
-        accountLabel: account,
-        fromEnv: 'GRNDCTRL_GITHUB_TOKEN',
-        ...(dir === undefined ? {} : { dir }),
-      },
-      env,
-    )
-    results.push(result.output)
-    if (result.exitCode !== 0) exitCode = result.exitCode
-    else imported += 1
-  }
 
   if ((env['GRNDCTRL_JIRA_API_TOKEN'] ?? '') !== '') {
     const site = env['GRNDCTRL_JIRA_SITE'] ?? ''
@@ -197,24 +158,23 @@ function runCredential(argv: readonly string[]): { output: string; exitCode: num
   return { output: results.join('\n'), exitCode }
 }
 
+/**
+ * No longer reads the env file.
+ *
+ * It did, for one reason: `--repo` fell back to `GRNDCTRL_GITHUB_REPO`, because
+ * a fine-grained GitHub token is scoped per repository and the probe had to be
+ * told which one to try. The Jira probe takes everything it needs from the
+ * connection row, so `--env-file` is now accepted and ignored here — it is still
+ * meaningful to `credential`, which is the command that reads secrets.
+ */
 async function runProbeCommand(
   argv: readonly string[],
 ): Promise<{ output: string; exitCode: number }> {
-  const env = resolveEnv(valueOf(argv, '--env-file') ?? DEFAULT_ENV_FILE)
-
   return runProbe({
     connectionId: valueOf(argv, '--connection') ?? undefined,
-    // `--repo` wins, then the env file. A fine-grained token is scoped per
-    // repository, so the probe has to be told which one to try.
-    repo: valueOf(argv, '--repo') ?? env['GRNDCTRL_GITHUB_REPO'] ?? undefined,
     jql: valueOf(argv, '--jql') ?? undefined,
     dir: valueOf(argv, '--dir') ?? undefined,
   })
-}
-
-/** A variable that exists but is empty is not set. Templates ship every line already present. */
-function blank(value: string | undefined): string | undefined {
-  return value === undefined || value.trim() === '' ? undefined : value.trim()
 }
 
 function valueOf(argv: readonly string[], flag: string): string | null {
@@ -229,20 +189,19 @@ function usage(): string {
     'Usage:',
     '  grndctrl-cli board       --fixtures <path> [--project <id>]',
     '  grndctrl-cli credential  [--env-file <path>] [--dir <path>]',
-    '  grndctrl-cli probe       [--repo <owner/name>] [--connection <id>] [--jql <jql>]',
+    '  grndctrl-cli probe       [--connection <id>] [--jql <jql>]',
     '',
     'board       Prints the correlated board for a fixture scenario: lanes with',
-    '            severity, staleness and ball-in-court, plus drift findings and',
-    '            their evidence. Entirely offline — no network, no Electron, no',
-    '            display.',
+    '            severity, staleness and ball-in-court. Entirely offline — no',
+    '            network, no Electron, no display.',
     '',
     'credential  Reads tokens from .env.local and stores them in the OS keychain.',
     '            The secret is never an argument: an argument lands in shell',
     '            history and in the process list. Nothing is echoed but a length.',
     '',
-    'probe       Checks a stored credential against the live provider — auth,',
-    '            repository read, and the branch comparison that needs a scope a',
-    '            read-only token may not have. Reads only; writes nothing.',
+    'probe       Checks a stored credential against the live provider — that it',
+    '            authenticates, that search works, and that issue history is',
+    '            readable. Reads only; writes nothing.',
   ].join('\n')
 }
 

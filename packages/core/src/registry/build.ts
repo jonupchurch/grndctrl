@@ -1,7 +1,6 @@
 import type { CoreServices } from '../runtime/services.js'
 import { Registry } from './index.js'
 import { configOperations } from './ops/config.js'
-import { driftOperations } from './ops/drift.js'
 import { linksOperations } from './ops/links.js'
 import { notesOperations } from './ops/notes.js'
 import { outboxOperations } from './ops/outbox.js'
@@ -17,13 +16,25 @@ import { workOperations } from './ops/work.js'
  * The conformance test runs against these, so an adapter that forgets an entry
  * fails the build rather than quietly offering less on one surface than another
  * (constitution XII).
+ *
+ * **Three operations left this list and thirty-four did not.** `drift.list`,
+ * `drift.dismiss` and `drift.undismiss` are gone because nothing produces a
+ * finding: every one of the nine rules compared a ticket against a pull request,
+ * a branch or a checkout.
+ *
+ * The **eight outbox operations stay, with no producer**. Nothing in the
+ * interface can reach them any more — the only route ran through a drift
+ * finding's confirmation dialog. They are the agent-facing half of a durable
+ * store holding actions the operator confirmed, and they are the whole
+ * implementation of gate XVI. Removing a second subsystem inside the change that
+ * already carries the only data-losing migration compounds risk for no gain, so
+ * this is recorded as a gap rather than tidied away.
  */
 export function buildRegistry(services: CoreServices): Registry {
   const registry = new Registry()
 
   for (const op of [
     ...workOperations(services),
-    ...driftOperations(services),
     ...linksOperations(services),
     ...notesOperations(services.notes),
     ...sessionsOperations(services.sessions),

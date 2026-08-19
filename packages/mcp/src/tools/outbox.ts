@@ -21,7 +21,7 @@ export const outboxTools: readonly ToolBinding[] = [
     tool: 'grndctrl_pending_actions',
     operation: 'outbox.pending',
     description:
-      'Actions the operator has confirmed and nobody has taken yet, oldest first. Each says what to change, on what, and which drift finding motivated it. Poll this, or subscribe to grndctrl://outbox/pending to be told.',
+      'Actions the operator has confirmed and nobody has taken yet, oldest first. Each says what to change and on what. Poll this, or subscribe to grndctrl://outbox/pending to be told. Nothing in the interface currently creates one — the route that did ran through drift, which was removed — so expect this to be empty.',
     inputSchema: {},
     mutates: false,
   },

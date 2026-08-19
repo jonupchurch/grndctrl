@@ -71,6 +71,24 @@ const connectionSchema = z.object({
   hasCredential: z.boolean(),
 })
 
+/**
+ * Four fields left this schema: `githubConnectionId`, `repoOwner`, `repoName`
+ * and `checkoutPaths`.
+ *
+ * The narrowing does the work in both directions and neither is incidental. On
+ * the way *out*, Zod strips unknown keys, so a `Project` still carrying the four
+ * columns is answered without them — the boundary is narrow before the store
+ * is. On the way *in*, a caller that still sends `repoOwner` has it dropped
+ * rather than written, which is what stops a client built against 0.3.0 from
+ * quietly repopulating a column this change is in the middle of removing.
+ *
+ * `jiraProjectKey` stays **nullable** here even though `projects.upsert` now
+ * refuses a null one. That is deliberate: the schema is also the *output* shape,
+ * and a database written by 0.3.0 can hold a repository-only project whose key
+ * is null. 006 keeps that row (FR-110), so the schema has to be able to describe
+ * it. The constraint belongs on the write, where the operator is present to be
+ * told why — not on the read, where it would make an existing row unreadable.
+ */
 const projectSchema = z.object({
   id: z.string(),
   code: z.string(),
@@ -78,22 +96,12 @@ const projectSchema = z.object({
   colorIndex: z.number().int().nullable(),
   jiraConnectionId: z.string().nullable(),
   jiraProjectKey: z.string().nullable(),
-  githubConnectionId: z.string().nullable(),
-  repoOwner: z.string().nullable(),
-  repoName: z.string().nullable(),
   documentationUrl: z.string().nullable(),
   ticketKeyPattern: z.string(),
-  checkoutPaths: z.array(z.string()),
   statusOverrides: z.record(z.enum(['blocked', 'terminal', 'in-progress', 'backlog'])),
 })
 
-/**
- * The input is the same shape as the output, with nothing defaulted.
- *
- * Zod defaults would make the inferred input type diverge from `Project`, and
- * more to the point: a project with an implicit empty `checkoutPaths` is a
- * project that silently watches no repositories. Better that the caller says so.
- */
+/** The input is the same shape as the output, with nothing defaulted. */
 const projectInput = projectSchema
 
 export function configOperations(services: CoreServices): Operation<never, never>[] {
@@ -125,8 +133,9 @@ export function configOperations(services: CoreServices): Operation<never, never
         'Check a stored credential against the live provider. Reads only; writes nothing.',
       input: z.object({
         connectionId: z.string().min(1),
-        /** `owner/name`, a browser URL, or a clone URL. Falls back to a bound project. */
-        repo: z.string().min(1).optional(),
+        // `repo` was here: which repository to probe with, since a token could
+        // authenticate and still not be able to read one. There is no repository
+        // to probe.
       }),
       output: z.object({
         ok: z.boolean(),
@@ -137,20 +146,19 @@ export function configOperations(services: CoreServices): Operation<never, never
             email: z.string().nullable(),
           })
           .nullable(),
-        // Each probe reported separately. A GitHub token can authenticate, read
-        // a repository, and still lack the scope `compare` needs -- and the only
-        // symptom is an ahead/behind column that is quietly empty (R3). Folding
-        // these into one boolean would hide exactly the failure worth naming.
+        // Each probe reported separately, and the array shape stays even though
+        // there are fewer probes in it. It exists because folding several checks
+        // into one boolean hides the failure worth naming — a token that
+        // authenticates against a site but cannot see the bound project is a
+        // different problem from one that does not authenticate at all, and one
+        // tick over the pair says neither. That reasoning does not depend on how
+        // many probes there are.
         checks: z.array(z.object({ name: z.string(), ok: z.boolean(), detail: z.string() })),
       }),
       exposure: 'ui-only',
       mutates: false,
       providerDerived: false,
-      handler: async (input) =>
-        services.connections.test({
-          connectionId: input.connectionId,
-          ...(input.repo === undefined ? {} : { repo: input.repo }),
-        }),
+      handler: async (input) => services.connections.test({ connectionId: input.connectionId }),
     }),
 
     defineOperation({
@@ -169,7 +177,7 @@ export function configOperations(services: CoreServices): Operation<never, never
 
     defineOperation({
       name: 'projects.list',
-      description: 'The operator’s projects — one Jira project plus one repository each.',
+      description: 'The operator’s projects. Each names one Jira project.',
       input: z.object({}),
       output: z.array(projectSchema),
       exposure: 'all',
@@ -187,6 +195,27 @@ export function configOperations(services: CoreServices): Operation<never, never
       mutates: true,
       providerDerived: false,
       handler: async (input) => {
+        /*
+         * A project must name a ticket project.
+         *
+         * This was a table CHECK — `jira_project_key IS NOT NULL OR repo_name
+         * IS NOT NULL` — and half of that disjunction no longer exists. It
+         * moves here rather than becoming a narrower CHECK for two reasons.
+         *
+         * The table has to stay permissive enough to hold a legacy
+         * repository-only row (FR-110): a replacement constraint would refuse
+         * one, and the tidy way to satisfy a constraint during a migration is to
+         * delete the row that violates it. There is no server-side copy of the
+         * operator's projects (XI), so that deletion is unrecoverable.
+         *
+         * And this is where the operator is standing. A constraint violation
+         * surfaces as a store failure with SQLite's own wording; a validation
+         * here names the field and says what is wrong with it.
+         */
+        if (input.jiraProjectKey === null || input.jiraProjectKey.trim() === '') {
+          throw invalid('A project must name a ticket project key. Without one it has nothing to show.')
+        }
+
         // The pattern is compiled here rather than at first use. An invalid
         // regular expression saved now would fail inside correlation later,
         // where the error has no obvious connection to what the user typed.
@@ -202,7 +231,22 @@ export function configOperations(services: CoreServices): Operation<never, never
           throw e
         }
 
-        return services.projects.upsert(input)
+        /*
+         * The four removed fields are supplied here, not by the caller.
+         *
+         * `Project` still declares them until M4 narrows the domain type and the
+         * authored migration drops the columns, so the store still writes them.
+         * Sending explicit nulls is the honest intermediate: the boundary no
+         * longer accepts a repository binding, and the row no longer gains one,
+         * one milestone before the column can safely go.
+         */
+        return services.projects.upsert({
+          ...input,
+          githubConnectionId: null,
+          repoOwner: null,
+          repoName: null,
+          checkoutPaths: [],
+        })
       },
     }),
 

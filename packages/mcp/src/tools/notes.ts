@@ -21,7 +21,7 @@ export const notesTools: readonly ToolBinding[] = [
     tool: 'grndctrl_list_notes',
     operation: 'notes.list',
     description:
-      'Notes attached to a ticket, pull request, branch, workspace or session — decisions, gotchas, to-dos and open questions, from both the operator and other agents. Read these before starting work on something.',
+      'Notes attached to a ticket or an agent session — decisions, gotchas, to-dos and open questions, from both the operator and other agents. Read these before starting work on something. Notes written against a pull request, branch or checkout before those were removed are still here and still readable by their key.',
     inputSchema: { subjectKey },
     mutates: false,
   },

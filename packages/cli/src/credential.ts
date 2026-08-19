@@ -29,7 +29,7 @@ import type { Connection } from '@grndctrl/core'
 
 export interface CredentialArgs {
   connectionId: string
-  kind: 'jira' | 'github'
+  kind: 'jira'
   siteOrHost: string
   accountLabel: string
   /** The name of the variable holding the secret. Never the secret. */

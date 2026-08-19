@@ -20,6 +20,19 @@ import { defineOperation } from '../types.js'
  * does.
  */
 
+/*
+ * `resourceKind` still names six kinds, and this is the one narrowing M2 does
+ * not do.
+ *
+ * The output of an operation is parsed against its schema, so an enum narrowed
+ * to `['tickets']` while `syncCode` and `syncLocal` are still running would make
+ * every refresh throw — on a value the application itself produced. The
+ * producer goes in M3 (T026) and the enum goes with it, in the same commit.
+ *
+ * That is the whole ordering argument in one field: narrow the boundary before
+ * the thing behind it stops producing, and the milestone that was supposed to be
+ * green is a board whose Refresh button reports an internal error.
+ */
 const resultSchema = z.object({
   connectionId: z.string(),
   resourceKind: z.enum(['tickets', 'pulls', 'checks', 'branches', 'comparisons', 'local']),

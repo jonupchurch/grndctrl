@@ -35,8 +35,8 @@ describe('the XII conformance gate', () => {
   })
 
   it('passes when every adapter exposes every operation it should', () => {
-    const registry = new Registry().register(read('work.list')).register(read('drift.list'))
-    const names = ['work.list', 'drift.list']
+    const registry = new Registry().register(read('work.list')).register(read('notes.list'))
+    const names = ['work.list', 'notes.list']
 
     const violations = checkConformance(registry, [
       stubAdapter('ipc', names),
@@ -108,6 +108,150 @@ describe('the XII conformance gate', () => {
       expect(server.exposedNames().length).toBeGreaterThan(0)
     } finally {
       await server.close()
+      t.dispose()
+    }
+  })
+})
+
+/**
+ * What 006 removed, asserted against the real registry.
+ *
+ * All three of these are **enumerated rather than pattern-matched**, and that is
+ * the point rather than a style choice. A regex over the schemas would pass on
+ * whatever the pattern failed to anticipate, and the whole risk in a removal is
+ * the thing nobody thought to look for. A list is checkable by reading it.
+ *
+ * Each one was made to fail before it was left passing, by putting the removed
+ * thing back:
+ *
+ * - re-registering `driftOperations` in `build.ts` — the first test fails,
+ *   naming all three operations;
+ * - restoring `'branch'` to the `links.resolve` target enum — the second fails;
+ * - restoring `workspaceKey` to `sessions.start` — the third fails.
+ *
+ * An absence assertion that has never been seen to fail is not evidence. This is
+ * a removal, so every assertion in it passes trivially if the selector is wrong,
+ * and a suite full of those is worse than no suite because it reports confidence.
+ */
+describe('what 006 removed', () => {
+  const GONE = ['drift.list', 'drift.dismiss', 'drift.undismiss']
+
+  it('has no drift operation on any surface', () => {
+    const t = tempServices()
+    try {
+      for (const name of GONE) {
+        expect(t.registry.names(), `${name} is still registered`).not.toContain(name)
+      }
+
+      // The paired presence. Without it, a `names()` that returned an empty
+      // array would satisfy every assertion above.
+      expect(t.registry.names()).toContain('work.list')
+      expect(t.registry.names()).toContain('notes.list')
+    } finally {
+      t.dispose()
+    }
+  })
+
+  /**
+   * The eight outbox operations are the bystanders of this removal.
+   *
+   * They were reachable only through a drift finding's confirmation dialog, so
+   * the tempting tidy-up is to take them out too. They stay: they are the
+   * agent-facing half of a durable store holding the operator's confirmed
+   * actions, and gate XVI has no other implementation. This asserts the
+   * tidy-up did not happen quietly.
+   */
+  it('still registers all eight outbox operations, with no producer', () => {
+    const t = tempServices()
+    try {
+      for (const name of [
+        'outbox.pending',
+        'outbox.list',
+        'outbox.claim',
+        'outbox.complete',
+        'outbox.fail',
+        'outbox.cancel',
+        'outbox.enqueue',
+        'outbox.mintConfirmation',
+      ]) {
+        expect(t.registry.names(), `${name} was removed`).toContain(name)
+      }
+    } finally {
+      t.dispose()
+    }
+  })
+
+  it('refuses a removed link target with an error, never a fallback', async () => {
+    const t = tempServices()
+    const ctx = {
+      authorKind: 'user' as const,
+      authorId: null,
+      surface: 'ipc' as const,
+      now: () => new Date(),
+    }
+    try {
+      for (const target of ['pull-request', 'repository', 'branch', 'check']) {
+        await expect(
+          t.registry.dispatch(
+            'links.resolve',
+            { subjectKey: 'jira:acme.atlassian.net/MERC-1', target },
+            ctx,
+          ),
+          `links.resolve accepted the removed target '${target}'`,
+        ).rejects.toThrow(/Invalid input/)
+      }
+
+      // A surviving target reaches the handler rather than the schema. It throws
+      // too — nothing is mirrored here — but for a different reason, and that
+      // difference is what shows the four above were refused *as targets*.
+      await expect(
+        t.registry.dispatch(
+          'links.resolve',
+          { subjectKey: 'jira:acme.atlassian.net/MERC-1', target: 'ticket' },
+          ctx,
+        ),
+      ).rejects.toThrow(/no usable link/i)
+    } finally {
+      t.dispose()
+    }
+  })
+
+  it('rejects a session started with a workspace key, rather than ignoring it', async () => {
+    const t = tempServices()
+    const ctx = {
+      authorKind: 'agent' as const,
+      authorId: 'a1',
+      surface: 'mcp' as const,
+      now: () => new Date(),
+    }
+    try {
+      // FR-115. Zod strips what it does not recognise by default, so this only
+      // holds because the input is `.strict()` — and an agent that went on
+      // sending a checkout every session would otherwise never learn that
+      // nothing receives it.
+      await expect(
+        t.registry.dispatch(
+          'sessions.start',
+          {
+            agentId: 'a1',
+            sessionId: 's1',
+            heartbeatIntervalSec: 60,
+            workspaceKey: 'repo:github.com/acme/web#main',
+          },
+          ctx,
+        ),
+      ).rejects.toThrow(/workspaceKey/)
+
+      // The same call without it succeeds, so the rejection is about the field
+      // and not about the rest of the input being wrong.
+      await expect(
+        t.registry.dispatch(
+          'sessions.start',
+          { agentId: 'a1', sessionId: 's1', heartbeatIntervalSec: 60 },
+          ctx,
+        ),
+      ).resolves.toBeDefined()
+    } finally {
       t.dispose()
     }
   })

@@ -2,30 +2,28 @@ import { Entry } from '@napi-rs/keyring'
 import {
   appDataDir,
   credentialRef,
-  githubProvider,
   jiraProvider,
   mirrorRepository,
   openMirror,
   osKeychain,
-  parseRepositoryRef,
 } from '@grndctrl/core'
 import type { Connection } from '@grndctrl/core'
 
 /**
  * `grndctrl-cli probe` — the first thing a real credential meets.
  *
- * It exists because two Phase 0 findings could not be settled from
- * documentation, and both fail *silently* if we guessed wrong:
+ * It exists because a Phase 0 finding could not be settled from documentation,
+ * and it fails *silently* if we guessed wrong: **Jira's enhanced search endpoint
+ * returns no total** (research R2). The probe prints what it actually fetched,
+ * worded so it cannot be mistaken for a server-side count — because the moment
+ * a number here reads as a total, someone builds a lane counter on it.
  *
- * - **GitHub's `Ref.compare` may need a broader scope than a read-only
- *   fine-grained token grants** (research R3). A token that authenticates fine
- *   and reads a repository fine can still return `null` for every ahead/behind,
- *   and the only symptom is a column that is quietly empty everywhere. So it is
- *   probed as its own named check rather than inferred from the sync working.
- * - **Jira's enhanced search endpoint returns no total** (research R2). The
- *   probe prints what it actually fetched, worded so it cannot be mistaken for
- *   a server-side count — because the moment a number here reads as a total,
- *   someone builds a lane counter on it.
+ * A second finding used to be probed here and is gone with its provider: GitHub's
+ * `Ref.compare` needing a broader scope than a read-only fine-grained token
+ * grants (R3). That one was the whole reason the result is an array of *named*
+ * checks rather than one boolean, and the array stays for the same reason — a
+ * token can authenticate against a site and still not see the project the
+ * operator bound, and one tick over the pair reports neither.
  *
  * Nothing is written. This reads, reports, and exits.
  */
@@ -33,8 +31,6 @@ import type { Connection } from '@grndctrl/core'
 export interface ProbeArgs {
   /** Limit to one connection. Omit to probe every configured one. */
   connectionId?: string | undefined
-  /** The repository to probe against, `owner/repo`. Required for GitHub. */
-  repo?: string | undefined
   /** JQL for the Jira probe. Defaults to the operator's own open issues. */
   jql?: string | undefined
   dir?: string | undefined
@@ -93,10 +89,7 @@ export async function runProbe(args: ProbeArgs): Promise<{ output: string; exitC
     // to anyone reading the terminal over a shoulder.
     lines.push(`  o  keychain          ${secret.length} characters`)
 
-    const result =
-      connection.kind === 'github'
-        ? await probeGitHub(connection, secret, args.repo)
-        : await probeJira(connection, secret, args.jql)
+    const result = await probeJira(connection, secret, args.jql)
 
     for (const check of result.checks) {
       lines.push(`  ${check.ok ? 'o' : 'x'}  ${check.name.padEnd(17)} ${check.detail}`)
@@ -111,42 +104,6 @@ export async function runProbe(args: ProbeArgs): Promise<{ output: string; exitC
 interface ProbeResult {
   ok: boolean
   checks: { name: string; ok: boolean; detail: string }[]
-}
-
-async function probeGitHub(
-  connection: Connection,
-  token: string,
-  repo: string | undefined,
-): Promise<ProbeResult> {
-  // Accepts `owner/name`, a browser URL, a clone URL or an SSH remote — the
-  // paste from the address bar is the likeliest input and must simply work.
-  const parsed = repo === undefined ? null : parseRepositoryRef(repo)
-
-  if (parsed === null) {
-    return {
-      ok: false,
-      checks: [
-        {
-          name: 'repository',
-          ok: false,
-          detail:
-            'set GRNDCTRL_GITHUB_REPO or pass --repo — a fine-grained token is scoped per repository, so the probe has to be told which one',
-        },
-      ],
-    }
-  }
-
-  const { owner, name } = parsed
-  const provider = githubProvider({
-    token,
-    host: connection.siteOrHost,
-    connectionId: connection.id,
-  })
-
-  // The provider owns the probe, so the CLI and the desktop settings page ask
-  // the same question and cannot disagree about the answer.
-  const result = await provider.probe({ owner, repo: name })
-  return { ok: result.ok, checks: result.checks }
 }
 
 async function probeJira(

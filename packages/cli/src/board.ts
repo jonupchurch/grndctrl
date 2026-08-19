@@ -1,10 +1,4 @@
-import type {
-  BallInCourt,
-  DriftFinding,
-  Severity,
-  StalenessBand,
-  WorkItem,
-} from '@grndctrl/core'
+import type { BallInCourt, Severity, StalenessBand, WorkItem } from '@grndctrl/core'
 
 /**
  * The board as text.
@@ -15,9 +9,12 @@ import type {
  * afterwards for inspecting fixtures and diffing two runs.
  *
  * It is deliberately not a pretty CLI. It mirrors what the real board will show
- * — severity, staleness, ball-in-court, drift — so that a disagreement between
- * this and the UI is a bug in one of them rather than in two different ideas of
- * what the data means.
+ * — severity, staleness, ball-in-court — so that a disagreement between this and
+ * the UI is a bug in one of them rather than in two different ideas of what the
+ * data means. That is why the Attention section and the two code-host lanes
+ * leave here in the same change that took them off the board: a text renderer
+ * that still printed drift findings would not be a second opinion, it would be a
+ * second product.
  */
 
 /** Shape and letter, not colour. The same constraint as the real UI (FR-074). */
@@ -44,7 +41,6 @@ const BALL: Record<BallInCourt, string> = {
 
 export interface RenderOptions {
   workItems: readonly WorkItem[]
-  findings: readonly DriftFinding[]
   /** Per resource kind, so a lane can be fresh while another is not (XIV). */
   freshness: Record<string, { state: string; ageSec: number | null }>
   projectFilter?: string | null
@@ -62,28 +58,10 @@ export function renderBoard(options: RenderOptions): string {
   lines.push(renderFreshness(options.freshness))
   lines.push('')
 
-  lines.push(renderStats(items, options.findings))
+  lines.push(renderStats(items))
   lines.push('')
 
-  if (options.findings.length > 0) {
-    lines.push(header('ATTENTION'))
-    for (const f of options.findings) {
-      lines.push(`  <> ${f.rule}  ${f.summary}`)
-      for (const e of f.evidence) {
-        lines.push(`        ${e.side.padEnd(14)} ${e.fact}${e.at === null ? '' : `  (${e.at})`}`)
-      }
-      if (f.suggestedAction !== null) {
-        lines.push(
-          `        -> ${f.suggestedAction.label}${f.dispatchable ? '' : '  (not dispatchable)'}`,
-        )
-      }
-      lines.push('')
-    }
-  }
-
   lines.push(renderLane('TICKETS', items.filter((w) => w.ticket !== null)))
-  lines.push(renderLane('PULL REQUESTS', items.filter((w) => w.pullRequests.length > 0)))
-  lines.push(renderLane('BRANCHES', items.filter((w) => w.workspaces.length > 0)))
   lines.push(renderLane('AGENT SESSIONS', items.filter((w) => w.sessions.length > 0)))
 
   return lines.join('\n')
@@ -111,14 +89,15 @@ function renderFreshness(freshness: RenderOptions['freshness']): string {
   return parts.length === 0 ? 'no sync has run' : parts.join('  |  ')
 }
 
-function renderStats(items: readonly WorkItem[], findings: readonly DriftFinding[]): string {
+function renderStats(items: readonly WorkItem[]): string {
   const yourCourt = items.filter((w) => w.ballInCourt === 'you').length
   const stalled = items.filter((w) => w.staleness === 'stale' || w.staleness === 'abandoned').length
   const agentsLive = items.filter((w) => w.sessions.some((s) => s.endedAt === null)).length
 
+  // `drifting` was the second of four and is gone with the tile it mirrors. The
+  // other three count exactly what they counted before.
   return [
     `your court: ${yourCourt}`,
-    `drifting: ${findings.length}`,
     `stalled: ${stalled}`,
     `agents live: ${agentsLive}`,
   ].join('   ')
@@ -152,16 +131,18 @@ function renderLane(title: string, items: readonly WorkItem[]): string {
   return lines.join('\n')
 }
 
+/**
+ * Both of these had a pull-request arm and a branch arm between the ticket and
+ * the fallback. A work item is built from a ticket now, so the first arm is
+ * almost always the answer — but the fallback stays, because `ticket` is still
+ * nullable until M4 and a key is a better thing to print than an empty cell.
+ */
 function identity(item: WorkItem): string {
-  if (item.ticket !== null) return item.ticket.issueKey
-  if (item.pullRequests.length > 0) return `#${item.pullRequests[0]?.number}`
-  if (item.workspaces.length > 0) return item.workspaces[0]?.branch ?? item.key
-  return item.key
+  return item.ticket === null ? item.key : item.ticket.issueKey
 }
 
 function titleOf(item: WorkItem): string {
   if (item.ticket !== null) return item.ticket.summary
-  if (item.pullRequests.length > 0) return item.pullRequests[0]?.title ?? ''
   if (item.sessions.length > 0) return item.sessions[0]?.reportedStatus ?? ''
   return ''
 }

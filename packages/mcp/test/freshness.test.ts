@@ -27,7 +27,7 @@ afterAll(async () => {
 })
 
 /** The reads that return provider-derived data, and therefore must be enveloped. */
-const ENVELOPED = ['board.summary', 'work.list', 'drift.list']
+const ENVELOPED = ['board.summary', 'work.list']
 
 async function callTool(tool: string, args: unknown = {}): Promise<unknown> {
   const binding = TOOLS.find((t) => t.tool === tool)

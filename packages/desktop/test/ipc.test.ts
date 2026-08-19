@@ -47,8 +47,13 @@ describe('the IPC surface against the registry (constitution XII)', () => {
   // exists so an operator can confirm a dispatched action and an agent cannot;
   // if IPC failed to expose it, the confirmation flow would have no home at all
   // and the feature would quietly not exist.
+  //
+  // `drift.dismiss` was the third name here and is gone with drift. The two that
+  // remain are still exposed and still `ui-only` — and nothing in the interface
+  // reaches them any more, which the spec records as a gap rather than dresses
+  // up. The asymmetry this asserts is as live as it ever was.
   it('exposes the ui-only operations, which no agent surface may have', () => {
-    for (const name of ['outbox.mintConfirmation', 'outbox.enqueue', 'drift.dismiss']) {
+    for (const name of ['outbox.mintConfirmation', 'outbox.enqueue']) {
       expect(adapter.exposedNames()).toContain(name)
     }
   })

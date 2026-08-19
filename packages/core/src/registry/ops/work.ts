@@ -17,9 +17,10 @@ import { naturalKeySchema } from './schemas.js'
  * startup failure rather than a board that silently shows hour-old data as
  * though it were current (XIV).
  *
- * The envelope's freshness is per resource kind, because a partial sync leaves
- * tickets stale and pull requests fresh, and one number for the whole board
- * would have to lie about one of them.
+ * The envelope's freshness is per resource kind. That mattered more when a
+ * partial sync could leave tickets stale and pull requests fresh; it still holds
+ * because the envelope carries a reading per kind rather than one for the board,
+ * and 007 adds a second lane with its own.
  */
 
 /**
@@ -41,16 +42,22 @@ const workItemSchema = z.custom<WorkItem>(
   { message: 'not a work item' },
 )
 
+/**
+ * `drifting` is removed with the tile it fed, and `lanes` loses two entries.
+ *
+ * The three counts that stay keep their meanings **exactly**. `yourCourt`,
+ * `stalled` and `agentsLive` each count work items or sessions, and both still
+ * exist; the numbers they report get smaller because the board is smaller, and
+ * the definitions do not move. Re-deriving any of them while in here would be an
+ * undocumented product change wearing a removal's clothes.
+ */
 const summarySchema = z.object({
   total: z.number().int().nonnegative(),
   yourCourt: z.number().int().nonnegative(),
-  drifting: z.number().int().nonnegative(),
   stalled: z.number().int().nonnegative(),
   agentsLive: z.number().int().nonnegative(),
   lanes: z.object({
     tickets: z.number().int().nonnegative(),
-    pulls: z.number().int().nonnegative(),
-    branches: z.number().int().nonnegative(),
     sessions: z.number().int().nonnegative(),
   }),
 })
@@ -60,7 +67,7 @@ export function workOperations(services: CoreServices): Operation<never, never>[
     defineOperation({
       name: 'work.list',
       description:
-        'Every correlated work item — ticket, branches, pull requests, checks and sessions joined into one row each — with per-lane freshness.',
+        'Every correlated work item — a ticket, with any agent sessions on it — with per-lane freshness.',
       input: z.object({ projectId: z.string().nullable().optional() }),
       output: envelopeOf(z.array(workItemSchema)),
       exposure: 'all',
@@ -98,7 +105,7 @@ export function workOperations(services: CoreServices): Operation<never, never>[
     defineOperation({
       name: 'board.summary',
       description:
-        'The counts across the top of the board: how much is in your court, drifting, stalled, and has an agent on it.',
+        'The counts across the top of the board: how much is in your court, how much has stalled, and how much has an agent on it.',
       input: z.object({ projectId: z.string().nullable().optional() }),
       output: envelopeOf(summarySchema),
       exposure: 'all',
@@ -111,17 +118,11 @@ export function workOperations(services: CoreServices): Operation<never, never>[
             ? board.data.workItems
             : board.data.workItems.filter((w) => w.projectId === input.projectId)
 
-        const findings =
-          input.projectId === undefined || input.projectId === null
-            ? board.data.findings
-            : board.data.findings.filter((f) => f.projectId === input.projectId)
-
         return {
           ...board,
           data: {
             total: items.length,
             yourCourt: items.filter((w) => w.ballInCourt === 'you').length,
-            drifting: findings.length,
             stalled: items.filter((w) => w.staleness === 'stale' || w.staleness === 'abandoned')
               .length,
             // An ended session is history, not a live agent. Counting rows
@@ -130,8 +131,6 @@ export function workOperations(services: CoreServices): Operation<never, never>[
             agentsLive: items.filter((w) => w.sessions.some((s) => s.endedAt === null)).length,
             lanes: {
               tickets: items.filter((w) => w.ticket !== null).length,
-              pulls: items.filter((w) => w.pullRequests.length > 0).length,
-              branches: items.filter((w) => w.workspaces.length > 0).length,
               sessions: items.filter((w) => w.sessions.length > 0).length,
             },
           },
