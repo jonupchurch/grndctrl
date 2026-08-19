@@ -9,6 +9,14 @@ Released versions are summarised at the top, newest first. **[Unreleased]** belo
 them holds the accumulated detail of the v1 build, including everything that
 shipped in the first releases — it is the working record, not a backlog.
 
+## [0.3.0] — 2026-08-19
+
+The ticket lane now shows the **sprint** each ticket is in, and **every column
+heading sorts its lane**. The ticket lane gave up its age column to make room —
+only that lane, and only because the staleness bar beside every row already
+carries the same fact. A minor rather than a patch because the mirror gains a
+third migration and `Ticket` gains a field.
+
 ## [0.2.0] — 2026-08-18
 
 The ticket lane now shows **priority** and **story points**, all three lanes name
@@ -41,6 +49,77 @@ superseded and should be treated as withdrawn. See below for what it was.
 ## [Unreleased]
 
 ### Added
+
+- **The sprint a ticket is in**, on the ticket lane.
+
+  Sprint is a Jira **custom field** like story points, so it has no fixed id
+  either — but unlike story points it has one exact answer available: Jira
+  Software stamps every sprint field with the schema key
+  `com.pyxis.greenhopper.jira:gh-sprint` whatever the site has renamed the field
+  to. So the lookup matches on the schema key first and falls back to an exact
+  name only for payloads that omit `schema`. A text field somebody called
+  "Sprint" is refused, and so is `Sprint Goal`.
+
+  Both custom field ids now come out of **one** `/rest/api/3/field` request.
+  Asking twice would spend a round trip on a payload already in hand, and would
+  let the two columns disagree about which fetch they came from if one call
+  failed and the other did not.
+
+  **A ticket is usually in several sprints**, and the column shows one. Jira's
+  sprint field is an array and a carried-over ticket keeps every sprint it has
+  been through — so the provider chooses at ingest: the active sprint, else the
+  nearest future one, else the most recent closed one, and within a rank the last
+  entry, because Jira returns them oldest first. Rendering the first entry would
+  put a sprint that ended a month ago on the row.
+
+  Two payload shapes are read, because two are sent: Jira Cloud's objects and the
+  older Java `toString` form (`…Sprint@1[id=7,name=Sprint 12,state=CLOSED,…]`),
+  which a site answering it would otherwise show as a class name. A name with a
+  comma in it survives.
+
+  A ticket in no sprint is the **placeholder, never "Backlog"** — Jira's backlog
+  is a specific place a ticket can be in or out of, and a ticket can be outside
+  every sprint without being in it.
+
+  `mirror.db` migration **3**, one nullable column with no default.
+
+- **Every column heading sorts its lane** — press for ascending, again for
+  descending, a third time for the order core sent.
+
+  Headings rather than a "sort by" dropdown. A dropdown is a second place the
+  current order is stated and the two drift: the control reads "Priority,
+  descending" while the eye is on a column that no longer looks sorted, and
+  nothing on screen resolves it. The caret and the column it sits on are one
+  claim.
+
+  **Unsorted is a real state and the one a lane opens in.** Core hands the board
+  back ordered by natural key, deterministically, and that order is what makes
+  two syncs comparable at a glance; a two-way toggle would have made it
+  unreachable after the first click.
+
+  **Unknown sorts last in both directions.** Null means unknown — no estimate, no
+  sprint, no priority set — and unknown is not "small". A null-as-zero comparison
+  looks right ascending and then opens "points, biggest first" with a screenful
+  of tickets nobody has estimated.
+
+  **Priority is ordered, never relabelled.** Alphabetical is actively wrong here
+  — `High` above `Highest`, `Low` above `Medium` — so Jira's own ladder gets an
+  order for sorting purposes only. Nothing about it is stored or displayed: a
+  site using `P1`…`P4` or `Blocker`/`Critical` falls through to alphabetical,
+  which for those schemes is the order they intend, and every unknown word sorts
+  after every known one rather than interleaved.
+
+  Sort state is **per lane**, because the lanes are not three views of one list,
+  and is **not persisted**: the project filter is a standing choice about what
+  the board is for, a sort is a question asked of the board as it stands, and one
+  restored from last week would present itself as the natural order of things.
+
+  The heading row is **no longer `aria-hidden`**. It was, deliberately — eight
+  bare nouns announced once before the list are no more use than reading the
+  ruled lines — but `aria-hidden` over a focusable control is a keyboard trap in
+  reverse. The sortable headings are real buttons that announce what they do and
+  which way the lane is currently ordered; Links, Court and the two blank tracks
+  are still hidden individually.
 
 - **Priority and story points on the ticket lane**, with column headings on all
   three lanes.
@@ -83,11 +162,20 @@ superseded and should be treated as withdrawn. See below for what it was.
   branch is not estimated, and a column that can never hold anything is noise
   rather than the meaningful absence the row's other placeholders carry.
 
-  The headings are `aria-hidden`. A screen reader does not read this layout as a
-  grid, so they would arrive as eight bare nouns before the list and never
-  again; the cells that need naming carry a `title` instead.
+  The headings were `aria-hidden` when they were labels only: a screen reader
+  does not read this layout as a grid, so they would have arrived as eight bare
+  nouns before the list and never again, and the cells that need naming carry a
+  `title` instead. That held until they became sort controls — see the sorting
+  entry above for what replaced it.
 
 ### Changed
+
+- **The ticket lane no longer shows an age column.** Three metric columns do not
+  fit beside it at any width the board can spare, and age is the only one of them
+  with a stand-in on the same row: the staleness bar in the leftmost track is
+  derived from the same timestamp and carries the exact age in its `title`. The
+  pull request and branch lanes keep theirs, where "stale past 24h" is the whole
+  point of the lane.
 
 - **The Attention panel now sits below the ticket lane**, at the operator's
   request. It was above all three lanes because drift is the one thing on this

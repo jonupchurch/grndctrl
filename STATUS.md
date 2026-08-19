@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-18 (0.2.0 published from a tag) · **Stage:** released · **On npm:** 0.2.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-19 (0.3.0 cut and tagged) · **Stage:** released · **On npm:** 0.2.0 is `latest` on all four packages — `npx grndctrl`. 0.3.0 is tagged; the workflow publishes it. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.2.0 is on the registry**, published 2026-08-18 by the tag `v0.2.0`, each
 package carrying SLSA provenance — read back from `registry.npmjs.org` directly
@@ -27,6 +27,73 @@ than one session out of date. Historical detail belongs in `CHANGELOG.md`; this
 file describes only the present and the immediate next step.
 
 ## Where we are
+
+### 0.3.0: the sprint column, and headings that sort
+
+Two features the operator asked for, and one column given up to fit them.
+
+**The ticket lane shows the sprint each ticket is in.** Sprint is a Jira custom
+field like story points, with no fixed id — but unlike story points it has one
+exact answer: Jira Software stamps every sprint field with
+`com.pyxis.greenhopper.jira:gh-sprint` whatever the site renamed it to. So the
+lookup matches the schema key first and falls back to an exact name only when the
+payload carries no `schema`. Both custom field ids now come out of **one**
+`/rest/api/3/field` request rather than two.
+
+**A ticket is usually in several sprints, and the column shows one.** The field
+is an array and a carried-over ticket keeps every sprint it has been through, so
+the provider chooses at ingest: active, else nearest future, else most recent
+closed. Rendering the first entry would put a sprint that ended a month ago on
+the row. Both payload shapes are read — Cloud's objects and the older Java
+`toString` form — because a site answering the second would otherwise show a
+class name on the board.
+
+**No sprint is the placeholder, never "Backlog".** Jira's backlog is a specific
+place a ticket can be in or out of; a ticket can be outside every sprint without
+being in it.
+
+`mirror.db` is at **migration 3**. One nullable column, no default.
+
+**Every column heading sorts its lane** — ascending, descending, then back to the
+order core sent. Headings rather than a dropdown, because a dropdown is a second
+place the current order is stated and the two drift. Three things it refuses to
+get wrong: unsorted stays reachable (core's deterministic order is what makes two
+syncs comparable at a glance), unknown values sort last in **both** directions
+(null-as-zero looks right ascending and then opens "biggest first" with a
+screenful of unestimated tickets), and ties keep their incoming order so a sync
+does not reshuffle the lane underneath the operator.
+
+**Priority is ordered, never relabelled.** Alphabetical puts `High` above
+`Highest`, which reads as a sort that silently failed — so Jira's own ladder gets
+an order used for comparison only. Nothing about it is stored or shown, and a
+site with its own scheme falls through to alphabetical, which for `P1`…`P4` is
+what those schemes intend.
+
+**The heading row is no longer `aria-hidden`.** It was, deliberately: eight bare
+nouns announced once before the list are no more use than reading the ruled
+lines. That stops being true the moment the headings take focus — `aria-hidden`
+over a focusable control is a keyboard trap in reverse — so the sortable ones are
+real buttons that announce what they do and how the lane is ordered, and the
+cells that are still labels carry `aria-hidden` individually.
+
+**The ticket lane gave up its age column.** Three metric columns do not fit
+beside it at any width the board can spare, and age is the only one with a
+stand-in on the same row: the staleness bar in the leftmost track is derived from
+the same timestamp and carries the exact age in its `title`. The pull request and
+branch lanes keep theirs.
+
+**Both new gates were made to fail before being relied on.** `applySort` was
+neutered to a no-op and the two end-to-end sort tests failed; the null arm was
+flipped to null-as-smallest and exactly the two unit tests about unknown ordering
+failed; the mirror's `sprint` read was stubbed to `null` and the store round-trip
+failed; the lane's `sprint` prop was stubbed and exactly one end-to-end test
+failed. Each was restored and re-run green.
+
+**Unchanged and still not mine: `greyscale.spec.ts` fails on `main`.** Three of
+its five tests, for the same reason recorded under 0.2.0 — `every-severity.json`
+carries absolute 2026-08-14 timestamps and severity derives partly from staleness.
+73 of the 76 end-to-end tests pass; those three are the only failures, and they
+fail identically with none of this change in the tree.
 
 ### 0.2.0: two ticket columns, headings, and the drift panel moved down
 

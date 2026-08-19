@@ -1,6 +1,6 @@
 {
   "name": "grndctrl",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Ground Control launcher — resolves the Electron runtime, verifies it, and spawns the app.",
   "license": "MIT",
   "type": "module",
@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@grndctrl/desktop": "0.2.0"
+    "@grndctrl/desktop": "0.3.0"
   },
   "files": [
     "bin",

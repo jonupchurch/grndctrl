@@ -1,6 +1,6 @@
 {
   "name": "@grndctrl/desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The Electron application: main, preload, and the React renderer.",
   "license": "MIT",
   "type": "module",
