@@ -178,7 +178,7 @@ test('5 · a note written from the board is on the row when the dialog closes', 
  * This is the reason the row's last two grid tracks are pinned rather than
  * `auto`. A badge reading `1` is wider than the `+` on MERC-1190 below it, and
  * while the track sized itself to its content that difference came out of the
- * flexible title column — pushing status, court and age left on the row with
+ * flexible title column — pushing status, sprint and court left on the row with
  * notes and not on the row without.
  *
  * It has to live here rather than in `board.spec.ts` because it needs a board
@@ -194,7 +194,7 @@ test('5b · the row that gained a note still lines up with the one that did not'
       )
 
       const out: Record<string, number> = {}
-      for (const slot of ['.row__status', '.row__priority', '.row__court', '.row__age']) {
+      for (const slot of ['.row__status', '.row__sprint', '.row__priority', '.row__court']) {
         const cell = row?.querySelector(slot) ?? null
         if (cell !== null) out[slot] = Math.round(cell.getBoundingClientRect().left)
       }

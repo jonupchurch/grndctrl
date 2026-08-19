@@ -3,6 +3,7 @@ import { ProjectChip } from './ProjectChip.js'
 import { StaleBar, formatAge } from './StaleBar.js'
 import type { StalenessBand } from './StaleBar.js'
 import { CorrelationBadge, StatusMark, type CorrelationKind, type Severity } from './StatusMark.js'
+import type { SortColumn, SortState } from '../lanes/sort.js'
 
 /**
  * One 34px primitive, serving all three lanes (T134).
@@ -24,14 +25,23 @@ import { CorrelationBadge, StatusMark, type CorrelationKind, type Severity } fro
  * content sits in the grid beneath it as static text, and the badge sits above
  * it. Nothing about the row's appearance or keyboard behaviour changes.
  *
- * **Two slots are opt-in, and that is a departure worth naming.** Priority and
- * story points exist on a ticket and nowhere else — a branch has no priority and
- * a pull request is not estimated. Every other slot is unconditional because an
- * empty one is a *fact* about that row ("no branch yet"); these two would be a
- * fact about the lane, and two columns that can never hold anything are noise
- * rather than absence. So a lane either has them for all its rows or has them
- * for none, `.lane[data-metrics]` widens the grid to match, and one prop decides
- * both — which is what stops the markup and the column count disagreeing.
+ * **Three slots are opt-in, and that is a departure worth naming.** Sprint,
+ * priority and story points exist on a ticket and nowhere else — a branch has no
+ * priority and a pull request is not in a sprint. Every other slot is
+ * unconditional because an empty one is a *fact* about that row ("no branch
+ * yet"); these three would be a fact about the lane, and a column that can never
+ * hold anything is noise rather than absence. So a lane either has them for all
+ * its rows or has them for none, `.lane[data-metrics]` widens the grid to match,
+ * and one prop decides all three — which is what stops the markup and the column
+ * count disagreeing.
+ *
+ * **The age slot is opt-out, for the same reason in reverse.** Three added
+ * columns do not fit the ticket lane at any width the rest of the board can
+ * spare, and age is the one with a stand-in: the staleness bar at the head of
+ * every row is derived from the same timestamp and states it, coloured, with the
+ * exact age in its `title`. Dropping the number costs the operator a sort key on
+ * that lane and nothing else. It stays on the pull request and branch lanes,
+ * where there is room and where "stale past 24h" is the whole point.
  *
  * Height comes from `--row-h`, which density switches between 34px and 28px
  * (T131). Nothing here knows which.
@@ -64,13 +74,20 @@ export interface RowProps {
   /**
    * The ticket-only columns, or nothing at all.
    *
-   * One optional object rather than two optional fields, because the two travel
-   * together: the lane's grid has both columns or neither, and a row that
+   * One optional object rather than three optional fields, because the three
+   * travel together: the lane's grid has all of them or none, and a row that
    * rendered one of them would put every slot after it in the wrong column.
    * `null` inside it is an ordinary value — unknown — and renders as a
    * placeholder. `0` points is not unknown and renders as `0`.
    */
-  metrics?: { priority: string | null; points: number | null } | undefined
+  metrics?: { sprint: string | null; priority: string | null; points: number | null } | undefined
+  /**
+   * Whether the age column is drawn. Must match the lane's `age`.
+   *
+   * Defaulted on, so the two lanes that keep it say nothing and the one that
+   * gave it up for the sprint column says so explicitly at the call site.
+   */
+  age?: boolean
   /**
    * Notes on **this row's own subject** (T150).
    *
@@ -114,11 +131,16 @@ function Absent(): ReactElement {
  * `<table>` — it is a list of rows each carrying a button, and turning it into
  * a table to gain a header would change how every row is announced.
  *
- * It is **`aria-hidden`, deliberately**. A screen reader does not read this
- * layout as a grid, so the headings would arrive as eight bare nouns before the
- * list and then never again — no more use than reading the ruled lines. Every
- * cell that needs naming is named where it sits: the row's button spells out
- * what it opens, and the court, priority and points slots carry a `title`.
+ * **The headings are the lane's sort control**, and that is why the container is
+ * no longer `aria-hidden`. It was, deliberately: a screen reader does not read
+ * this layout as a grid, so decorative headings arrived as eight bare nouns
+ * before the list and then never again — no more use than reading the ruled
+ * lines. But `aria-hidden` over a focusable control is worse than useless, it is
+ * a keyboard trap in reverse: the button still takes tab focus and announces
+ * nothing when it gets there. So the sortable headings are real buttons that say
+ * what they do and what the current order is, and the cells that are still only
+ * labels — Links, Court, and the two blank tracks — carry `aria-hidden`
+ * individually, exactly as before.
  *
  * It carries **`lane__headings` and not `row`**, which is not cosmetic. It was
  * `row row--head` first, and that made it a row to everything that looks for
@@ -135,42 +157,115 @@ export interface RowHeadingsProps {
   identifier: string
   title: string
   status: string
-  /** Draws the two ticket-only headings. Must match the rows' `metrics`. */
+  /** Draws the three ticket-only headings. Must match the rows' `metrics`. */
   metrics?: boolean
+  /** Draws the age heading. Must match the rows' `age`. */
+  age?: boolean
+  /**
+   * What this lane can be sorted by, and how it currently is.
+   *
+   * Absent means the headings are labels only — which is what they were before
+   * T157, and is still the honest rendering for a lane that has no comparator
+   * for its columns. `columns` comes from the lane's own accessors, so a heading
+   * cannot be made clickable without something behind it to sort by.
+   */
+  sort?:
+    | { state: SortState | null; columns: readonly SortColumn[]; onSort: (column: SortColumn) => void }
+    | undefined
 }
+
+/** Which direction the caret points, or nothing when this column is not sorted. */
+const CARET: Record<'asc' | 'desc', string> = { asc: '▲', desc: '▼' }
 
 export function RowHeadings({
   identifier,
   title,
   status,
   metrics = false,
+  age = true,
+  sort,
 }: RowHeadingsProps): ReactElement {
+  /**
+   * One heading cell: a sort button when the lane can sort by it, plain text
+   * when it cannot.
+   *
+   * The class stays on the outermost element either way. It is what the grid
+   * template and two end-to-end alignment assertions address the cell by, so a
+   * heading that moved its class onto an inner span would keep looking right and
+   * stop being checked.
+   */
+  const heading = (column: SortColumn, label: string): ReactElement => {
+    const className = `row__${column === 'identifier' ? 'id' : column}`
+
+    if (sort === undefined || !sort.columns.includes(column)) {
+      return (
+        <span className={className} aria-hidden="true">
+          {label}
+        </span>
+      )
+    }
+
+    const active = sort.state?.column === column ? sort.state.direction : null
+
+    return (
+      <button
+        type="button"
+        className={`${className} lane__sort`}
+        data-sorted={active ?? 'no'}
+        onClick={() => sort.onSort(column)}
+        // Spelled out rather than left to `aria-sort`, which needs a real
+        // `grid`/`table` role to mean anything — and giving this list one would
+        // change how all two hundred rows beneath it are announced.
+        aria-label={
+          active === null
+            ? `Sort by ${label}`
+            : `Sort by ${label}, currently ${active === 'asc' ? 'ascending' : 'descending'}`
+        }
+      >
+        <span className="lane__sort-label">{label}</span>
+        {/* Only on the sorted column. A caret on every heading is a row of
+            arrows that all look equally true, and the one that is has to be
+            found by shade. */}
+        {active !== null && (
+          <span className="lane__sort-caret" aria-hidden="true">
+            {CARET[active]}
+          </span>
+        )}
+      </button>
+    )
+  }
+
   return (
-    <div className="lane__headings" aria-hidden="true">
+    <div className="lane__headings">
       {/* Two empty tracks: the staleness bar and the project chip are marks
           rather than columns, and naming them would label a colour. */}
-      <span />
-      <span />
+      <span aria-hidden="true" />
+      <span aria-hidden="true" />
 
-      <span className="row__id">{identifier}</span>
-      <span className="row__title">{title}</span>
-      <span className="row__status">{status}</span>
+      {heading('identifier', identifier)}
+      {heading('title', title)}
+      {heading('status', status)}
 
       {metrics && (
         <>
-          <span className="row__priority">Priority</span>
-          <span className="row__points">Points</span>
+          {heading('sprint', 'Sprint')}
+          {heading('priority', 'Priority')}
+          {heading('points', 'Points')}
         </>
       )}
 
-      <span className="row__correlation">Links</span>
-      <span className="row__court">Court</span>
-      <span className="row__age">Age</span>
+      <span className="row__correlation" aria-hidden="true">
+        Links
+      </span>
+      <span className="row__court" aria-hidden="true">
+        Court
+      </span>
+      {age && heading('age', 'Age')}
 
       {/* The trailing slot holds the note control, and the severity mark closes
           the row. Both are their own labels; neither takes a heading. */}
-      <span />
-      <span />
+      <span aria-hidden="true" />
+      <span aria-hidden="true" />
     </div>
   )
 }
@@ -186,6 +281,7 @@ export function Row({
   project,
   status,
   metrics,
+  age = true,
   noteCount,
   hasOpenQuestion,
   onOpenNotes,
@@ -246,6 +342,16 @@ export function Row({
       {metrics !== undefined && (
         <>
           {/*
+            The sprint the ticket is *in*, chosen at ingest out of the several a
+            carried-over ticket carries — see `Ticket.sprint` in core. Null is a
+            ticket in no sprint, or a site with no sprint field, and both are the
+            placeholder: naming it "Backlog" would be a word this code invented.
+          */}
+          <span className="row__sprint" title={`Sprint: ${metrics.sprint ?? 'none'}`}>
+            {metrics.sprint ?? <Absent />}
+          </span>
+
+          {/*
             The tracker's own word, unmapped — see `Ticket.priority` in core.
             `title` carries the column's name because the heading row is
             decorative: it tells a screen reader what "Highest" is a Highest of.
@@ -278,7 +384,11 @@ export function Row({
         <span className="row__court-label">{court.label}</span>
       </span>
 
-      <span className="row__age">{formatAge(lastRealActivityAt, now)}</span>
+      {/* Dropped only where the sprint column took its width. The staleness bar
+          at the head of the row is derived from this same timestamp and carries
+          the exact age in its `title`, so the fact is still on the row — the
+          number is what goes. */}
+      {age && <span className="row__age">{formatAge(lastRealActivityAt, now)}</span>}
 
       {/*
         Decision 18, settled: the note badge takes the **trailing slot**, which

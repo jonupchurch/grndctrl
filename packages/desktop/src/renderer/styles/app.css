@@ -171,10 +171,24 @@ body {
     var(--trailing-w) var(--mark-w);
 }
 
-/* Priority and points, inserted after status: both are facts about the ticket,
-   so they belong beside the one the tracker already reports. */
+/*
+ * Sprint, priority and points, inserted after status: all three are facts about
+ * the ticket, so they belong beside the one the tracker already reports.
+ *
+ * **This lane has no age track**, and that is what pays for the sprint one. The
+ * three metric columns will not fit beside age at any width the board can spare
+ * — the title track is already `minmax(0, 1fr)` and would be the one to give —
+ * and age is the only column here with a stand-in on the same row: the staleness
+ * bar in the leftmost track is derived from the same timestamp and carries the
+ * exact age in its `title`. So the sequence is stale, project, id, title, status,
+ * sprint, priority, points, correlation, court, trailing, severity.
+ */
 .lane[data-metrics='true'] {
-  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 74px 44px 68px 62px 56px
+  /* Priority and points are wider here than the values in them need, and that
+     is the sort caret's doing: it sits inside the heading's own track, so a
+     column sized to `POINTS` renders `POI…▼` the moment it becomes the sorted
+     one — the heading going unreadable exactly when it is the one being read. */
+  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 92px 88px 80px 58px 68px 62px
     var(--trailing-w) var(--mark-w);
 }
 
@@ -290,6 +304,7 @@ body {
 }
 
 .row__status,
+.row__sprint,
 .row__priority,
 .row__age {
   font-size: var(--t-meta);
@@ -360,6 +375,73 @@ body {
   color: inherit;
   font-weight: inherit;
   font-size: inherit;
+}
+
+/*
+ * A heading that sorts its column.
+ *
+ * Every declaration here exists to make a `<button>` occupy its grid track
+ * exactly as the `<span>` it replaced did. The two alignment tests in
+ * `board.spec.ts` and `golden-path.spec.ts` measure `getBoundingClientRect().left`
+ * on these cells, so a user-agent padding left in place is not a cosmetic
+ * difference — it is the heading no longer sitting over its column.
+ *
+ * `min-width: 0` is what lets the label ellipsis inside a grid track rather than
+ * forcing the track wider; without it a long heading pushes the flexible title
+ * column narrower and takes the whole lane's alignment with it.
+ */
+.lane__sort {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+/* The two right-aligned tracks. Their headings sit over numbers, so the flex
+   box has to push its content to the same edge the numbers are on. */
+.lane__sort.row__points,
+.lane__sort.row__age {
+  justify-content: flex-end;
+}
+
+.lane__sort:hover {
+  color: var(--ink-2);
+}
+
+.lane__sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The sorted column, and only it. The caret is the mark; the weight change is
+   what makes it findable at a glance in a row of otherwise identical headings. */
+.lane__sort[data-sorted='asc'],
+.lane__sort[data-sorted='desc'] {
+  color: var(--accent);
+}
+
+.lane__sort-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* `flex: none` so the caret is never the thing that shrinks — a half-drawn
+   arrow reads as a rendering fault rather than as a direction. */
+.lane__sort-caret {
+  flex: none;
+  font-size: 0.7em;
+  line-height: 1;
 }
 
 .row__correlation {

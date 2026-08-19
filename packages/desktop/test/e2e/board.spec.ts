@@ -96,9 +96,10 @@ test('an absent correlation is drawn, not omitted', async () => {
   expect(badges.find((b) => b.kind === 'branch')?.present).toBe('false')
 })
 
-test('the ticket lane carries priority and story points, and names its columns', async () => {
+test('the ticket lane carries sprint, priority and story points, and names its columns', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
 
+  await expect(tickets.getByText('Sprint', { exact: true })).toBeVisible()
   await expect(tickets.getByText('Priority', { exact: true })).toBeVisible()
   await expect(tickets.getByText('Points', { exact: true })).toBeVisible()
 
@@ -107,13 +108,135 @@ test('the ticket lane carries priority and story points, and names its columns',
       r.querySelector('.row__id')?.textContent?.includes('MERC-1184'),
     )
     return {
+      sprint: el?.querySelector('.row__sprint')?.textContent ?? null,
       priority: el?.querySelector('.row__priority')?.textContent ?? null,
       points: el?.querySelector('.row__points')?.textContent ?? null,
     }
   })
 
+  expect(row.sprint).toBe('Sprint 12')
   expect(row.priority).toBe('High')
   expect(row.points).toBe('5')
+})
+
+/**
+ * A ticket in no sprint is drawn as absent, and not as a word this code chose.
+ *
+ * MERC-1190 is in no sprint. "Backlog" is the obvious thing to put here and is
+ * an invention: Jira's backlog is a specific place a ticket can be in or out of,
+ * and a ticket can be outside every sprint without being in it.
+ */
+test('a ticket in no sprint shows a placeholder rather than a name', async () => {
+  const sprint = await it.window.evaluate(() => {
+    const el = [...document.querySelectorAll('.row')].find((r) =>
+      r.querySelector('.row__id')?.textContent?.includes('MERC-1190'),
+    )
+    return el?.querySelector('.row__sprint')?.textContent ?? null
+  })
+
+  expect(sprint?.trim()).toBe('–')
+})
+
+/**
+ * The ticket lane gave up its age column, and only the ticket lane.
+ *
+ * Three metric columns do not fit beside it at any width the board can spare.
+ * Age is the one with a stand-in on the same row — the staleness bar is derived
+ * from the same timestamp — so it is the one that goes, and it goes *here only*:
+ * on the pull request lane "stale past 24h" is the entire point.
+ */
+test('the ticket lane trades its age column for the sprint one, and no other lane does', async () => {
+  const counts = await it.window.evaluate(() => {
+    const lane = (name: string): Element | null =>
+      [...document.querySelectorAll('section.lane')].find(
+        (l) => l.getAttribute('aria-label') === name,
+      ) ?? null
+
+    const inLane = (name: string, slot: string): number =>
+      lane(name)?.querySelectorAll(slot).length ?? -1
+
+    return {
+      ticketAge: inLane('Tickets', '.row__age'),
+      ticketSprint: inLane('Tickets', '.row__sprint'),
+      pullAge: inLane('Pull requests', '.row__age'),
+      branchAge: inLane('Open branches', '.row__age'),
+    }
+  })
+
+  expect(counts.ticketAge).toBe(0)
+  expect(counts.ticketSprint).toBeGreaterThan(0)
+  // `-1` would mean the lane itself was not found, which would make the zero
+  // above prove nothing.
+  expect(counts.pullAge).toBeGreaterThan(0)
+  expect(counts.branchAge).toBeGreaterThan(0)
+})
+
+/**
+ * The headings sort the lane (T157).
+ *
+ * Driven through the real control rather than by calling a comparator: the
+ * question this answers is whether pressing the thing labelled "Ticket"
+ * reorders the rows under it, which is exactly what a unit test of `applySort`
+ * cannot see.
+ *
+ * Three presses, because the third is the one with something to prove — the
+ * cycle ends at *unsorted*, and a lane that could only toggle between two
+ * directions would have made core's own deterministic order unreachable.
+ */
+test('a column heading sorts its lane, and a third press gives the order back', async () => {
+  const tickets = it.window.getByRole('region', { name: 'Tickets' })
+  const identifiers = async (): Promise<string[]> =>
+    tickets.locator('.row .row__id').allTextContents()
+
+  const original = await identifiers()
+  expect(original.length).toBeGreaterThan(1)
+
+  // The same comparison the lane uses: numeric, so `MERC-9` precedes
+  // `MERC-10`. Sorting the expectation with plain `Array.sort` would agree by
+  // accident on this scenario and disagree on any board with a nine in it.
+  const byKey = [...original].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+
+  const heading = tickets.getByRole('button', { name: /^Sort by Ticket/ })
+
+  await heading.click()
+  await expect(heading).toHaveAttribute('aria-label', /ascending/)
+  expect(await identifiers()).toEqual(byKey)
+
+  await heading.click()
+  await expect(heading).toHaveAttribute('aria-label', /descending/)
+  expect(await identifiers()).toEqual([...byKey].reverse())
+
+  await heading.click()
+  await expect(heading).toHaveAttribute('aria-label', 'Sort by Ticket')
+  expect(await identifiers()).toEqual(original)
+})
+
+/**
+ * Sorting one lane does not sort another.
+ *
+ * The lanes are not three views of one list. Ordering tickets by their key says
+ * nothing about how the operator wants their branches ordered, and a board-wide
+ * control would answer a question about one lane by rearranging two others.
+ */
+test('each lane sorts on its own', async () => {
+  const branches = it.window.getByRole('region', { name: 'Open branches' })
+  const before = await branches.locator('.row .row__id').allTextContents()
+
+  const heading = it.window
+    .getByRole('region', { name: 'Tickets' })
+    .getByRole('button', { name: /^Sort by Ticket/ })
+
+  await heading.click()
+  await expect(heading).toHaveAttribute('aria-label', /ascending/)
+
+  expect(await branches.locator('.row .row__id').allTextContents()).toEqual(before)
+
+  // Back to unsorted before leaving. Every test in this file shares one app, so
+  // a sort left applied here is a sort the next test starts with — which is the
+  // kind of shared state that makes a later failure look like a different bug.
+  await heading.click()
+  await heading.click()
+  await expect(heading).toHaveAttribute('aria-label', 'Sort by Ticket')
 })
 
 /**
@@ -165,11 +288,11 @@ test('the column headings line up with the cells beneath them', async () => {
       '.row__id',
       '.row__title',
       '.row__status',
+      '.row__sprint',
       '.row__priority',
       '.row__points',
       '.row__correlation',
       '.row__court',
-      '.row__age',
     ].map((slot) => ({ slot, head: left(head, slot), row: left(row, slot) }))
   })
 
@@ -194,11 +317,12 @@ test('the column headings line up with the cells beneath them', async () => {
  * there could only ever be empty — and a permanently empty column is noise
  * rather than the meaningful absence the row's other placeholders carry.
  */
-test('the pull request lane has no priority or points column', async () => {
+test('the pull request lane has no sprint, priority or points column', async () => {
   const pulls = it.window.getByRole('region', { name: 'Pull requests' })
 
   await expect(pulls.getByText('Priority', { exact: true })).toHaveCount(0)
   await expect(pulls.locator('.row__points')).toHaveCount(0)
+  await expect(pulls.locator('.row__sprint')).toHaveCount(0)
 })
 
 test('the operator court tile filters the whole board', async () => {

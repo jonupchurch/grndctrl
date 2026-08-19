@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { EmptyState } from '../components/EmptyState.js'
 import { LaneStatus } from '../components/LaneStatus.js'
 import { Row, RowHeadings } from '../components/Row.js'
@@ -7,6 +7,15 @@ import type { Severity } from '../components/StatusMark.js'
 import { launch } from '../launch.js'
 import type { FreshnessView } from '../query.js'
 import type { Project, WorkItem } from '../types.js'
+import {
+  applySort,
+  nextSort,
+  priorityOrder,
+  sortableColumns,
+  type SortAccessors,
+  type SortColumn,
+  type SortState,
+} from './sort.js'
 
 /**
  * The three lanes (T140), each a projection of the same correlated work items.
@@ -37,14 +46,25 @@ interface LaneShellProps {
   /** What this lane calls its id, title and status columns. */
   columns: { identifier: string; title: string; status: string }
   /**
-   * Whether the rows carry priority and story points.
+   * Whether the rows carry sprint, priority and story points.
    *
-   * One flag drives both the heading and `data-metrics` on the section, which
+   * One flag drives both the headings and `data-metrics` on the section, which
    * is what widens the grid in CSS. The rows are handed their own `metrics`
    * separately, so the two could in principle disagree — this is the reason
    * the ticket lane is the only place that sets either.
    */
   metrics?: boolean
+  /**
+   * Whether the rows carry the age column. Off on the ticket lane only, where
+   * the three metric columns took its width — see `Row.tsx`.
+   */
+  age?: boolean
+  /** The lane's sort state and the columns it can sort by. */
+  sort: {
+    state: SortState | null
+    columns: readonly SortColumn[]
+    onSort: (column: SortColumn) => void
+  }
   children: ReactElement | ReactElement[] | null
   empty: ReactElement
   now?: Date
@@ -58,12 +78,14 @@ function Lane({
   resource,
   columns,
   metrics = false,
+  age = true,
+  sort,
   children,
   empty,
   now,
 }: LaneShellProps): ReactElement {
   return (
-    <section className="lane" aria-label={title} data-metrics={metrics}>
+    <section className="lane" aria-label={title} data-metrics={metrics} data-age={age}>
       <header className="lane__head">
         <span>{title}</span>
         <span className="lane__count">{count}</span>
@@ -76,12 +98,42 @@ function Lane({
         empty
       ) : (
         <>
-          <RowHeadings {...columns} metrics={metrics} />
+          <RowHeadings {...columns} metrics={metrics} age={age} sort={sort} />
           {children}
         </>
       )}
     </section>
   )
+}
+
+/**
+ * A lane's sort state, and the props its headings need to change it.
+ *
+ * Per lane rather than per board, because the lanes are not three views of one
+ * list: sorting tickets by story points says nothing about how the operator
+ * wants their branches ordered, and a shared control would reorder two lanes to
+ * answer a question about the third.
+ *
+ * **Not persisted, deliberately, for now.** The project filter is saved because
+ * it is a standing choice about what the board is *for*; a sort is a question
+ * asked of the board as it stands, and one restored from last week would present
+ * itself as the natural order of things. If that turns out to be wrong in use it
+ * is a settings field and an invalidation, not a redesign.
+ */
+function useLaneSort<T>(accessors: SortAccessors<T>): {
+  rows: (items: readonly T[]) => readonly T[]
+  props: { state: SortState | null; columns: readonly SortColumn[]; onSort: (c: SortColumn) => void }
+} {
+  const [state, setState] = useState<SortState | null>(null)
+
+  return {
+    rows: (items) => applySort(items, state, accessors),
+    props: {
+      state,
+      columns: sortableColumns(accessors),
+      onSort: (column) => setState((current) => nextSort(current, column)),
+    },
+  }
 }
 
 /**
@@ -148,8 +200,40 @@ const slot = (
   }
 }
 
+/**
+ * A timestamp as an *age*, so ascending means youngest.
+ *
+ * The column is called Age and the number in it counts upward from the last
+ * activity, so sorting it ascending has to put the freshest row first — which is
+ * the opposite of sorting the timestamp itself. Negating the epoch is the whole
+ * conversion; nothing here needs `now`, because every row is measured from the
+ * same one and a shared offset does not change an ordering.
+ *
+ * `null` stays null: a row whose last activity is unknown is unknown, and it
+ * sorts to the end rather than claiming to be the oldest thing on the board.
+ */
+function ageKey(at: string | null): number | null {
+  if (at === null) return null
+  const parsed = Date.parse(at)
+  return Number.isNaN(parsed) ? null : -parsed
+}
+
 export function Tickets({ items, projects, freshness, notes, now }: LaneProps): ReactElement {
   const withTickets = items.filter((i) => i.ticket !== null)
+
+  // No `age` accessor, because this lane has no age column to click. The lane's
+  // sortable set is read off exactly this object, so the two cannot disagree.
+  const sort = useLaneSort<WorkItem>({
+    identifier: (i) => i.ticket?.issueKey ?? i.key,
+    title: (i) => i.ticket?.summary ?? '',
+    status: (i) => i.ticket?.statusName ?? null,
+    sprint: (i) => i.ticket?.sprint ?? null,
+    // The one column whose sort key is not what the cell shows — `Highest` has
+    // to come before `High`, which no alphabetical order produces. See
+    // `priorityOrder`: it orders and never relabels.
+    priority: (i) => priorityOrder(i.ticket?.priority ?? null),
+    points: (i) => i.ticket?.storyPoints ?? null,
+  })
 
   return (
     <Lane
@@ -160,6 +244,11 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
       resource="Tickets"
       columns={{ identifier: 'Ticket', title: 'Summary', status: 'Status' }}
       metrics
+      // The one lane without it: sprint, priority and points are three columns
+      // this one has and the others do not, and the staleness bar already
+      // carries the same fact in the leftmost track.
+      age={false}
+      sort={sort.props}
       {...(now === undefined ? {} : { now })}
       empty={
         <EmptyState title="No tickets">
@@ -168,10 +257,11 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
         </EmptyState>
       }
     >
-      {withTickets.map((item) => (
+      {sort.rows(withTickets).map((item) => (
         <Row
           key={item.key}
           identifier={item.ticket?.issueKey ?? item.key}
+          age={false}
           title={item.ticket?.summary ?? ''}
           severity={item.severity}
           staleness={item.staleness}
@@ -190,6 +280,7 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
           // `withTickets` has already excluded the null ticket; the fallback is
           // here so a change to that filter cannot silently misalign the grid.
           metrics={{
+            sprint: item.ticket?.sprint ?? null,
             priority: item.ticket?.priority ?? null,
             points: item.ticket?.storyPoints ?? null,
           }}
@@ -216,6 +307,16 @@ export function PullRequests({
     item.pullRequests.map((pr) => ({ item, pr })),
   )
 
+  const sort = useLaneSort<(typeof rows)[number]>({
+    // The number itself, not `#482` — a numeric sort key, so 9 comes before 100.
+    identifier: ({ pr }) => pr.number,
+    title: ({ pr }) => pr.title,
+    // The same string the cell shows, from the same function, so the order the
+    // eye reads down the column is the order it was sorted by.
+    status: ({ pr }) => describePull(pr),
+    age: ({ item, pr }) => ageKey(pr.lastRealActivityAt ?? item.lastRealActivityAt),
+  })
+
   return (
     <Lane
       title="Pull requests"
@@ -224,6 +325,7 @@ export function PullRequests({
       freshness={freshness}
       resource="Pull requests"
       columns={{ identifier: 'PR', title: 'Title', status: 'Review' }}
+      sort={sort.props}
       {...(now === undefined ? {} : { now })}
       empty={
         <EmptyState title="No open pull requests">
@@ -232,7 +334,7 @@ export function PullRequests({
         </EmptyState>
       }
     >
-      {rows.map(({ item, pr }) => (
+      {sort.rows(rows).map(({ item, pr }) => (
         <Row
           key={pr.key}
           identifier={`#${pr.number}`}
@@ -261,6 +363,13 @@ export function PullRequests({
 export function Branches({ items, projects, freshness, notes, now }: LaneProps): ReactElement {
   const rows = items.flatMap((item) => item.workspaces.map((ws) => ({ item, ws })))
 
+  const sort = useLaneSort<(typeof rows)[number]>({
+    identifier: ({ ws }) => ws.branch,
+    title: ({ item }) => item.ticket?.summary ?? null,
+    status: ({ item, ws }) => describeWorkspace(ws, comparisonFor(item, ws)),
+    age: ({ item }) => ageKey(item.lastRealActivityAt),
+  })
+
   return (
     <Lane
       title="Open branches"
@@ -269,6 +378,7 @@ export function Branches({ items, projects, freshness, notes, now }: LaneProps):
       freshness={freshness}
       resource="Branches"
       columns={{ identifier: 'Branch', title: 'Ticket', status: 'Local state' }}
+      sort={sort.props}
       {...(now === undefined ? {} : { now })}
       empty={
         <EmptyState title="No open branches">
@@ -277,7 +387,7 @@ export function Branches({ items, projects, freshness, notes, now }: LaneProps):
         </EmptyState>
       }
     >
-      {rows.map(({ item, ws }) => (
+      {sort.rows(rows).map(({ item, ws }) => (
         <Row
           key={ws.key}
           identifier={ws.branch}

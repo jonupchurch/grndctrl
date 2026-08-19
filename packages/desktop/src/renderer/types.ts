@@ -56,6 +56,10 @@ export type Ticket = Pick<
   // the ticket lane draws a placeholder for either, and never a zero.
   | 'priority'
   | 'storyPoints'
+  // The name of the sprint the ticket is currently in, chosen at ingest out of
+  // the several a carried-over ticket carries. Null is "no sprint" or "this site
+  // has no sprint field", and the lane draws a placeholder for either.
+  | 'sprint'
   | 'lastRealActivityAt'
 >
 
