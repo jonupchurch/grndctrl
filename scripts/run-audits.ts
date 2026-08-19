@@ -6,6 +6,7 @@ import { auditDirectory, passed as secretsPassed, report as secretsReport } from
 import { audit as auditDeps, flatten, report as depsReport, type Package } from './audit-deps.ts'
 import {
   auditEgress,
+  DEFAULT_PROVIDER_HOSTS,
   hostsInFiles,
   readCapture,
   passed as egressPassed,
@@ -102,7 +103,7 @@ function runEgress(): boolean {
     .filter((s) => s !== '')
 
   const result = auditEgress(capture, hostsInFiles(built), {
-    providers: providers.length > 0 ? providers : ['atlassian.net', 'github.com'],
+    providers: providers.length > 0 ? providers : DEFAULT_PROVIDER_HOSTS,
     firstRun: has('first-run'),
   })
 

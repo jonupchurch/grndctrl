@@ -59,9 +59,20 @@ const appStatusSchema = z.object({
   }),
 })
 
+/**
+ * `kind` is a one-member enum, and it narrowed here rather than at M2.
+ *
+ * An operation's output is parsed against its own schema, so narrowing this
+ * while the mirror could still return a `github` row would have made
+ * `connections.list` throw on a value the application itself had written — the
+ * board would read "Ground Control could not reach its own service" for every
+ * operator upgrading with a GitHub connection configured. It waited for
+ * migration 4, which deletes those rows and leaves a CHECK that refuses new
+ * ones. The enum and the table now agree.
+ */
 const connectionSchema = z.object({
   id: z.string(),
-  kind: z.enum(['jira', 'github']),
+  kind: z.enum(['jira']),
   siteOrHost: z.string(),
   accountLabel: z.string(),
   viewerIdentity: z
@@ -107,7 +118,7 @@ export function configOperations(services: CoreServices): Operation<never, never
   const ops = [
     defineOperation({
       name: 'connections.list',
-      description: 'Configured Jira and GitHub connections. Never returns a credential.',
+      description: 'Configured Jira connections. Never returns a credential.',
       input: z.object({}),
       output: z.array(connectionSchema),
       exposure: 'ui-only',

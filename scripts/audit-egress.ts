@@ -30,11 +30,23 @@ import { readFileSync } from 'node:fs'
  */
 
 export interface AllowedHosts {
-  /** Hosts the operator has configured: their Jira site and code host. */
+  /** Hosts the operator has configured. One provider now: their Jira site. */
   providers: readonly string[]
   /** Whether the first-run runtime download is expected in this window. */
   firstRun: boolean
 }
+
+/**
+ * What a provider host is, absent a `--providers` flag.
+ *
+ * `github.com` was here beside `atlassian.net` and left with the code host
+ * (006/T056). It is **not** gone from this file: see `FIRST_RUN_ALLOWED` below,
+ * and read that comment before touching either list. The two entries look like
+ * duplicates of one idea and are two different ideas, which is the whole reason
+ * this constant is named and exported rather than written inline at the call
+ * site where it used to live.
+ */
+export const DEFAULT_PROVIDER_HOSTS: readonly string[] = ['atlassian.net']
 
 /**
  * Hosts that are always permitted, and why each one is.
@@ -51,6 +63,27 @@ export const ALWAYS_ALLOWED: Record<string, string> = {
   localhost: 'the loopback API',
 }
 
+/**
+ * **`github.com` here is not the code host, and removing it breaks every fresh
+ * install.**
+ *
+ * Worth stating flatly, because 006 removed the GitHub provider and this looks
+ * exactly like a line that should have gone with it. It did not. The launcher
+ * downloads the Electron runtime from a GitHub release on first launch — the
+ * binary is not in the npm package — so a capture of a first run contacts
+ * `github.com` and then `objects.githubusercontent.com`, which is where a
+ * release asset URL redirects.
+ *
+ * What left is `github.com` as a **provider** host, which is a different
+ * permission with a different meaning: it allowed `api.github.com`, by the
+ * subdomain rule below, for the whole session. Nothing fetches from there any
+ * more, so a session that contacts it is now a finding.
+ *
+ * The symptom of deleting these two would appear nowhere near the cause: the
+ * audit would pass on every developer machine, where the runtime is already
+ * cached, and fail only on a clean one — which is the machine a release is
+ * verified on.
+ */
 export const FIRST_RUN_ALLOWED: Record<string, string> = {
   'github.com': 'the Electron runtime download (T161), once, on first launch',
   'objects.githubusercontent.com': 'where a GitHub release asset URL redirects to',

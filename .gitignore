@@ -76,6 +76,11 @@ dist-tarballs/
 # decision (2026-08-15) so nothing client-derived ever enters the tree. The
 # recorder is `packages/core/test/fixtures/record.ts`; tests that consume these
 # skip when the directory is absent, so a fresh clone stays green.
+#
+# `github/` and `git/` are kept ignored although nothing records into them any
+# more. Deleting the lines would un-ignore whatever an old checkout still has on
+# disk, and those are real payloads from a real account — the one thing that must
+# never be swept in by a stray `git add -A`.
 fixtures/jira/
 fixtures/github/
 fixtures/git/

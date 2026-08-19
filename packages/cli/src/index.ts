@@ -126,10 +126,16 @@ export function runCli(argv: readonly string[]): { output: string; exitCode: num
 /**
  * Import whichever credentials the environment actually has.
  *
- * Both providers in one command, and each one skipped rather than failed when
- * its token is absent — GitHub today and Jira tomorrow is the normal case, and
- * a command that refuses until everything is present would be run once and
+ * One provider now. The loop that skipped a provider whose token was absent is
+ * still the shape of this, and the reason it was written that way is worth
+ * keeping: `credential` is run repeatedly while a connection is being set up,
+ * and a command that refuses until everything is present gets run once and
  * abandoned.
+ *
+ * **This is the dev route, and it is not the supported one.** Operators add a
+ * token in Settings → Connections; nothing here is published. It exists so a
+ * secret can get from a hand-off file into the keychain in one step during
+ * development, and the file is meant to be blanked afterwards.
  */
 function runCredential(argv: readonly string[]): { output: string; exitCode: number } {
   const env = resolveEnv(valueOf(argv, '--env-file') ?? DEFAULT_ENV_FILE)
@@ -169,8 +175,8 @@ function runCredential(argv: readonly string[]): { output: string; exitCode: num
       output: [
         `No credentials found in ${valueOf(argv, '--env-file') ?? DEFAULT_ENV_FILE}.`,
         '',
-        'Fill in GRNDCTRL_GITHUB_TOKEN (and GRNDCTRL_GITHUB_ACCOUNT), then run this again.',
-        'See .env.example for what each variable is and why.',
+        'Fill in GRNDCTRL_JIRA_SITE, GRNDCTRL_JIRA_EMAIL and GRNDCTRL_JIRA_API_TOKEN,',
+        'then run this again. See .env.example for what each variable is and why.',
       ].join('\n'),
       exitCode: 1,
     }

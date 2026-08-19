@@ -28,7 +28,16 @@ interface Gap {
 
 interface Connection {
   id: string
-  kind: 'jira' | 'github'
+  /**
+   * One member, and the label below stopped branching on it.
+   *
+   * `main/credential.ts` has refused anything but `jira` since M2 and the
+   * mirror's CHECK refuses the row since migration 4, so the `: 'GitHub'` arm
+   * that was here could not be reached from any state the application can be in.
+   * A branch that cannot be taken is not defensive; it is a claim on screen that
+   * nothing can produce.
+   */
+  kind: 'jira'
   siteOrHost: string
   accountLabel: string
 }
@@ -44,7 +53,7 @@ export function ConnectionNotice({ onOpenSettings }: { onOpenSettings(): void })
   const describe = (id: string): string => {
     const connection = (connections.data ?? []).find((c) => c.id === id)
     if (connection === undefined) return id
-    return `${connection.kind === 'jira' ? 'Jira' : 'GitHub'} · ${connection.siteOrHost} (${connection.accountLabel})`
+    return `Jira · ${connection.siteOrHost} (${connection.accountLabel})`
   }
 
   return (

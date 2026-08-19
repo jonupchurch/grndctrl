@@ -34,26 +34,32 @@ running app's back.
 
 **Everything an agent can do is an operation in one registry**, the same
 registry the window uses. There is no MCP-only behaviour and no UI-only
-behaviour that a tool works around. Three operations are marked `ui-only` and
-are absent here on purpose — see [What agents cannot do](#what-agents-cannot-do).
+behaviour that a tool works around. Some operations are marked `ui-only` and are
+absent here on purpose — see [What agents cannot do](#what-agents-cannot-do).
 
 ### Reading the board
 
 | Tool | What it answers |
 | --- | --- |
-| `grndctrl_get_board` | The whole board: work items, drift findings, dangling records |
+| `grndctrl_get_board` | The whole board: work items, the counts, freshness |
 | `grndctrl_list_work` | Work items, filtered |
 | `grndctrl_get_work_item` | One item and everything correlated into it |
-| `grndctrl_get_drift` | Drift findings, with the evidence for each |
 | `grndctrl_get_freshness` | How current each connection is, per resource kind |
 | `grndctrl_refresh` | Force a refresh now |
-| `grndctrl_list_projects` | The operator's projects — a Jira key plus a repository each |
+| `grndctrl_list_projects` | The operator's projects — a Jira project key each |
 | `grndctrl_resolve_link` | The URL a row opens |
 
+`grndctrl_get_drift` was here until 0.4.0, with the nine rules behind it. Drift
+compared a ticket against a code host and a checkout, and with one provider there
+is no second system left to disagree with. The operations are gone rather than
+returning an empty list — a tool that always answers "nothing" is a claim this
+application is no longer entitled to make.
+
 Use `grndctrl_resolve_link` rather than assembling a URL yourself. Provider data
-is not trusted for this: the resolver refuses any scheme but `https`, and it
-falls back to the repository — saying so — for a branch the host has never seen.
-A hand-built URL is a guess that looks like a fact.
+is not trusted for this: the resolver refuses any scheme but `https`. Four of its
+seven targets went with the code host, and a removed target is an explicit error
+rather than a silent fallback. A hand-built URL is a guess that looks like a
+fact.
 
 Every provider-derived reply carries a freshness envelope. **Read it.** A reply
 is not a claim that the data is current — it is a claim about what the mirror
@@ -63,8 +69,13 @@ without noticing is acting on a board with a provider missing from it.
 ### Notes
 
 Notes are the shared channel between you and the operator. Typed, attached to a
-subject (a ticket, a pull request, a branch), and readable and writable from
-both sides.
+subject (a ticket or an agent session), and readable and writable from both
+sides.
+
+A note written before 0.4.0 against a pull request, a branch or a checkout is
+still listed and still editable. Those subjects have no rows behind them any
+more, so such a note reads as orphaned — which is what it is, and is better than
+deleting something a person wrote.
 
 | Tool | |
 | --- | --- |
@@ -80,9 +91,13 @@ The four types earn their keep:
 - **`decision`** — what was chosen and why. The thing that is otherwise lost
   when a session ends.
 - **`gotcha`** — the trap you hit, so the next session does not.
-- **`question-for-human`** — a blocker. It raises an Attention nudge on the
-  board, and the operator's answer arrives as a reply on the same subject. This
-  is how an agent asks something without stopping.
+- **`question-for-human`** — a blocker. It moves the work item's ball-in-court to
+  the operator and puts the session into `needs-you`, and their answer arrives as
+  a reply on the same subject. This is how an agent asks something without
+  stopping. **The dedicated place these are listed is not on the board today**:
+  the Attention region that showed them went with drift in 0.4.0 and the agent
+  console restores it. Until then the signal reaches the operator through the
+  row, not through a list of questions.
 - **`todo`** — work you found and did not do.
 
 **Updates take the revision you read.** If the operator edited the note in
@@ -94,7 +109,7 @@ read and the same body — that is the clobber, taking a longer route.
 
 | Tool | |
 | --- | --- |
-| `grndctrl_start_session` | Announce yourself: agent, workspace, what you are doing |
+| `grndctrl_start_session` | Announce yourself: agent, work item, what you are doing |
 | `grndctrl_heartbeat` | Say you are alive |
 | `grndctrl_report_activity` | Say what changed |
 | `grndctrl_end_session` | Say you are done |
@@ -154,17 +169,25 @@ These are structural, not policy. The operations do not exist on this surface.
 never be one. The outbox exists so that a *human* decides an action is worth
 taking; an agent that could fill its own queue and then claim from it would have
 turned a confirmation step into a loop with no person in it. `outbox.enqueue`,
-`outbox.mintConfirmation` and `drift.dismiss` are `ui-only`, and a conformance
+`outbox.mintConfirmation` and `outbox.cancel` are `ui-only`, and a conformance
 test fails the build if any of them appears on the MCP or HTTP surface.
 
-**Write to Jira or GitHub.** Not through Ground Control. Its credentials are
-read-only against the providers by construction — the provider interface has no
-`transitionIssue`, no `createComment`, no `merge` to call. When you claim an
-action, you perform it with **your own** credentials and tools, and report the
-outcome back. Ground Control is the board and the record; it is not the hand.
+**One thing worth saying plainly about the queue in 0.4.0**: nothing in the
+interface can put anything into it. The only route from a screen to the outbox
+ran through a drift finding's suggested action, and that route left with drift.
+The queue, its durability and the claim protocol are all still here and still
+tested — the operator's half of the handshake is what is missing, and it comes
+back with the agent console.
 
-**Touch the operator's working tree.** Every git command is on an allow-list and
-every one is a read. Nothing fetches, nothing checks out, nothing commits.
+**Write to Jira.** Not through Ground Control. Its credentials are read-only
+against the provider by construction — the provider interface has no
+`transitionIssue` and no `createComment` to call. When you claim an action, you
+perform it with **your own** credentials and tools, and report the outcome back.
+Ground Control is the board and the record; it is not the hand.
+
+**Touch the operator's disk.** There is no local git reader any more and no
+checkout binding to point one at. The application spawns no child process at
+all, and a test fails the build if one appears in it.
 
 ---
 

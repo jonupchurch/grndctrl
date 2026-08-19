@@ -49,9 +49,10 @@ export interface ConnectionTestResult {
 
 export interface AddConnectionInput {
   kind: ProviderKind
-  /** `acme.atlassian.net` or `github.com`. Never a scheme, never a trailing slash. */
+  /** `acme.atlassian.net`. Never a scheme, never a trailing slash. */
   siteOrHost: string
-  /** Jira: the account email. GitHub: the login. An identifier, never a secret. */
+  /** The account email — Jira Cloud authenticates as email plus token, and only
+   * the token is a secret. An identifier, never a secret. */
   accountLabel: string
   secret: string
 }

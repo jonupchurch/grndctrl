@@ -23,7 +23,7 @@ export interface Bridge {
    * Write-only: there is no counterpart that reads a secret back out.
    */
   credential(request: {
-    kind: 'jira' | 'github'
+    kind: 'jira'
     siteOrHost: string
     accountLabel: string
     secret: string
@@ -121,7 +121,7 @@ export async function call(operation: string, input?: unknown): Promise<unknown>
  * afterwards — the caller is expected to drop it with the form state.
  */
 export async function storeCredential(request: {
-  kind: 'jira' | 'github'
+  kind: 'jira'
   siteOrHost: string
   accountLabel: string
   secret: string

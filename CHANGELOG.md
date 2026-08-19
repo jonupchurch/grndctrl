@@ -5,9 +5,137 @@ All notable changes to Ground Control (`grndctrl`) are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Released versions are summarised at the top, newest first. **[Unreleased]** below
-them holds the accumulated detail of the v1 build, including everything that
-shipped in the first releases — it is the working record, not a backlog.
+Released versions are at the top, newest first. The v1 releases are summarised
+there and their detail is in **[Unreleased]** below them, which holds the
+accumulated working record of that build. **0.4.0 carries its own detail**
+instead: it is a removal, and what an upgrader needs is the list of what is gone,
+not a sentence saying a lot is.
+
+## [0.4.0] — 2026-08-19
+
+**Ground Control is a Jira board and an agent board.** The GitHub provider, the
+local git reader and drift detection are removed — all of them, not a subset.
+Two of the four lanes, the Attention region and the DRIFTING tile go with them.
+
+### Breaking
+
+Read this list before upgrading. Everything in it is a removal, and there is no
+compatibility shim for any of it.
+
+- **Operations.** `drift.list`, `drift.dismiss` and `drift.undismiss` are gone
+  from the registry, so they are gone from IPC, the loopback API and MCP at once.
+  The MCP tool `grndctrl_get_drift` went with them. Nothing returns an empty
+  list in their place: a tool that always answers "nothing" is a claim this
+  application is no longer entitled to make.
+- **`sessions.start` and `sessions.activity` no longer accept `workspaceKey`**,
+  and both are now strict — an agent still sending it is told, rather than
+  having it silently dropped (FR-115).
+- **`links.resolve` lost four of its seven targets**: `pull-request`, `branch`,
+  `check` and `workspace`. Each is now a validation error naming the targets that
+  exist, rather than a fallback to the ticket page. A caller asking for a pull
+  request link and handed the ticket has been answered wrongly in a way it cannot
+  detect.
+- **Work items lost five fields**: `pullRequests`, `checks`, `branches`,
+  `comparisons` and `workspaces`. **`ticket` is no longer nullable** — every row
+  is a ticket now, so the null is unreachable.
+- **`board.summary` lost `drifting`**, and `lanes` lost its `pulls` and
+  `branches` entries. The three counts that remain — `yourCourt`, `stalled`,
+  `agentsLive` — keep their definitions exactly; the numbers get smaller because
+  the board is smaller.
+- **`projects.upsert` and `projects.list` lost five fields**:
+  `githubConnectionId`, `repoOwner`, `repoName`, `checkoutPaths` and
+  `ticketKeyPattern`. A project is a Jira project key, a code, a name and an
+  optional documentation URL. **`projects.upsert` now refuses a project that
+  names no ticket project.**
+- **`connections.list` returns only `jira` connections**, and its `kind` is a
+  one-member enum. The credential channel has refused any other kind since the
+  first commit of this change.
+- **Settings changed shape.** `pollIntervalSec.github` is gone.
+  `laneThresholdHours` is now `{ tickets, sessions }`: `pulls` and `branches`
+  went with their lanes, and `sessions` **takes the old `pulls` value of 24
+  hours** rather than defaulting, because that is what the number meant. The
+  migration carries it across. `driftGraceHours` is deleted.
+- **`ActionKind` narrowed** to `transition-ticket` and `investigate`.
+  `request-review` and `cleanup-workspace` are retired. The `outbox_actions.kind`
+  column deliberately has **no** CHECK constraint, so a queued action of a
+  retired kind written before the upgrade still reads, still claims and still
+  completes — an action the operator confirmed is theirs, and a narrowing type is
+  not entitled to make it unopenable.
+- **`ResourceKind` is now `tickets` alone**, which narrows `sync.now` and every
+  freshness reading.
+
+### Data
+
+Two migrations run on first launch, and one of them touches data that has no
+copy anywhere.
+
+- **`mirror.db` migration 4** deletes every non-Jira connection, rebuilds
+  `connections` with `CHECK (kind IN ('jira'))`, and drops `pull_requests`,
+  `check_results`, `branch_refs`, `comparisons` and `local_workspaces`. The
+  mirror is a cache; everything in it comes back from Jira on the next sync.
+- **`authored.db` migration 2** drops four columns from `projects` and
+  `workspace_key` from `agent_sessions`, and reshapes the settings payload.
+  **Nothing the operator wrote is deleted.** A project bound to a repository and
+  no Jira project is *kept*, not removed, even though the current write path
+  would refuse to create one (FR-110).
+- **Notes survive on subjects that no longer exist.** A note written against a
+  pull request, a branch or a checkout is still listed and still editable, and
+  reads as orphaned — which is what it is, and is better than deleting something
+  a person wrote (FR-122). Finding dismissals are retained for the same reason,
+  with the consequence that the `D1`—`D9` identifier namespace is spent: any
+  future finding scheme starts at `D10`.
+- **Credentials for removed connections are deleted from the keychain.** The
+  connection row is the only record of where its secret lives, so the handles are
+  read *before* the migration runs and the keychain entries are deleted after it
+  (FR-112). Without that ordering, a revoked-looking connection would leave a
+  live token behind that no screen could reach.
+
+### Removed
+
+- **The GitHub provider**, the pull-request lane, the branch lane, CI check
+  results, and branch comparisons.
+- **The local git reader.** No checkouts, no working trees, no `git`. **The
+  application now spawns no child process at all**, and a test fails the build if
+  one appears in the shipped tree.
+- **All nine drift rules**, the Attention region, the DRIFTING tile, the
+  dismissal read and write paths, and the confirm-and-dispatch route that ran
+  from a finding's suggested action into the action queue.
+- **The age column**, which only the two removed lanes still drew. The fact is
+  not lost: the staleness bar in the leftmost track is derived from the same
+  timestamp and carries the exact age in its `title`.
+- **`--repo` and `--checkout`** from `scripts/bind-project.mjs`.
+
+### Known gaps
+
+Named rather than left to be discovered.
+
+- **Nothing in the interface can put an action in the outbox.** The queue, its
+  durability and the claim protocol are all still here and still tested; the only
+  route to it from a screen ran through a drift finding, and that route left with
+  drift. Agents can still list, claim and complete. The operator's half comes
+  back with the agent console.
+- **Open questions have nowhere dedicated to be shown.** A `question-for-human`
+  note still moves its work item's ball-in-court to the operator and still puts
+  the session into `needs-you`, so the signal reaches the row. The *list* of them
+  was in the Attention region. Also the agent console.
+
+### Fixed
+
+- **The severity fixture had aged out of producing the severities it is named
+  for.** `every-severity.json` carried absolute 2026-08-14 timestamps, and
+  severity derives partly from staleness, so a fortnight later every item in it
+  had passed 3× the ticket threshold and the scenario meant to show four bands
+  showed one. Three greyscale tests had been failing on `main` for long enough to
+  look like scenery. Scenario timestamps are now offsets resolved when the file
+  is loaded, and a test asserts the four bands still appear a year out.
+- **A scenario meant two different boards depending on which program read it.**
+  `noteCounts` was stated in the file and could only be honoured by the text
+  board; the desktop seed writes a real authored store, where the count comes
+  from the notes that are actually in it. Scenarios state their notes now, and
+  both readers derive the rest.
+- **`sessions.activity` would have built invalid SQL** for any caller still
+  passing `workspaceKey`. The column was dropped by the migration and the patch
+  type lost the field with it, but the service still forwarded it.
 
 ## [0.3.0] — 2026-08-19
 

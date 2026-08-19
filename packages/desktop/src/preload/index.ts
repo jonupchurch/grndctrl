@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('grndctrl', {
    * here and no operation that returns one.
    */
   credential: (request: {
-    kind: 'jira' | 'github'
+    kind: 'jira'
     siteOrHost: string
     accountLabel: string
     secret: string

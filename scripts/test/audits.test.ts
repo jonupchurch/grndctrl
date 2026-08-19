@@ -11,6 +11,7 @@ import {
 import { audit as auditDeps, flatten, isReporter, report as depsReport } from '../audit-deps.js'
 import {
   auditEgress,
+  DEFAULT_PROVIDER_HOSTS,
   hostsFromLog,
   hostsInSource,
   readCapture,
@@ -18,6 +19,13 @@ import {
   passed as egressPassed,
   report as egressReport,
 } from '../audit-egress.js'
+import {
+  ALLOWED as SUBPROCESS_ALLOWED,
+  auditSubprocess,
+  EXCLUDED_TREES,
+  findInSource,
+  sourcesUnder,
+} from '../audit-subprocess.js'
 import {
   auditSources,
   parseDenylist,
@@ -249,6 +257,42 @@ describe('the egress audit', () => {
     expect(isAllowed('localhost', allowed)).toBe(true)
   })
 
+  /**
+   * The default list, after the code host left it (006/T056).
+   *
+   * Asserted against `DEFAULT_PROVIDER_HOSTS` rather than a literal, because the
+   * value under test is the one the audit uses when nobody passes `--providers`
+   * — which is how it runs in CI and how it ran for every release so far.
+   */
+  it('no longer treats the code host as a provider', () => {
+    const byDefault = { providers: DEFAULT_PROVIDER_HOSTS, firstRun: false }
+
+    expect(isAllowed('acme.atlassian.net', byDefault)).toBe(true)
+    expect(isAllowed('api.github.com', byDefault)).toBe(false)
+    expect(isAllowed('github.com', byDefault)).toBe(false)
+  })
+
+  /**
+   * **The half that must not be deleted with it.**
+   *
+   * `github.com` stays in the first-run list because the launcher downloads the
+   * Electron runtime from a GitHub release, and the symptom of removing it shows
+   * up nowhere near the cause: the audit passes on every developer machine,
+   * where the runtime is already cached, and fails only on a clean one — which
+   * is the machine a release is verified on.
+   *
+   * The exactness is the point of the third line. First-run permits `github.com`
+   * itself, not everything under it, so the provider permission that left has
+   * not quietly come back through this door.
+   */
+  it('still allows the runtime download, which is not a provider permission', () => {
+    const firstRun = { providers: DEFAULT_PROVIDER_HOSTS, firstRun: true }
+
+    expect(isAllowed('github.com', firstRun)).toBe(true)
+    expect(isAllowed('objects.githubusercontent.com', firstRun)).toBe(true)
+    expect(isAllowed('api.github.com', firstRun)).toBe(false)
+  })
+
   it('catches a telemetry host contacted during a session', () => {
     const result = auditEgress(
       readCapture(log('api.github.com', 'in.telemetry.example')),
@@ -393,5 +437,111 @@ describe('the client-reference audit', () => {
     )
     expect(clientPassed(result)).toBe(true)
     expect(clientReport(result)).toContain('PASS')
+  })
+})
+
+/**
+ * The subprocess audit (006/T057 — FR-100).
+ *
+ * Ground Control ran `git` in the operator's checkouts, with arguments built
+ * from branch names and a binary resolved off `PATH`. That reader is gone, and
+ * this is what stops the next feature that wants "just one command" from
+ * bringing it back.
+ *
+ * **FR-100 says "for any purpose" and the product cannot honour that literally.**
+ * Two child processes remain: the launcher spawns the application, which is how
+ * `npx grndctrl` works at all, and `handshake.ts` runs `icacls` to restrict the
+ * ACL on the file holding the loopback token, for which Windows offers no API.
+ * Both are named in `audit-subprocess.ts` with their reasons, and neither takes
+ * provider or operator input — which is the property the requirement was
+ * written to protect. The tests below assert the exceptions are exactly those
+ * two rather than assert a zero that is not true.
+ */
+describe('the subprocess audit', () => {
+  const ROOT = join(import.meta.dirname, '..', '..')
+
+  const SHIPPED = [
+    'packages/core/src',
+    'packages/desktop/src',
+    'packages/mcp/src',
+    'packages/cli/src',
+    'packages/launcher/src',
+    'packages/launcher/bin',
+  ]
+
+  const shipped = (): Map<string, string> => {
+    const all = new Map<string, string>()
+    for (const dir of SHIPPED) {
+      for (const [file, text] of sourcesUnder(ROOT, dir)) all.set(file, text)
+    }
+    return all
+  }
+
+  it('finds source to scan, so a clean result is not an empty one', () => {
+    // The failure that looks like the strongest possible pass. If the walk
+    // stopped finding files — a renamed directory, a changed extension —
+    // every assertion below would report a perfectly clean tree.
+    expect(shipped().size).toBeGreaterThan(50)
+  })
+
+  it('reports no unaccounted subprocess anywhere in the shipped tree', () => {
+    const { findings } = auditSubprocess(shipped())
+    expect(findings.map((f) => `${f.file}:${f.line} ${f.what}`)).toEqual([])
+  })
+
+  it('has no stale exemption', () => {
+    // An allow-list nobody prunes is how the third exception gets added without
+    // anyone deciding to.
+    expect(auditSubprocess(shipped()).staleExemptions).toEqual([])
+  })
+
+  it('names exactly the two exceptions, and no more', () => {
+    expect(Object.keys(SUBPROCESS_ALLOWED)).toEqual([
+      'packages/core/src/runtime/handshake.ts',
+    ])
+    expect(Object.keys(EXCLUDED_TREES)).toEqual(['packages/launcher'])
+  })
+
+  it('excludes a tree that really does spawn, rather than an empty one', () => {
+    // The exclusion has to be doing work. If the launcher stopped spawning, this
+    // entry would be covering nothing and should be deleted rather than left as
+    // a hole somebody later grows.
+    const launcher = new Map([
+      ...sourcesUnder(ROOT, 'packages/launcher/src'),
+      ...sourcesUnder(ROOT, 'packages/launcher/bin'),
+    ])
+
+    const raw = [...launcher].flatMap(([file, text]) => findInSource(file, text))
+    expect(raw.length).toBeGreaterThan(0)
+    expect(auditSubprocess(launcher).findings).toEqual([])
+  })
+
+  it('catches a planted spawn, under any of the spellings', () => {
+    const planted = new Map([
+      ['packages/core/src/services/sync.ts', "import { spawn } from 'node:child_process'"],
+      ['packages/desktop/src/main/index.ts', "const cp = require('child_process')"],
+      ['packages/mcp/src/server.ts', 'const b = process.binding("spawn_sync")'],
+    ])
+
+    expect(auditSubprocess(planted).findings.map((f) => f.file)).toEqual([
+      'packages/core/src/services/sync.ts',
+      'packages/desktop/src/main/index.ts',
+      'packages/mcp/src/server.ts',
+    ])
+  })
+
+  it('does not fire on a comment explaining that nothing shells out', () => {
+    // Every module that could reach for one carries a sentence saying why it
+    // does not. An audit that fired on its own documentation would be switched
+    // off inside a week, which is a worse outcome than not having it.
+    const prose = [
+      '/**',
+      ' * Nothing here imports node:child_process. The git reader did, and it is',
+      ' * gone with the provider.',
+      ' */',
+      "// child_process is never used below.",
+    ].join(String.fromCharCode(10))
+
+    expect(findInSource('packages/core/src/x.ts', prose)).toEqual([])
   })
 })

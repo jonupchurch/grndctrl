@@ -1,7 +1,7 @@
 {
   "name": "@grndctrl/core",
-  "version": "0.3.0",
-  "description": "The service layer: providers, correlation, drift, stores, and the operation registry. No Electron. No UI. No display.",
+  "version": "0.4.0",
+  "description": "The service layer: the Jira provider, correlation, the two stores, and the operation registry. No Electron. No UI. No display.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

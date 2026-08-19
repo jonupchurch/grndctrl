@@ -1,33 +1,32 @@
 # Ground Control
 
 A local-first command station for the work you are actually holding. It
-correlates your Jira tickets, your GitHub pull requests and CI, the git
-checkouts on your disk, and the AI agent sessions running against them — and
-tells you where they disagree.
+correlates your Jira tickets with the AI agent sessions running against them,
+and tells you what is waiting on you.
 
-Not a dashboard. A dashboard shows you numbers. This shows you the ticket that
-says "In Progress" over a pull request that merged four days ago, and whose turn
-it is.
+Not a dashboard. A dashboard shows you numbers. This shows you the ticket an
+agent went quiet on four hours ago, the one that has not moved in a week, and
+whose turn each of them is.
 
 ---
 
 ## What it does
 
-**Correlates.** A ticket, the branch someone cut for it, the pull request that
-branch opened, the commits on it, and the checks that ran — joined into one work
-item, on evidence rather than on naming conventions alone.
-
-**Notices drift.** A merged pull request under an open ticket. A branch three
-weeks stale with unpushed commits. A pull request waiting on a review that never
-came. Each finding says what it saw, so you can disagree with it.
+**Correlates.** A ticket and every agent session reporting against it, joined
+into one work item, on what the agents said rather than on naming conventions.
 
 **Says whose turn it is.** Every row carries a ball-in-court: you, a colleague,
-CI, or an agent. The lanes sort by it, so the board answers "what is waiting on
-me" without you reading it.
+or an agent. The lane sorts by it, so the board answers "what is waiting on me"
+without you reading it.
 
-**Is honest about what it does not know.** Every lane shows how fresh it is, and
-a provider that cannot be reached says so rather than rendering as empty. "No
-open branches" and "could not read the checkout" are different sentences.
+**Grades what is wrong, and says why.** A blocked ticket, an agent that stopped
+reporting, work that has not moved in multiples of its threshold — each one
+contributes a severity, and the row shows the highest. Never a colour alone: the
+mark carries a shape and a word, so the board still works in greyscale.
+
+**Is honest about what it does not know.** The lane shows how fresh it is, and a
+provider that cannot be reached says so rather than rendering as empty. "No
+tickets assigned to you" and "could not reach Jira" are different sentences.
 
 **Talks to your agents.** `grndctrl-mcp` gives a coding agent the same board you
 see, plus a durable action queue: you confirm an action, an agent claims it and
@@ -39,13 +38,13 @@ reports back. The agent cannot enqueue its own work — see
 These are design constraints, not a roadmap.
 
 - **It never writes to your providers.** Ground Control's credentials are
-  read-only against Jira and GitHub by construction: there is no
-  `transitionIssue`, no `createComment`, no `merge` in the provider interface to
-  call. When a drift finding suggests an action, the app queues it for an agent
-  with your confirmation; the app itself does not perform it.
-- **It never touches your working tree.** No `git checkout`, no `git commit`, no
-  `git fetch`. Every git command it runs is on an allow-list and every one of
-  them is a read.
+  read-only against Jira by construction: there is no `transitionIssue` and no
+  `createComment` in the provider interface to call. An action you confirm is
+  queued for an agent to perform with *its* credentials; the app itself does not
+  perform it.
+- **It never reads your disk.** No checkouts, no working trees, no `git` at all.
+  It ran a read-only git reader until 0.4.0 and that is gone — the application
+  spawns no child process, and a test fails the build if one appears.
 - **It never phones home.** No telemetry, no analytics, no crash reporting, no
   update check. See [Privacy](#privacy) for how that is checked rather than
   claimed.
@@ -89,8 +88,8 @@ root:root` and `chmod 4755` the `chrome-sandbox` file — the refusal message
 names the exact path.
 
 **Ground Control will not start itself with the sandbox turned off.** The window
-renders ticket and pull request titles fetched from the network, and the sandbox
-is what stands between those and the rest of your machine. That is why this is a
+renders ticket summaries fetched from the network, and the sandbox is what
+stands between those and the rest of your machine. That is why this is a
 refusal you have to answer rather than a warning it prints while carrying on.
 
 ### From a checkout
@@ -114,40 +113,21 @@ In **Settings → Connections**, add a Jira connection with your site
 (`yourcompany.atlassian.net`), the email you sign in with, and the token. The
 token goes to your OS keychain; the connection row stores a lookup handle.
 
-### 2. Connect GitHub
+### 2. Bind a project
 
-A fine-grained personal access token with **read** access to the repositories
-you care about. `Metadata: Read`, `Contents: Read`, `Pull requests: Read` and
-`Commit statuses: Read` are enough.
+In **Settings → Projects**, a project is a **Jira project key** (`MERC`), a short
+**code** for the chip on each row, and an optional **documentation URL** the row
+can open. Nothing else: a project used to bind a repository and a list of
+checkout paths on this machine, and both went with the code host in 0.4.0.
 
-> Do not go looking for a `Checks` permission — GitHub's fine-grained picker has
-> none, and CI results come through on the four above. Earlier revisions of this
-> README asked for one, which sent people scrolling the list for a checkbox that
-> was never there.
+A project that names no ticket project is refused when you save it, rather than
+saved and then found to show nothing.
 
-> If the repositories belong to an organisation, the token's **resource owner**
-> must be that organisation, and an org owner has to approve it. A token owned
-> by your personal account will authenticate happily and then see none of the
-> org's repositories — which looks like an empty board rather than a permission
-> problem.
+### 3. Watch it fill in
 
-### 3. Bind a project
-
-In **Settings → Projects**, a project ties together:
-
-- a **Jira project key** (`MERC`) and the pattern that finds its keys in branch
-  names and pull request titles,
-- a **repository** (`acme/mercury` — a browser URL works too),
-- one or more **checkout paths** on this machine.
-
-The checkout paths are what make the local half work. Without them the board
-still shows tickets and pull requests; it just cannot tell you that the branch
-is sitting on your disk with three unpushed commits.
-
-### 4. Watch it fill in
-
-It refreshes on its own — 60 seconds for GitHub, five minutes for Jira, both
-adjustable in Settings. Refresh in the titlebar forces it.
+It refreshes on its own, every five minutes, adjustable in Settings. Refresh in
+the titlebar forces it. It fetches the tickets assigned to you and the ones
+recently taken off you — not your whole backlog.
 
 ## Connect an agent
 
@@ -206,10 +186,10 @@ looking for.
 | The Electron runtime cache | `%LOCALAPPDATA%\grndctrl\runtime` · `~/Library/Caches/grndctrl/runtime` · `~/.cache/grndctrl/runtime` |
 | Your credentials | The OS keychain. Never a file. |
 
-`mirror.db` is a cache of what the providers said and is safe to delete — it
-rebuilds. `authored.db` holds what **you** wrote: notes, dismissals, the action
-queue, settings. It is the one worth backing up, and nothing that syncs is
-allowed to touch it.
+`mirror.db` is a cache of what Jira said and is safe to delete — it rebuilds.
+`authored.db` holds what **you** and your agents wrote: notes, agent sessions,
+the action queue, settings, projects. It is the one worth backing up, and
+nothing that syncs is allowed to touch it.
 
 Environment variables:
 

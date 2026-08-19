@@ -1,6 +1,12 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-19 (0.3.0 published from a tag) · **Stage:** released · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-19 (0.4.0 cut on a branch, not published) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.4.0 is not on the registry.** It is cut on
+`006-remove-code-host-and-local-git`, which is **local and unpushed**. It removes
+the GitHub provider, the local git reader and drift detection, so it is the first
+release where an upgrade takes capability away — read the breaking list in
+`CHANGELOG.md` before tagging it.
 
 **0.3.0 is on the registry**, published 2026-08-19 by the tag `v0.3.0`, each
 package carrying SLSA provenance — read back from `registry.npmjs.org` directly
@@ -37,6 +43,51 @@ than one session out of date. Historical detail belongs in `CHANGELOG.md`; this
 file describes only the present and the immediate next step.
 
 ## Where we are
+
+### 0.4.0: one provider, one lane, and no drift
+
+**Cut on `006-remove-code-host-and-local-git`, not published.** The branch is
+local; nothing is tagged and nothing is pushed. What follows is what is in it.
+
+**The GitHub provider, the local git reader and drift are gone — all of them.**
+Not six of the nine drift rules: the Attention region, the DRIFTING tile, the
+dismissal write path and the confirm-and-dispatch route into the action queue
+went with the nine. Two of the four lanes went with the providers. The board is
+a ticket lane and an agent session panel.
+
+`CHANGELOG.md` carries the breaking list. The three things worth having here:
+
+**`DROP TABLE` in SQLite fires every `ON DELETE` pointing at the table**, and
+both of this change's table rebuilds hit it. Rebuilding `connections` to narrow
+a CHECK deleted every ticket; rebuilding `projects` to drop four columns
+unlinked every agent session. Both migrations succeeded, both left the schema
+exactly right, and the row-count harness passed on both. The fix is a flag on
+the migration honoured *outside* the transaction, because `PRAGMA foreign_keys`
+is a no-op inside one — a `PRAGMA` written into the migration SQL parses, runs,
+does nothing, and reads like a precaution that was taken.
+
+**The greyscale failure is fixed** (below, and struck from the list where it was
+recorded twice as "not mine"). It was never caused by 0.2.0 or 0.3.0 and it was
+not going to be fixed by them: `every-severity.json` carried absolute
+2026-08-14 timestamps, severity derives partly from staleness, and the scenario
+had aged out of producing the severities it is named for. Scenario timestamps
+are offsets resolved at load now (FR-118), resolved by one function in core
+because two programs read these files and two resolvers would make one fixture
+mean two boards. **The end-to-end suite is green for the first time since 0.1.x.**
+
+**Removing the git provider removed the only gate on spawning.** "Nothing else
+shells out" lived in `git-allowlist.test.ts`, which went with the provider it
+guarded, so from that commit until this one nothing asserted it at all. FR-100
+asked for the assertion back, and `scripts/audit-subprocess.ts` is broader than
+what it replaces: the whole shipped tree rather than core, with the two real
+exceptions named and their reasons written down — the launcher, which spawns the
+application because that is what `npx grndctrl` *is*, and `handshake.ts`, which
+runs `icacls` because Windows offers no API for an ACL and the file it protects
+holds the loopback token. **FR-100 says "for any purpose" and the product cannot
+honour that literally**; the audit encodes the honest version and says so.
+
+**734 unit tests green, 72 end-to-end green, nothing skipped, nothing known
+failing.**
 
 ### 0.3.0: the sprint column, and headings that sort
 
@@ -105,6 +156,11 @@ carries absolute 2026-08-14 timestamps and severity derives partly from stalenes
 73 of the 76 end-to-end tests pass; those three are the only failures, and they
 fail identically with none of this change in the tree.
 
+> **Fixed in 0.4.0.** Scenario timestamps are offsets resolved when the file is
+> loaded. Recorded here rather than deleted, because this failure was reported
+> twice as somebody else's problem and then carried for two releases — which is
+> how a failing test becomes scenery.
+
 ### 0.2.0: two ticket columns, headings, and the drift panel moved down
 
 Three changes the operator asked for, and one defect found while making them.
@@ -159,6 +215,9 @@ severity it is named for, and the file ages out of its own purpose. Confirmed by
 running it on a clean checkout with none of this session's changes. The fix is a
 scenario whose timestamps are relative to the run, which is a change to how
 seeding works rather than a line edit.
+
+> **Fixed in 0.4.0**, exactly as described here: the timestamps are relative to
+> the run. The diagnosis was right and sat unactioned for two releases.
 
 
 ### The repository was public, and it named the employer
@@ -250,10 +309,16 @@ them.
 
 **171 of 176 tasks** (175 planned plus T176, the always-on-top toggle added
 mid-M4; the count said 162 and was hand-tallied — it is now counted from the
-file). **734 unit tests, 60 end-to-end. The application launches,
-the board is on screen, and the golden path runs end to end** — configure,
-render, open each row type, write a note, confirm a dispatch, and find the
-action still queued after a restart.
+file). **The application launches, the board is on screen, and the golden path
+runs end to end** — configure, render, open each row type, write a note, confirm
+a dispatch, and find the action still queued after a restart.
+
+> The counts that were on this line described v1. As of 0.4.0 it is **734 unit
+> tests and 72 end-to-end**, and the golden path is six steps rather than nine:
+> the two that opened a pull request row and a branch row are gone, and the
+> three that drove a drift finding through the confirmation dialog into the
+> outbox are gone with the route. The outbox itself is not — `outbox-durability`
+> still proves an action survives a restart.
 
 **The board now refreshes itself** (T074). Until today nothing polled:
 `pollIntervalSec` had been in the settings schema since M2 and only the
@@ -466,6 +531,15 @@ existence (`packages/mcp/test/server.test.ts`).
 - Killing each provider in turn leaves every other lane populated (SC-005), and
   stale / failed / never-synced stay three distinct states (XIV).
 
+> **Three of these five describe a product that no longer exists**, and they are
+> left as the record of what M2 exited against rather than rewritten into
+> something M2 was never asked to meet. In 0.4.0: there are no drift rules; the
+> fixture is `fixtures/scenarios/canonical-board.json` and prints a ticket lane
+> with no findings; and "each provider in turn" is one provider, so gate XV is
+> demonstrated as the ticket lane failing while the session panel, the tiles,
+> the ball-in-court accounting and the notes all still render. Determinism and
+> the three freshness states are unchanged and still asserted.
+
 **Still true from M1:** two separate database files, the keychain round-tripping
 against the real Windows Credential Manager, the XII conformance gate live, a
 mirror rebuild preserving every authored row (SC-007), and no credential in any
@@ -544,9 +618,14 @@ byte of any file in the data directory (SC-011).
   reach past the registry (XII), and the renderer cannot import core **values**
   — types only, since `import type` is erased before the bundler runs and the
   rule exists to keep `better-sqlite3` out of a sandboxed process.
-- **`fixtures/scenarios/`** — checked-in correlation scenarios. The first is the
-  canonical drift case named in `quickstart.md`, and a test asserts the
-  quickstart's stated expectation so the documented demo cannot rot silently.
+- **`fixtures/scenarios/`** — checked-in correlation scenarios, read by two
+  programs: `packages/desktop/scripts/seed.mjs`, which writes one into a real
+  pair of databases, and `grndctrl-cli board`, which renders one as text. Their
+  timestamps are **offsets resolved at load** (`now-5d`), because a fixture
+  carrying absolute dates ages out of meaning what it says — which is what the
+  greyscale failure above was. `canonical-board.json` is what the end-to-end
+  suite reads; `every-severity.json` is the FR-104 assertion, one row per
+  severity source.
 
 - **`packages/mcp`** — `grndctrl-mcp`, the third adapter. 24 tools over the
   registry, holding no database handle, no credentials and no product logic. It
@@ -722,6 +801,34 @@ than implement a feature. Constitution Principle IX takes effect for feature
 work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
+
+**Tag and publish 0.4.0, or decide not to yet.** Everything up to the one-way
+door is done: `006-remove-code-host-and-local-git` is complete through M6,
+`npm run verify` is green, the end-to-end suite is green including greyscale, and
+the branch is **local and unpushed**. What remains is T063 — dry-run the release
+workflow against the branch, merge, tag, push — and none of it is reversible in
+the way the preceding six milestones were.
+
+Two things to weigh before that, neither of which is a blocker:
+
+- **006 and 007 were planned to release together**, on the argument that 006
+  ends with a board thin enough that the layout deserves a second look. Shipping
+  006 alone means shipping the thin board. It is honest and it is worse to use.
+- **007 opens with a probe, not with code.** The handed-off lane needs
+  `assignee CHANGED FROM currentUser() AFTER -7d` on Jira's enhanced
+  `/rest/api/3/search/jql`, and there is no fallback: the changelog endpoint
+  takes issue keys, and the keys of tickets reassigned away are exactly the ones
+  the assignee-scoped query stopped returning. One request against a real Jira
+  settles whether 007's premise holds.
+
+The M5 commit left two stale scenario paths for this milestone, in this file and
+in `specs/001-ground-control-v1/quickstart.md`. Both are done: the passages are
+annotated rather than rewritten, because each is the record of what a milestone
+was verified against and neither was ever asked to meet the current product.
+
+---
+
+## Next action (superseded 2026-08-19, kept for the six decisions it records)
 
 **Six decisions closed on 2026-08-15 (late).** They are recorded here because
 each one changes what remains, and several override what this file said earlier:

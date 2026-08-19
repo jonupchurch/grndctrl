@@ -93,6 +93,13 @@ Prints the lanes as text with severity, staleness, and ball-in-court. The
 scenario above must show exactly one D1 finding, naming both the ticket and the
 PR.
 
+> **Overtaken by 0.4.0.** That scenario file is now
+> `fixtures/scenarios/canonical-board.json`, and it produces no findings: drift
+> is removed and there is one lane. This quickstart is left as the record of what
+> v1 was verified against rather than rewritten into something v1 was never asked
+> to meet — see [006](../006-remove-code-host-and-local-git/quickstart.md) for
+> the current checks.
+
 **Live provider check** (optional, needs tokens):
 
 ```
