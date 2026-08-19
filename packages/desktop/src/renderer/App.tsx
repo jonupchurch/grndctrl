@@ -10,6 +10,7 @@ import { RegionsProvider, useRegionState } from './regions.js'
 import { Tickets, type NotesAccess } from './lanes/Lanes.js'
 import { LaneBoundary } from './lanes/LaneBoundary.js'
 import { Sessions } from './lanes/Sessions.js'
+import { ActiveTicket, type ActiveTicketView } from './panels/ActiveTicket.js'
 import { call } from './bridge.js'
 import { useOperation, usePushInvalidation, worstFreshness, type Envelope } from './query.js'
 import { Settings } from './settings/Settings.js'
@@ -72,6 +73,17 @@ export function App(): ReactElement {
   const questions = useOperation<Note[]>('notes.questions')
 
   /**
+   * The one ticket being worked (FR-127).
+   *
+   * Read here rather than inside the panel so that it and the ticket lane see
+   * the same answer: the lane draws which row is active, the panel draws what it
+   * is, and two reads of the same pointer would disagree for a frame every time
+   * an agent moved it. Same rule as the note counts above — one snapshot, many
+   * consumers.
+   */
+  const active = useOperation<ActiveTicketView | null>('focus.get')
+
+  /**
    * Every subject a row could carry a badge for, in one call (T150).
    *
    * Taken from the **unfiltered** snapshot on purpose. Keying the query on the
@@ -131,7 +143,8 @@ export function App(): ReactElement {
    * Which regions are folded away (T102, T103).
    *
    * **The ids are literals, here and in each component that names one**:
-   * `summary`, `connections`, `tickets`, `sessions`, `court`. They are the keys
+   * `summary`, `connections`, `tickets`, `active-ticket`, `sessions`, `court`.
+   * They are the keys
    * of a stored preference, so a generated one would change between builds and
    * quietly unfold everything the operator had put away — and would leave a dead
    * key behind each time. There is no registry of them and there deliberately is
@@ -143,6 +156,28 @@ export function App(): ReactElement {
     ...(settings.data === undefined ? {} : { saved: settings.data.collapsedRegions }),
     persist: writeSettings,
   })
+
+  /**
+   * Both directions of the pointer, from the row and from the panel.
+   *
+   * Nothing is invalidated here. `focus.set` and `focus.clear` are mutations, so
+   * main's push wrapper announces `focus:changed` when either returns — on the
+   * agent's path as well as this one — and `usePushInvalidation` refetches.
+   * Invalidating here too would work and would leave two code paths producing
+   * the same number, which is the thing `main/push.ts` exists to avoid.
+   *
+   * A failure is swallowed rather than surfaced, and that is a gap rather than a
+   * decision: there is nowhere on this board to put a transient error yet. The
+   * observable symptom is a control that does not take, which is at least not a
+   * lie about what is active.
+   */
+  const setActive = useCallback((ticketKey: string) => {
+    void call('focus.set', { ticketKey }).catch(() => undefined)
+  }, [])
+
+  const clearActive = useCallback(() => {
+    void call('focus.clear', {}).catch(() => undefined)
+  }, [])
 
   const refresh = useCallback(() => {
     setSyncing(true)
@@ -256,11 +291,32 @@ export function App(): ReactElement {
                     projects={known}
                     freshness={ticketFreshness}
                     notes={notes}
+                    focus={{
+                      activeKey: active.data?.ticketKey ?? null,
+                      set: setActive,
+                      clear: clearActive,
+                    }}
                   />
                 </LaneBoundary>
               </div>
 
               <aside className="board__side">
+                {/*
+                  First in the column, because it is the answer to "what is
+                  happening right now" and US1 is the reason this release
+                  exists. Everything below it is context for this.
+                */}
+                <LaneBoundary lane="Active ticket">
+                  <ActiveTicket
+                    active={active.data}
+                    // The **unfiltered** snapshot. The active ticket is one
+                    // pointer, not a lane: blanking it because the operator
+                    // pressed a project chip would read as "nothing is active".
+                    items={work.data?.data}
+                    onClear={clearActive}
+                  />
+                </LaneBoundary>
+
                 <LaneBoundary lane="Agent sessions">
                   <Sessions sessions={live} />
                 </LaneBoundary>

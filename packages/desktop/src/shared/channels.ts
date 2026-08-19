@@ -49,6 +49,7 @@ export const PUSH_CHANNELS = {
   freshnessTick: 'grndctrl:push:freshness-tick',
   outboxChanged: 'grndctrl:push:outbox-changed',
   sessionsChanged: 'grndctrl:push:sessions-changed',
+  focusChanged: 'grndctrl:push:focus-changed',
 } as const
 
 /**

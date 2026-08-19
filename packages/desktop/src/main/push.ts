@@ -3,7 +3,8 @@ import { PUSH_CHANNELS } from '../shared/channels.js'
 /**
  * What main tells the renderer without being asked.
  *
- * Three events, and the shape of them matters more than the count. Each carries
+ * The events are listed below; the shape of them matters more than the count,
+ * which is why this sentence no longer states one. Each carries
  * *that* something changed and nothing about what: the renderer refetches
  * through the same operations it already uses, so there is exactly one code path
  * producing any given number on the board. A push carrying data would be a
@@ -25,6 +26,11 @@ import { PUSH_CHANNELS } from '../shared/channels.js'
  * - `sessions:changed` — an agent started, reported activity, or ended. The
  *   Sessions panel tells the operator "a session appears here the moment one
  *   starts"; until this existed that sentence was false for an open window.
+ * - `focus:changed` — the active ticket was set or cleared. This is the event
+ *   with the highest ratio of *agent* to *window* traffic on the list: the
+ *   operator can set focus from a ticket row, but the caller it was built for is
+ *   an agent picking work up over MCP (FR-127). Without it the panel says the
+ *   operator is on whatever they were on when the window opened.
  *
  * ## The half that was missing, and why it was invisible
  *
@@ -88,6 +94,7 @@ export interface Push {
   syncProgress(progress: SyncProgress): void
   outboxChanged(): void
   sessionsChanged(): void
+  focusChanged(): void
   /**
    * Emit whatever this operation implies, having run.
    *
@@ -118,6 +125,7 @@ export function push(options: PushOptions): Push {
     syncProgress: (progress) => broadcast(PUSH_CHANNELS.syncProgress, progress),
     outboxChanged: () => broadcast(PUSH_CHANNELS.outboxChanged, {}),
     sessionsChanged: () => broadcast(PUSH_CHANNELS.sessionsChanged, {}),
+    focusChanged: () => broadcast(PUSH_CHANNELS.focusChanged, {}),
 
     afterDispatch(operation) {
       // A read changes nothing, and announcing one is not merely wasteful — it
@@ -135,6 +143,11 @@ export function push(options: PushOptions): Push {
       // panel. A liveness display that only updates when the agent does real
       // work cannot show an agent that has stopped doing any.
       if (operation.startsWith('sessions.')) self.sessionsChanged()
+      // `focus.get` is a read and is filtered out above, which matters more here
+      // than elsewhere: the panel's response to this event is to call
+      // `focus.get`, so announcing reads would be a loop with a one-event cycle
+      // rather than the long one the outbox nearly had.
+      if (operation.startsWith('focus.')) self.focusChanged()
     },
 
     start() {

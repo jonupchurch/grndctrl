@@ -46,6 +46,20 @@ export const noteSchema = z.object({
 })
 
 /**
+ * The wire form of the active ticket.
+ *
+ * `ticketKey` is a plain string for the same reason it is on a note: a brand is
+ * a compile-time fiction and does not survive JSON. It is still validated as a
+ * key on the way *in* — see `focus.set`.
+ */
+export const activeTicketSchema = z.object({
+  ticketKey: z.string(),
+  setBy: z.enum(['user', 'agent']),
+  setById: z.string().nullable(),
+  setAt: z.string(),
+})
+
+/**
  * Every timestamp crossing a boundary is absolute ISO-8601.
  *
  * Never "3 minutes ago". A relative string is computed once and then lies for as

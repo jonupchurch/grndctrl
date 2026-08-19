@@ -217,6 +217,29 @@ export interface Note {
   resolvedAt: Timestamp | null
 }
 
+/**
+ * The one ticket the operator (or an agent) is on right now.
+ *
+ * Authored, not derived. The obvious home was `AgentSession.workItemKey` — an
+ * agent already declares what it is working on — and that was rejected twice
+ * over: it is per session, so two running sessions disagree and something has to
+ * arbitrate, and it is `null` whenever no agent is running, which empties the
+ * panel exactly when the operator is working the ticket by hand (R3).
+ *
+ * `ticketKey` is a natural key and nothing resolves it here. It may name a
+ * ticket the mirror does not hold — an agent may set focus before the sync
+ * that would fetch it, or on a ticket that is not the operator's — and FR-131
+ * makes that a state the panel renders rather than an error the write refuses.
+ */
+export interface ActiveTicket {
+  ticketKey: NaturalKey
+  /** Stamped from the transport, never from the payload. An agent cannot claim it was the operator. */
+  setBy: AuthorKind
+  /** Which agent, when `setBy` is `agent`. */
+  setById: string | null
+  setAt: Timestamp
+}
+
 export type SessionState = 'running' | 'silent' | 'needs-you' | 'done' | 'failed'
 
 export interface AgentSession {

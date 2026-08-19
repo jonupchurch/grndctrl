@@ -105,6 +105,35 @@ between, the write is refused with `conflict` and the error carries the current
 version, so the agent can merge rather than clobber. Do not retry with a fresh
 read and the same body — that is the clobber, taking a longer route.
 
+### The active ticket
+
+One ticket at a time, shown to the operator in its own panel on the board. Set it
+when you pick work up; clear it when you are done.
+
+| Tool | |
+| --- | --- |
+| `grndctrl_set_active_ticket` | Declare which ticket you are working |
+| `grndctrl_get_active_ticket` | What is being worked, and who set it |
+| `grndctrl_clear_active_ticket` | Put it down |
+
+**This is a pointer, not a claim on the work.** Setting it does not start a
+session, does not assign the ticket to anyone, and does not touch Jira — it
+changes one local value the operator's board reads. Two agents setting it in turn
+is not a conflict, it is the second one winning, and the panel shows who set it
+so the operator can tell. Use `grndctrl_start_session` to say *you* are working;
+use this to say *what* is being worked.
+
+**Read it before you choose your own work.** If something is already active it is
+almost certainly the thing to be on.
+
+**A key that has not synced is fine.** Only the shape is checked. The board shows
+the key and says plainly that it has no summary or status for it, rather than
+going and fetching one — a pointer you set must not become a network request
+the operator did not ask for.
+
+**Clear it when the work ends.** A stale active ticket is worse than an empty
+panel: the operator reads that panel as "this is happening now".
+
 ### Sessions
 
 | Tool | |

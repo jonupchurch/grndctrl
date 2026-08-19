@@ -802,26 +802,71 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Tag and publish 0.4.0, or decide not to yet.** Everything up to the one-way
-door is done: `006-remove-code-host-and-local-git` is complete through M6,
-`npm run verify` is green, the end-to-end suite is green including greyscale, and
-the branch is **local and unpushed**. What remains is T063 — dry-run the release
-workflow against the branch, merge, tag, push — and none of it is reversible in
-the way the preceding six milestones were.
+**Build 007 M3b, the ticket description.** 006 is complete and deliberately
+unreleased; 007 M1 and M3a are built. The branch is still **local and unpushed**,
+and nothing is tagged.
 
-Two things to weigh before that, neither of which is a blocker:
+### Two decisions taken on 2026-08-19, both by the operator
 
-- **006 and 007 were planned to release together**, on the argument that 006
-  ends with a board thin enough that the layout deserves a second look. Shipping
-  006 alone means shipping the thin board. It is honest and it is worse to use.
-- **007 opens with a probe, not with code.** The handed-off lane needs
-  `assignee CHANGED FROM currentUser() AFTER -7d` on Jira's enhanced
-  `/rest/api/3/search/jql`, and there is no fallback: the changelog endpoint
-  takes issue keys, and the keys of tickets reassigned away are exactly the ones
-  the assignee-scoped query stopped returning. One request against a real Jira
-  settles whether 007's premise holds.
+**T063 is held, not forgotten.** Asked whether to push the branch and dry-run the
+release, hold entirely and start 007, or ship 006 alone, they chose to hold. 006
+and 007 release together as one 0.4.0, which is what the plan always said. Do not
+push, do not tag, do not dry-run. Shipping 006 alone would have shipped the thin
+board — honest, and worse to use than either end of the change.
 
-The M5 commit left two stale scenario paths for this milestone, in this file and
+**M2 is blocked, and the block is a fact rather than a preference.** The
+handed-off lane needs `assignee CHANGED FROM currentUser() AFTER -7d` on Jira's
+enhanced `/rest/api/3/search/jql`, and T106a says to verify that against a real
+site before writing anything else in that milestone. The operator cannot reach a
+Jira from where they are working. **There is no client-side fallback**: the
+changelog endpoint takes issue keys, and the keys of tickets reassigned away are
+exactly the ones the assignee-scoped query stopped returning. If it is ever
+refused, FR-123b says report the lane as unbuildable — do not substitute the
+wider "everything not assigned to me", which is the reading the operator narrowed
+away from and the export FR-102's scoping rule exists to prevent.
+
+Atlassian's public documentation says `CHANGED` is supported on `assignee` with
+the `FROM` and `AFTER` predicates, and describes no restriction on the enhanced
+endpoint beyond requiring a bounded query — which this one is, by `project IN
+(—)`. That is **encouraging and not sufficient**: 001's R2 found two
+restrictions on this same endpoint that its documentation did not mention. The
+probe still has to be run.
+
+So M2 moves to last. Every other milestone is independent — the tasks file's
+ordering after M2 is a preference, not a dependency — and each adds a region
+without any of the others.
+
+### Where 007 stands
+
+| Milestone | State |
+|---|---|
+| M1 — Collapsible regions | ✅ Complete — T101—T106 |
+| M2 — The handed-off lane | ⛔ Blocked on T106a, moved to last |
+| M3a — The active ticket | ✅ Complete — T114—T120 |
+| M3b — The ticket description | ⬜ Next |
+| M4 — Agent updates | ⬜ |
+| M5 — Prompts | ⬜ |
+| M6 — Layout, docs, audits | ⬜ |
+
+755 unit tests and 83 end-to-end tests green, nothing skipped, nothing known
+failing.
+
+**What M3a leaves open.** The active-ticket panel renders the key, the summary,
+the status and a link; the description is M3b and the panel has room reserved for
+it. Two of 007's four new panels are empty until an agent is configured to call
+the new tools, and nothing in this application can make an agent cooperate —
+that is a property of the feature, not a gap in it, but any completion report has
+to say so before it says "four new panels".
+
+**A design change made without the operator, still cheap to undo**: the ticket
+lane's rows gained a second control in the trailing slot, a ring that fills when
+that row is the active one, and the lane's trailing track widened from 40px to
+62px to hold it. US1 scenario 6 requires the operator to be able to set the
+active ticket from a ticket row, and the trailing slot was the only track on the
+row that carries controls rather than facts. It joins the "Summary" header added
+above the tiles at M1 on the list of things to look at in T146.
+
+The M5 commit left two stale scenario paths for that milestone, in this file and
 in `specs/001-ground-control-v1/quickstart.md`. Both are done: the passages are
 annotated rather than rewritten, because each is the record of what a milestone
 was verified against and neither was ever asked to meet the current product.

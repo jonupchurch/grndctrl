@@ -244,6 +244,46 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
       db.prepare('UPDATE settings SET payload = ? WHERE id = 1').run(JSON.stringify(reshaped))
     },
   },
+  {
+    version: 3,
+    name: 'active-ticket',
+    /**
+     * The active ticket (007/FR-127) — one authored pointer, one row.
+     *
+     * This is the only migration in this file that *cannot* lose a row, because
+     * the table did not exist before it. Worth saying out loud rather than
+     * leaving to be inferred: the rule at the top of this file is the reason
+     * every other entry here is long, and this one is short for a reason that
+     * does not generalise.
+     *
+     * **No row means nothing is active.** Clearing deletes; it does not write a
+     * row with a NULL key. Two states, not three — "never set" and "cleared"
+     * are the same board, and a nullable `ticket_key` would make `NOT NULL`
+     * unenforceable to buy a distinction nothing renders.
+     *
+     * **No foreign key, and not merely because the mirror is a separate file
+     * (XIII).** FR-131 requires that the pointer be allowed to name a ticket the
+     * mirror does not hold: an agent may set focus before the sync that would
+     * fetch it. A constraint here would turn the case the panel is specified to
+     * render into a write that fails.
+     *
+     * **No CHECK on `set_by`.** Its two values come from `Ctx` at the service
+     * boundary, which is the only place they can be trusted from anyway. A CHECK
+     * would add a column name to a table constraint — and a column named in a
+     * table constraint is precisely what forced the full rebuild of `projects`
+     * in migration 2, on a table with no backup. Cheap to add, expensive to
+     * ever remove.
+     */
+    up: `
+      CREATE TABLE active_ticket (
+        id         INTEGER PRIMARY KEY CHECK (id = 1),
+        ticket_key TEXT NOT NULL,
+        set_by     TEXT NOT NULL,
+        set_by_id  TEXT,
+        set_at     TEXT NOT NULL
+      );
+    `,
+  },
 ]
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {

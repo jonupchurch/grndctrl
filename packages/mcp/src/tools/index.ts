@@ -1,3 +1,4 @@
+import { focusTools } from './focus.js'
 import { notesTools } from './notes.js'
 import { outboxTools } from './outbox.js'
 import { readTools } from './read.js'
@@ -17,6 +18,7 @@ export type { ToolBinding } from './shared.js'
 export const TOOLS: readonly ToolBinding[] = [
   ...readTools,
   ...notesTools,
+  ...focusTools,
   ...sessionsTools,
   ...outboxTools,
 ]

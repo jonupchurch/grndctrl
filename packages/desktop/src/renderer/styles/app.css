@@ -217,6 +217,22 @@ body {
   --mark-w: 10px;
 }
 
+/*
+ * The ticket lane carries a second control, so its trailing track is wider.
+ *
+ * `40px` fits `─ 999`; this fits that plus a 16px focus toggle and the 6px gap
+ * the slot already had between them. Keyed on `data-metrics` rather than given
+ * its own attribute because the two are the same claim in this board: metrics
+ * are the ticket-only columns, and the active ticket is a ticket-only control.
+ * If a second lane ever takes one without the other, this needs its own flag
+ * rather than a wider default — a default that widened every lane would leave
+ * a 22px hole on the lanes with nothing to put in it, and the headings would
+ * still line up, so nothing would notice.
+ */
+.lane[data-metrics='true'] {
+  --trailing-w: 62px;
+}
+
 .row {
   display: grid;
   grid-template-columns: var(--row-columns);

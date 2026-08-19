@@ -103,6 +103,11 @@ export function usePushInvalidation(): void {
       // moment one starts", which was untrue for an open window until this
       // existed — the board only caught up when an unrelated sync finished.
       bridge.on.sessionsChanged(() => void client.invalidateQueries({ queryKey: ['sessions.list'] })),
+      // An agent picked a ticket up or put it down. This is the event with the
+      // highest ratio of agent to window traffic of any of them — the panel
+      // exists to be populated by MCP — so without it the panel is a snapshot
+      // of whatever was true when the window opened.
+      bridge.on.focusChanged(() => void client.invalidateQueries({ queryKey: ['focus.get'] })),
       // Nothing changed; the numbers aged. Re-render without refetching — the
       // data is identical and only the "4 minutes ago" beside it is not.
       bridge.on.freshnessTick(() => void client.invalidateQueries({ queryKey: ['__tick'] })),

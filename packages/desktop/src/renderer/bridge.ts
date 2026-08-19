@@ -33,6 +33,7 @@ export interface Bridge {
     freshnessTick(listener: (payload: unknown) => void): () => void
     outboxChanged(listener: (payload: unknown) => void): () => void
     sessionsChanged(listener: (payload: unknown) => void): () => void
+    focusChanged(listener: (payload: unknown) => void): () => void
   }
 }
 

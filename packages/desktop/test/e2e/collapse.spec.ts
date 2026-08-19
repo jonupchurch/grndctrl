@@ -51,7 +51,7 @@ const SCENARIO = join(
  * one — and "the ids are stable literals" is the property that makes a folded
  * region still folded after an upgrade.
  */
-const REGIONS = ['summary', 'connections', 'tickets', 'sessions', 'court'] as const
+const REGIONS = ['summary', 'connections', 'tickets', 'active-ticket', 'sessions', 'court'] as const
 
 let it: LaunchedApp
 

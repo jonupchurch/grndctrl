@@ -8,12 +8,14 @@ import { buildBoard, envelopeBoard } from '../services/board.js'
 import { runSync, type SyncReport } from '../services/sync.js'
 import { buildSyncTargets, type BuiltTargets } from './providers.js'
 import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
+import { focusService, type FocusService } from '../services/focus.js'
 import { notesService, type NotesService } from '../services/notes.js'
 import { outboxService, type OutboxService } from '../services/outbox.js'
 import { connectionsService, type ConnectionsService } from '../services/connections.js'
 import { sessionsService, type SessionsService } from '../services/sessions.js'
 import { settingsStore, type SettingsStore } from '../services/settings.js'
 import { projectsRepository, type ProjectsRepository } from '../store/authored/config.js'
+import { focusRepository } from '../store/authored/focus.js'
 import { notesRepository } from '../store/authored/notes.js'
 import { outboxRepository } from '../store/authored/outbox.js'
 import { sessionsRepository } from '../store/authored/sessions.js'
@@ -41,6 +43,8 @@ export interface CoreServices {
   /** Adding, testing and removing provider credentials (FR-005 to FR-007). */
   connections: ConnectionsService
   notes: NotesService
+  /** The one ticket being worked. Authored, and settable by an agent (FR-127). */
+  focus: FocusService
   sessions: SessionsService
   outbox: OutboxService
   settings: SettingsStore
@@ -101,6 +105,8 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     notes: notesRepo,
     subjectPresence: subjectPresenceResolver({ mirror, hasSession: (key) => sessionsRepo.has(key) }),
   })
+
+  const focus = focusService({ focus: focusRepository(authoredDb) })
 
   const sessions = sessionsService({
     sessions: sessionsRepo,
@@ -167,6 +173,7 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     projects,
     connections,
     notes,
+    focus,
     sessions,
     outbox,
     settings,

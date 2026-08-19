@@ -103,6 +103,42 @@ describe('events derived from what actually ran', () => {
     expect(target.sent.filter((s) => s.channel === PUSH_CHANNELS.sessionsChanged)).toHaveLength(3)
   })
 
+  it('announces the active ticket being set or cleared', async () => {
+    const target = recorder()
+    const dispatch = push({ targets: () => [target] }).observing(() => Promise.resolve({}))
+
+    for (const operation of ['focus.set', 'focus.clear']) {
+      await dispatch(operation, {})
+    }
+
+    expect(target.sent.map((s) => s.channel)).toEqual([
+      PUSH_CHANNELS.focusChanged,
+      PUSH_CHANNELS.focusChanged,
+    ])
+  })
+
+  /*
+   * The loop this one would make is shorter than the outbox's.
+   *
+   * The panel answers a `focus:changed` by calling `focus.get`. If reads were
+   * announced, that call would announce, the panel would refetch, and the cycle
+   * would be one event long rather than the several the session push managed
+   * before anyone noticed. `mutates` is what stops it, and it is defaulted to
+   * "everything mutates" — so this asserts the *wired* predicate, the one
+   * `main/index.ts` supplies from the registry.
+   */
+  it('says nothing when the active ticket is merely read', async () => {
+    const target = recorder()
+    const dispatch = push({
+      targets: () => [target],
+      mutates: (operation) => operation !== 'focus.get',
+    }).observing(() => Promise.resolve(null))
+
+    await dispatch('focus.get', {})
+
+    expect(target.sent).toEqual([])
+  })
+
   // A heartbeat is explicitly *not* activity — the service is careful about that
   // — but it does move `sinceHeartbeatSec`, which is what turns a running
   // session amber. A liveness display that only updates when the agent does real

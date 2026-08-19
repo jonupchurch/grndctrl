@@ -82,6 +82,14 @@ function seedAuthored(): void {
      VALUES ('drift:D1:jira:acme.atlassian.net/MERC-1184', ?, 'deadbeef')`,
   ).run(now)
 
+  // The active ticket points into the mirror by natural key and is authored
+  // (007/R3). It is here because "it survives a rebuild" is the claim R3 makes
+  // for storing it in this file rather than deriving it from a session.
+  db.prepare(
+    `INSERT INTO active_ticket (id, ticket_key, set_by, set_by_id, set_at)
+     VALUES (1, ?, 'agent', 'claude-code', ?)`,
+  ).run(SUBJECT, now)
+
   db.close()
 }
 
@@ -124,6 +132,15 @@ describe('deleting the mirror', () => {
     expect(db.prepare('SELECT COUNT(*) c FROM agent_sessions').get()).toEqual({ c: 1 })
     expect(db.prepare('SELECT COUNT(*) c FROM outbox_actions').get()).toEqual({ c: 1 })
     expect(db.prepare('SELECT COUNT(*) c FROM finding_dismissals').get()).toEqual({ c: 1 })
+
+    // Still pointing at the ticket, which the rebuilt mirror does not yet hold.
+    // That is not a broken state — it is FR-131's, and the panel renders it as
+    // "this is what is known" until the next sync fills the rest in.
+    const active = db.prepare('SELECT ticket_key, set_by FROM active_ticket WHERE id = 1').get() as
+      | { ticket_key: string; set_by: string }
+      | undefined
+    expect(active?.ticket_key).toBe(SUBJECT)
+    expect(active?.set_by).toBe('agent')
 
     db.close()
   })

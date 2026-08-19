@@ -90,7 +90,7 @@ The two queries stay **disjoint**: the ticket lane's rows all have `assignee.acc
 
 **Not with `mineOnly`.** It looks like it would do this job — it exists, and it filters the board to the operator's work. It does not: it tests `ballInCourt !== 'you'`, and **`ball.ts`'s fallback awards an unassigned ticket to the operator on the grounds that nobody else holds it**. So `mineOnly` passes exactly the rows it appears to remove — and this lane is full of unassigned tickets, so it would fail here immediately and visibly.
 
-That is not hypothetical. It is why the assignee scope moved into the JQL on 2026-08-15, after a board carrying [redacted] claimed 159 items needed attention when the real number was nine — found by looking at the running board, not by any of the 533 tests then passing.
+That is not hypothetical. It is why the assignee scope moved into the JQL on 2026-08-15, after a real board claimed that most of a project's tickets needed the operator's attention when the true figure was single digits — found by looking at the running board, not by any of the several hundred tests then passing. (The exact counts are omitted deliberately: they were a fact about a client's Jira, and this file is public.)
 
 ---
 

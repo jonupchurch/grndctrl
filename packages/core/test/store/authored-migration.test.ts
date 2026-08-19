@@ -239,6 +239,97 @@ const CASES: MigrationCase[] = [
       expect(payload['windowGeometry']).toEqual(SETTINGS_0_3_0.windowGeometry)
     },
   },
+  {
+    version: 3,
+    name: 'active-ticket',
+    /**
+     * An additive migration, and the case is here to hold it additive.
+     *
+     * `CREATE TABLE` on its own cannot lose a row, so the interesting failure is
+     * not this migration as written — it is the next edit to it. A migration
+     * that adds a table and *also* tidies something is the shape that gets
+     * written when the tidying is one line and the table is already there, and
+     * the rows seeded below are what notices.
+     */
+    seed: (db) => {
+      // Written in the post-migration-2 schema, because the runner has already
+      // applied 1 and 2 by the time this runs. Deliberately not the 0.3.0
+      // fixture: that one describes a schema this database no longer has.
+      db.prepare(
+        `INSERT INTO projects (id, code, name, jira_connection_id, jira_project_key, status_overrides)
+         VALUES ('proj-web', 'WEB', 'Web platform', 'conn-jira', 'ENG', '{}')`,
+      ).run()
+
+      db.prepare(
+        `INSERT INTO notes (id, subject_key, type, body, author_kind, author_id, revision,
+                            created_at, updated_at, resolved_at)
+         VALUES ('note-1', 'jira:acme.atlassian.net/ENG-1', 'decision', 'Chose the boring option',
+                 'user', NULL, 2, '2026-08-01T09:00:00Z', '2026-08-02T09:00:00Z', NULL)`,
+      ).run()
+
+      db.prepare(`INSERT INTO settings (id, payload) VALUES (1, '{"appearance":"dark"}')`).run()
+    },
+    verify: (db) => {
+      // Nothing this migration does not name is touched. The row-count harness
+      // above catches a table emptied; this catches a row replaced.
+      const note = db.prepare('SELECT body, revision FROM notes WHERE id = ?').get('note-1') as
+        | { body: string; revision: number }
+        | undefined
+      expect(note?.body).toBe('Chose the boring option')
+      expect(note?.revision).toBe(2)
+      expect(
+        (db.prepare('SELECT code FROM projects WHERE id = ?').get('proj-web') as { code: string })
+          .code,
+      ).toBe('WEB')
+      expect(
+        (db.prepare('SELECT payload FROM settings WHERE id = 1').get() as { payload: string })
+          .payload,
+      ).toBe('{"appearance":"dark"}')
+
+      // ── The new table ────────────────────────────────────────────────────
+      const columns = (
+        db.prepare(`PRAGMA table_info("active_ticket")`).all() as { name: string }[]
+      ).map((c) => c.name)
+      expect(columns).toEqual(['id', 'ticket_key', 'set_by', 'set_by_id', 'set_at'])
+
+      // Empty, and that is the *representation* of "nothing is active" rather
+      // than a coincidence of a fresh database. A migration that helpfully
+      // inserted a placeholder row would give the panel a null ticket key to
+      // render on every existing install.
+      expect(
+        (db.prepare('SELECT COUNT(*) n FROM active_ticket').get() as { n: number }).n,
+      ).toBe(0)
+
+      // The singleton CHECK does its job. Without it two rows are legal, `get`
+      // reads whichever SQLite hands back first, and the board's focus changes
+      // depending on the query plan.
+      db.prepare(
+        `INSERT INTO active_ticket (id, ticket_key, set_by, set_by_id, set_at)
+         VALUES (1, 'jira:acme.atlassian.net/ENG-1', 'agent', 'claude', '2026-08-19T10:00:00Z')`,
+      ).run()
+
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO active_ticket (id, ticket_key, set_by, set_by_id, set_at)
+             VALUES (2, 'jira:acme.atlassian.net/ENG-2', 'user', NULL, '2026-08-19T11:00:00Z')`,
+          )
+          .run(),
+      ).toThrow(/CHECK constraint failed/)
+
+      // A key the mirror has never held is storable. There is no foreign key
+      // here and there must not be: FR-131 has an agent setting focus before the
+      // sync that would fetch the ticket, and a constraint would turn the case
+      // the panel is specified to render into a write that fails.
+      expect(() =>
+        db
+          .prepare(
+            `UPDATE active_ticket SET ticket_key = 'jira:acme.atlassian.net/NOPE-9999' WHERE id = 1`,
+          )
+          .run(),
+      ).not.toThrow()
+    },
+  },
 ]
 
 describe('authored migrations', () => {
