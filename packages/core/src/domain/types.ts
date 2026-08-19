@@ -361,20 +361,19 @@ export type BallInCourt = 'you' | 'them' | 'agent'
 export interface WorkItem {
   key: NaturalKey
   projectId: string | null
-  ticket: Ticket | null
-  workspaces: LocalWorkspace[]
-  pullRequests: PullRequest[]
-  checks: CheckResult[]
   /**
-   * Ahead/behind for this item's branches, keyed by branch.
+   * **Not nullable** (FR-106), and that is the substantive change 006 made to
+   * this type rather than a consequence of one.
    *
-   * Carried here rather than folded into `LocalWorkspace`, which is documented
-   * as what local git alone knows: ahead/behind comes from the code host, and a
-   * local read can never produce it without a network fetch FR-017 forbids.
-   * Empty means the host has not been asked or could not answer — which is
-   * "unknown", never "in sync" (FR-018).
+   * A work item could be built from a pull request or a local branch, so the
+   * row existed without a ticket and every consumer had to handle it: the lane
+   * filtered on `ticket !== null`, the CLI had a fallback identity, the note
+   * badge had a fallback subject. There is one way to build a row now and it
+   * starts from a ticket, so the null is unreachable — and a nullable field
+   * whose null is unreachable is a branch every future reader has to prove is
+   * dead.
    */
-  comparisons: Comparison[]
+  ticket: Ticket
   sessions: AgentSession[]
   noteCount: number
   severity: Severity

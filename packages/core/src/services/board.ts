@@ -1,28 +1,21 @@
-import { correlate, type CorrelationOutput } from '../correlation/join.js'
-import { applyDismissals } from '../drift/dismiss.js'
-import { detectDrift } from '../drift/rules.js'
-import type {
-  DriftFinding,
-  FindingDismissal,
-  Project,
-  ResourceKind,
-  Settings,
-  WorkItem,
-} from '../domain/types.js'
+import { correlate } from '../correlation/join.js'
+import type { Project, ResourceKind, Settings, WorkItem } from '../domain/types.js'
 import { envelope, freshnessView, type Envelope, type FreshnessView } from '../registry/envelope.js'
 import type { MirrorRepository } from '../store/mirror/repository.js'
 
 /**
  * Assembling the board.
  *
- * Reads both stores, correlates, detects drift, and wraps the result in a
- * freshness envelope. This is the one place the two tiers are joined, and it is
- * done deliberately in code rather than by a SQL join — there is no join to
- * write, because no foreign key crosses the database files (XIII).
+ * Reads both stores, correlates, and wraps the result in a freshness envelope.
+ * This is the one place the two tiers are joined, and it is done deliberately in
+ * code rather than by a SQL join — there is no join to write, because no
+ * foreign key crosses the database files (XIII).
  *
- * Drift is computed *before* work items are returned, because severity depends
- * on drift participation (FR-029) and the two would otherwise disagree about
- * the same row.
+ * **This ran correlation twice and now runs it once.** The second pass existed
+ * because severity depended on drift participation (FR-029): the first produced
+ * the work items, drift ran over them, and the second recomputed severity with
+ * the findings known. Without drift there is nothing to feed back, and a second
+ * identical pass would be a cost with no output.
  */
 
 export interface BoardInputs {
@@ -31,15 +24,12 @@ export interface BoardInputs {
   noteCounts: Readonly<Record<string, number>>
   openQuestionSubjects: readonly string[]
   sessions: Parameters<typeof correlate>[0]['sessions']
-  dismissals: readonly FindingDismissal[]
   settings: Settings
   now: Date
 }
 
 export interface Board {
   workItems: WorkItem[]
-  findings: DriftFinding[]
-  dangling: CorrelationOutput['dangling']
 }
 
 export function buildBoard(inputs: BoardInputs): Board {
@@ -55,14 +45,9 @@ export function buildBoard(inputs: BoardInputs): Board {
     .map((c) => c.viewerIdentity?.accountId)
     .filter((id): id is string => id !== undefined && id !== null)
 
-  const base = {
+  const { workItems } = correlate({
     projects: inputs.projects,
     tickets: mirror.listTickets(),
-    pullRequests: mirror.listPullRequests(),
-    checks: mirror.listChecks(),
-    branches: mirror.listBranches(),
-    comparisons: mirror.listComparisons(),
-    workspaces: mirror.listWorkspaces(),
     sessions: inputs.sessions,
     noteCounts: inputs.noteCounts,
     openQuestionSubjects: inputs.openQuestionSubjects,
@@ -70,23 +55,9 @@ export function buildBoard(inputs: BoardInputs): Board {
     failedResourceKinds,
     settings: inputs.settings,
     now: inputs.now,
-  }
-
-  // Two passes, on purpose. Drift needs correlated work items, and severity
-  // needs to know which items are in drift -- so the first pass produces the
-  // items, and the second recomputes severity with drift participation known.
-  const first = correlate(base)
-  const rawFindings = detectDrift({
-    workItems: first.workItems,
-    dangling: first.dangling,
-    settings: inputs.settings,
-    now: inputs.now,
   })
-  const findings = applyDismissals(rawFindings, inputs.dismissals)
 
-  const second = correlate({ ...base, driftSubjects: findings.map((f) => f.subjectKey) })
-
-  return { workItems: second.workItems, findings, dangling: second.dangling }
+  return { workItems }
 }
 
 /** Freshness views for every resource kind, keyed for the envelope. */

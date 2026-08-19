@@ -1,137 +1,105 @@
 import { describe, expect, it } from 'vitest'
 import { correlate } from '../../src/correlation/join.js'
-import {
-  branch,
-  check,
-  input,
-  keys,
-  ME,
-  pullRequest,
-  session,
-  THEM,
-  ticket,
-  workspace,
-  hoursAgo,
-} from './builders.js'
+import { input, keys, session, THEM, ticket, hoursAgo } from './builders.js'
+
+/**
+ * The join, with two of its three providers removed.
+ *
+ * Most of this file described joining a ticket to a pull request, its checks and
+ * its local checkout, and those cases are gone rather than adapted — there is
+ * nothing to join them to. What is left is deliberately not just the residue:
+ * the properties that were *stated* through those cases are re-stated through
+ * the ones that remain, because they are still the properties that matter.
+ *
+ * - **One unit of work is one row** (FR-020) — asserted through a ticket with
+ *   several sessions, where it used to be a ticket with several pull requests.
+ * - **A row degrades rather than blanking** (XV) — asserted through a stale
+ *   ticket rendered while the last refresh failed.
+ * - **Output is deterministic** (FR-024) — unchanged.
+ *
+ * One property has genuinely gone rather than moved: a key matching no ticket
+ * used to raise a dangling reference and *not* a work item, so a typo in a
+ * branch name could not invent a row (FR-022). Nothing names a ticket from
+ * outside Jira now, so there is no reference that could dangle.
+ */
 
 describe('the join', () => {
-  it('joins a ticket, its branch, its PR, and its checks into one work item', () => {
-    const { workItems } = correlate(
-      input({
-        tickets: [ticket()],
-        pullRequests: [pullRequest()],
-        checks: [check()],
-        branches: [branch()],
-        workspaces: [workspace()],
-      }),
-    )
+  it('builds one work item per ticket', () => {
+    const { workItems } = correlate(input({ tickets: [ticket()] }))
 
     expect(workItems).toHaveLength(1)
     const item = workItems[0]!
     expect(item.key).toBe(keys.ticket('MERC-1184'))
-    expect(item.ticket?.issueKey).toBe('MERC-1184')
-    expect(item.pullRequests).toHaveLength(1)
-    expect(item.workspaces).toHaveLength(1)
-    expect(item.checks).toHaveLength(1)
+    expect(item.ticket.issueKey).toBe('MERC-1184')
+    expect(item.sessions).toHaveLength(0)
   })
 
-  // FR-020. The number of rows on the board should be the number of things you
-  // are working on, not the number of artifacts they produced.
-  it('keeps a ticket with three PRs as one work item', () => {
+  /**
+   * FR-020, restated through the one thing that can still be several.
+   *
+   * It was "a ticket with three pull requests is one work item". Two agents on
+   * one ticket is the same claim about the same rule: the number of rows is the
+   * number of things you are working on, not the number of artefacts they made.
+   */
+  it('keeps a ticket with two agents on it as one work item', () => {
     const { workItems } = correlate(
       input({
         tickets: [ticket()],
-        pullRequests: [
-          pullRequest({ number: 451 }),
-          pullRequest({ number: 452, headSha: 'd4e5f6' }),
-          pullRequest({ number: 453, headSha: '778899' }),
-        ],
+        sessions: [session({ sessionId: 's1' }), session({ sessionId: 's2' })],
       }),
     )
 
     expect(workItems).toHaveLength(1)
-    expect(workItems[0]!.pullRequests).toHaveLength(3)
+    expect(workItems[0]!.sessions).toHaveLength(2)
   })
 
-  // FR-022. A typo in a branch name must not invent a row.
-  it('raises a dangling reference for a key matching no ticket, and no work item', () => {
-    const { workItems, dangling } = correlate(
-      input({
-        tickets: [],
-        pullRequests: [pullRequest({ headBranch: 'feature/MERC-9999' })],
-      }),
-    )
-
-    expect(workItems).toHaveLength(0)
-    expect(dangling).toHaveLength(1)
-    expect(dangling[0]).toMatchObject({ issueKey: 'MERC-9999', source: 'branch' })
-  })
-
-  it('keys unlinked work on its branch so the PR and the local checkout land together', () => {
+  /**
+   * A session reporting against a ticket that is not on the board is dropped.
+   *
+   * This is what is left of FR-022's shape: an agent can name any `workItemKey`
+   * it likes, and one naming a ticket the operator does not have must not invent
+   * a row for it. It is the same rule the dangling-reference machinery enforced
+   * for branch names, at the one remaining place a key arrives from outside.
+   */
+  it('drops a session whose work item is not on the board, rather than inventing one', () => {
     const { workItems } = correlate(
       input({
-        pullRequests: [pullRequest({ headBranch: 'spike/no-ticket', title: 'spike' })],
-        workspaces: [workspace({ branch: 'spike/no-ticket' })],
+        tickets: [ticket({ issueKey: 'MERC-1184' })],
+        sessions: [session({ workItemKey: keys.ticket('MERC-9999') })],
       }),
     )
 
     expect(workItems).toHaveLength(1)
-    expect(workItems[0]!.key).toBe(keys.branch('spike/no-ticket'))
-    expect(workItems[0]!.ticket).toBeNull()
-    expect(workItems[0]!.pullRequests).toHaveLength(1)
-    expect(workItems[0]!.workspaces).toHaveLength(1)
+    expect(workItems[0]!.key).toBe(keys.ticket('MERC-1184'))
+    expect(workItems[0]!.sessions).toHaveLength(0)
   })
 
-  // A ticket with no code attached is not nothing — it is drift rule D3.
-  it('gives a ticket with no branch and no PR a work item of its own', () => {
+  it('gives a ticket with no agent on it a work item of its own', () => {
     const { workItems } = correlate(input({ tickets: [ticket()] }))
     expect(workItems).toHaveLength(1)
-    expect(workItems[0]!.pullRequests).toHaveLength(0)
+    expect(workItems[0]!.sessions).toHaveLength(0)
   })
 
-  it('matches on the branch before the PR title', () => {
-    const { workItems } = correlate(
-      input({
-        tickets: [ticket({ issueKey: 'MERC-1184' }), ticket({ issueKey: 'MERC-2000' })],
-        pullRequests: [
-          pullRequest({ headBranch: 'feature/MERC-1184', title: 'relates to MERC-2000' }),
-        ],
-      }),
-    )
-
-    const withPr = workItems.find((w) => w.pullRequests.length > 0)
-    expect(withPr?.key).toBe(keys.ticket('MERC-1184'))
-  })
-
-  it('attaches checks by head SHA, not by branch name', () => {
+  /**
+   * The note count is the row's own subject and nothing else.
+   *
+   * It used to sum the ticket, every pull request and every workspace on the
+   * item — which is what the badge on a pull request row got wrong, showing the
+   * whole item's total and then opening one subject's notes. There is one
+   * subject per row now, so the count and what it opens cannot disagree.
+   */
+  it('counts notes on the ticket and not on anything else', () => {
     const { workItems } = correlate(
       input({
         tickets: [ticket()],
-        pullRequests: [pullRequest({ headSha: 'current' })],
-        // A run from a commit that was force-pushed away. It must not be shown
-        // as the current state of the PR.
-        checks: [check({ sha: 'stale-force-pushed', name: 'build' })],
-      }),
-    )
-
-    expect(workItems[0]!.checks).toHaveLength(0)
-  })
-
-  it('rolls note counts up from the ticket, its PRs, and its workspaces', () => {
-    const { workItems } = correlate(
-      input({
-        tickets: [ticket()],
-        pullRequests: [pullRequest()],
-        workspaces: [workspace()],
         noteCounts: {
           [keys.ticket('MERC-1184')]: 2,
-          [keys.pr(451)]: 1,
-          [keys.workspace('feature/MERC-1184')]: 3,
+          [keys.ticket('MERC-9999')]: 7,
         },
       }),
     )
 
-    expect(workItems[0]!.noteCount).toBe(6)
+    expect(workItems[0]!.noteCount).toBe(2)
   })
 
   it('sorts output deterministically', () => {
@@ -152,62 +120,36 @@ describe('the join', () => {
 })
 
 /**
- * Constitution XV: a work item whose ticket cannot be fetched still shows its
- * branches, PRs, and notes, marked partially resolved rather than hidden. A
- * lane that blanks itself reads as "no work", which is the opposite of true.
+ * Constitution XV: a lane that blanks itself reads as "no work", which is the
+ * opposite of true.
+ *
+ * The demonstration used to be richer — a work item whose *ticket* could not be
+ * fetched still showed its branches, pull requests and notes. There is nothing
+ * left to show without a ticket, so what `partial` marks is narrower: the rows
+ * are the last ones that arrived, and what they say about themselves may be
+ * behind.
  */
-describe('partial resolution when a provider fails', () => {
-  it('still renders the work when the ticket provider failed', () => {
+describe('partial resolution when the provider fails', () => {
+  it('still renders cached tickets when the last refresh failed, and says so', () => {
     const { workItems } = correlate(
-      input({
-        tickets: [],
-        pullRequests: [pullRequest()],
-        workspaces: [workspace()],
-        failedResourceKinds: ['tickets'],
-      }),
+      input({ tickets: [ticket()], failedResourceKinds: ['tickets'] }),
     )
 
     expect(workItems).toHaveLength(1)
     expect(workItems[0]!.resolution).toBe('partial')
-    expect(workItems[0]!.pullRequests).toHaveLength(1)
-    expect(workItems[0]!.workspaces).toHaveLength(1)
+    expect(workItems[0]!.ticket.issueKey).toBe('MERC-1184')
   })
 
-  it('marks an item partial when a provider it draws from failed', () => {
-    const { workItems } = correlate(
-      input({ tickets: [ticket()], pullRequests: [pullRequest()], failedResourceKinds: ['pulls'] }),
-    )
-    expect(workItems[0]!.resolution).toBe('partial')
-  })
-
-  it('reports full resolution when everything succeeded', () => {
-    const { workItems } = correlate(input({ tickets: [ticket()], pullRequests: [pullRequest()] }))
+  it('reports full resolution when the refresh succeeded', () => {
+    const { workItems } = correlate(input({ tickets: [ticket()] }))
     expect(workItems[0]!.resolution).toBe('full')
-  })
-
-  // Absence of evidence is not evidence of orphaning. With the branch list
-  // unfetched, calling every workspace orphaned would light the whole board up.
-  it('does not call a workspace orphaned when the branch list was never fetched', () => {
-    const { workItems } = correlate(
-      input({
-        tickets: [ticket()],
-        workspaces: [workspace()],
-        branches: [],
-        failedResourceKinds: ['branches'],
-      }),
-    )
-
-    expect(workItems[0]!.severity).not.toBe('critical')
   })
 })
 
 describe('sessions and ball-in-court', () => {
   it('reports the agent when a session is live and nothing is pending from a human', () => {
     const { workItems } = correlate(
-      input({
-        tickets: [ticket({ assignee: THEM })],
-        sessions: [session()],
-      }),
+      input({ tickets: [ticket({ assignee: THEM })], sessions: [session()] }),
     )
 
     expect(workItems[0]!.ballInCourt).toBe('agent')
@@ -225,11 +167,20 @@ describe('sessions and ball-in-court', () => {
     expect(workItems[0]!.ballInCourt).toBe('you')
   })
 
-  it('reports the operator when a review was requested of them', () => {
+  /**
+   * FR-121, from the correlation side.
+   *
+   * A question opened on the *session* rather than on the ticket still reaches
+   * the operator. 006 removed the region that displayed these, and this is one
+   * of the two things that kept reading `notes.questions` — so it is asserted
+   * here rather than assumed to have survived the deletion.
+   */
+  it('moves ball-in-court to the operator for a question opened on the session', () => {
     const { workItems } = correlate(
       input({
         tickets: [ticket({ assignee: THEM })],
-        pullRequests: [pullRequest({ author: THEM, requestedReviewers: [ME] })],
+        sessions: [session({ sessionId: 's1' })],
+        openQuestionSubjects: [keys.session('s1')],
       }),
     )
 
@@ -246,5 +197,21 @@ describe('sessions and ball-in-court', () => {
     )
 
     expect(workItems[0]!.severity).toBe('serious')
+  })
+
+  it('rolls activity up from the session, not just from the ticket', () => {
+    const stale = ticket({ lastRealActivityAt: hoursAgo(200) })
+
+    const withoutAgent = correlate(input({ tickets: [stale] })).workItems[0]!
+    const withAgent = correlate(
+      input({ tickets: [stale], sessions: [session({ lastRealActivityAt: hoursAgo(1) })] }),
+    ).workItems[0]!
+
+    // The ticket has not moved in over a week; the work has. This is the last
+    // remaining case of activity happening somewhere the tracker cannot see it,
+    // and it is the reason `workItemActivity` is still a maximum over sources.
+    expect(withoutAgent.lastRealActivityAt).toBe(stale.lastRealActivityAt)
+    expect(withAgent.lastRealActivityAt).toBe(hoursAgo(1))
+    expect(withAgent.staleness).not.toBe(withoutAgent.staleness)
   })
 })

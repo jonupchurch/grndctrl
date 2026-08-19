@@ -84,37 +84,31 @@ export function projectsRepository(db: Database): ProjectsRepository {
   }
 }
 
-export function dismissalsRepository(db: Database): DismissalsRepository {
-  return {
-    list() {
-      const rows = db
-        .prepare('SELECT * FROM finding_dismissals ORDER BY finding_id')
-        .all() as Record<string, unknown>[]
-
-      return rows.map((r) => ({
-        findingId: String(r['finding_id']),
-        dismissedAt: String(r['dismissed_at']),
-        evidenceHash: String(r['evidence_hash']),
-      }))
-    },
-
-    dismiss(findingId, at, evidenceHash) {
-      // Re-dismissing replaces the hash. The evidence has moved on, and the
-      // operator is saying "not now" about the new situation, not the old one.
-      db.prepare(
-        `INSERT INTO finding_dismissals (finding_id, dismissed_at, evidence_hash)
-         VALUES (?, ?, ?)
-         ON CONFLICT(finding_id) DO UPDATE SET
-           dismissed_at = excluded.dismissed_at, evidence_hash = excluded.evidence_hash`,
-      ).run(findingId, at, evidenceHash)
-
-      return { findingId, dismissedAt: at, evidenceHash }
-    },
-
-    undismiss: (findingId) =>
-      db.prepare('DELETE FROM finding_dismissals WHERE finding_id = ?').run(findingId).changes > 0,
-  }
-}
+/*
+ * ── `finding_dismissals`, and why the D1–D9 identifiers are spent ─────────
+ *
+ * The repository that read and wrote this table was here, and 006 removed it
+ * with drift. **The table and every row in it stay** (FR-122): a dismissal is
+ * the operator saying "not now" about a specific situation, it is authored data,
+ * and there is no server-side copy to restore it from (XI). The authored
+ * migration does not open this table.
+ *
+ * **The consequence is that `D1` through `D9` can never be used again**, and
+ * this is the only place in the codebase where those identifiers still appear.
+ *
+ * A finding's id is `drift:<rule>:<subjectKey>` and is deliberately a pure
+ * function of the rule and its subject — that is what makes a dismissal survive
+ * a resync rather than evaporating. So a future rule numbered `D3` would mint
+ * exactly the ids a retired `D3` minted, and every finding it raised against a
+ * subject the operator once dismissed would arrive **pre-dismissed**: raised,
+ * filtered out, never seen. The operator would report that a rule they enabled
+ * does nothing, and the cause is a row written months earlier by a different
+ * rule that happened to share a number.
+ *
+ * There is no code left that could enforce this, which is precisely why it is
+ * written down. **Any future finding scheme must start at `D10`**, or use a
+ * prefix that is not `drift:`.
+ */
 
 function toProject(row: Record<string, unknown>): Project {
   const nullable = (v: unknown): string | null => (v === null || v === undefined ? null : String(v))

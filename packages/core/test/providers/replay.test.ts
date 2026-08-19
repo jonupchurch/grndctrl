@@ -2,13 +2,10 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { jiraProvider } from '../../src/providers/jira/index.js'
-import { githubProvider } from '../../src/providers/github/index.js'
-import { localGitProvider } from '../../src/providers/git/read.js'
 import { replayFetcher } from '../fixtures/record.js'
-import { replayGitRunner } from '../fixtures/record-git.js'
 
 /**
- * The providers, against payloads a real provider actually sent (T038–T040).
+ * The provider, against payloads a real provider actually sent (T038–T040).
  *
  * Every other provider test in this repository is written from a payload the
  * author believed the provider returns, which means it agrees with that belief
@@ -18,11 +15,15 @@ import { replayGitRunner } from '../fixtures/record-git.js'
  * `nextPageToken` on a response, a `statusCategory` nested one level deeper
  * than assumed, an assignee that is `null` rather than absent.
  *
- * These fixtures are recorded from live connections by
+ * These fixtures are recorded from a live connection by
  * `scripts/record-fixtures.ts`, scrubbed, and **kept out of the repository by
  * decision** — real payloads derived from a real client's tracker do not belong
- * in a published tree, even scrubbed. `fixtures/{jira,github,git}` are
- * gitignored.
+ * in a published tree, even scrubbed. `fixtures/jira` is gitignored.
+ *
+ * **Two of the three describes are gone**, with the GitHub and local git
+ * providers. The guard below is the thing to keep hold of while deleting two
+ * thirds of a file: it is what stops this test rotting into a green no-op, and
+ * it is easy to lose along with the blocks it sat between.
  *
  * ## Why skipping is safe here, when it usually is not
  *
@@ -52,8 +53,6 @@ function recorded(kind: string): string[] | null {
 }
 
 const jira = recorded('jira')
-const github = recorded('github')
-const git = recorded('git')
 
 describe('Jira, replayed from a recording', () => {
   it.skipIf(jira === null)('has fixtures that are actually fixtures', () => {
@@ -87,104 +86,5 @@ describe('Jira, replayed from a recording', () => {
         true,
       )
     }
-  })
-})
-
-describe('GitHub, replayed from a recording', () => {
-  it.skipIf(github === null)('has fixtures that are actually fixtures', () => {
-    expect(github ?? []).not.toHaveLength(0)
-  })
-
-  it.skipIf(github === null)('parses a real repository, with normalised review state', async () => {
-    const provider = githubProvider({
-      token: 'replayed',
-      fetcher: replayFetcher(join(ROOT, 'github')),
-    })
-
-    const { pullRequests, branches } = await provider.fetchRepository({
-      owner: 'example',
-      repo: 'example',
-    })
-
-    expect(pullRequests.length + branches.length).toBeGreaterThan(0)
-
-    let decided = 0
-    for (const pull of pullRequests) {
-      // The renderer compared this against GitHub's raw casing for weeks, so no
-      // pull request could ever render "Changes requested". A fixture recorded
-      // from the wire is what makes the normalisation checkable rather than
-      // asserted against the same belief that produced it.
-      if (pull.reviewDecision !== null) {
-        decided += 1
-        expect(pull.reviewDecision).toMatch(/^(approved|changesRequested|reviewRequired)$/)
-      }
-    }
-
-    // The guard above is why this assertion existed for a week without ever
-    // running: the first recording came from a repository nobody had reviewed,
-    // every `reviewDecision` was null, and the loop body was skipped fifty
-    // times over. It passed, and it was checking nothing — and when a fixture
-    // finally did reach it, the pattern turned out to be wrong too, written in
-    // kebab-case against a value core has always emitted in camelCase.
-    //
-    // So the count is the real assertion. A conditional check needs something
-    // that proves the condition was met, or the next fixture quietly returns
-    // this to a test that cannot fail.
-    expect(decided, 'no pull request in the fixture carries a review decision').toBeGreaterThan(0)
-  })
-
-  it.skipIf(github === null)('covers more than one review decision', async () => {
-    const provider = githubProvider({
-      token: 'replayed',
-      fetcher: replayFetcher(join(ROOT, 'github')),
-    })
-
-    const { pullRequests } = await provider.fetchRepository({ owner: 'example', repo: 'example' })
-    const seen = new Set(pullRequests.map((pull) => pull.reviewDecision).filter((d) => d !== null))
-
-    // One distinct value would satisfy the check above while proving only that
-    // a single branch of the normaliser works. Which values a public repository
-    // happens to be showing is not ours to choose, so this asserts on the
-    // spread rather than on any particular member of it.
-    expect(seen.size, `only saw ${[...seen].join(', ') || 'nothing'}`).toBeGreaterThan(1)
-  })
-})
-
-describe('local git, replayed from a recording', () => {
-  it.skipIf(git === null)('has fixtures that are actually fixtures', () => {
-    expect(git ?? []).not.toHaveLength(0)
-  })
-
-  it.skipIf(git === null)('parses real porcelain into a workspace', async () => {
-    const provider = localGitProvider(replayGitRunner(join(ROOT, 'git')))
-
-    // The path is not the key. It was scrubbed on the way in, so a replay that
-    // had to match it would only ever work on the machine that recorded it.
-    const workspaces = await provider.readWorkspaces({ repoPath: '/repo' })
-
-    expect(workspaces.length).toBeGreaterThan(0)
-    for (const workspace of workspaces) {
-      // `ws:<canonicalRemote>#<branch>@<worktree>` — the natural key
-      // correlation joins on. Derived from the remote, so this is also the
-      // assertion that the scrub kept the remote coherent: a recording whose
-      // remote differs between two files produces workspaces that cannot be
-      // joined to anything.
-      expect(workspace.key).toMatch(/^ws:github\.com\/example\/repo#/)
-      expect(typeof workspace.branch).toBe('string')
-      // `null` means "never pushed" and is rendered as that rather than as
-      // zero, which is the distinction the renderer got wrong for weeks.
-      expect(
-        workspace.unpushedCommitCount === null ||
-          typeof workspace.unpushedCommitCount === 'number',
-      ).toBe(true)
-    }
-  })
-
-  it.skipIf(git === null)('refuses a command it never recorded, rather than answering empty', async () => {
-    // The property that makes every assertion above mean something. An empty
-    // stdout for an unrecorded command is how a parser test passes against
-    // output nobody ever produced.
-    const runner = replayGitRunner(join(ROOT, 'git'))
-    await expect(runner.run('/repo', ['log', '--oneline'])).rejects.toThrow(/No recorded git fixture/)
   })
 })

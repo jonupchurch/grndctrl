@@ -40,6 +40,19 @@ function harness(): Harness {
     polls: [],
     failing: new Set(),
     throwing: new Set(),
+    /*
+     * Two connections of two kinds, and the second kind is on borrowed time.
+     *
+     * Every timing assertion below rests on the two default cadences being
+     * different — 60s and 300s — which is what makes "each target holds its
+     * own cadence" and "backing one off does not move the other" observable at
+     * all. M4 narrows `ProviderKind` to `jira` and reshapes `pollIntervalSec` to
+     * one field, and this harness has to become two Jira connections at one
+     * cadence then. It is not done here because a `github` row is still in the
+     * mirror until M4's migration deletes it, and a scheduler that could not
+     * describe a connection it is being handed is a scheduler that would crash
+     * on the operator's existing database.
+     */
     connections: [
       { id: 'gh-1', kind: 'github' },
       { id: 'jira-1', kind: 'jira' },
@@ -83,20 +96,21 @@ const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolv
 
 function report(connectionId: string, ok: boolean): SyncReport {
   const result: SyncResult = ok
-    ? { connectionId, resourceKind: 'pulls', ok: true, count: 3 }
-    : { connectionId, resourceKind: 'pulls', ok: false, count: 0, failureReason: 'auth' }
+    ? { connectionId, resourceKind: 'tickets', ok: true, count: 3 }
+    : { connectionId, resourceKind: 'tickets', ok: false, count: 0, failureReason: 'auth' }
 
   return { startedAt: '', finishedAt: '', results: [result] }
 }
 
 describe('poll scheduler', () => {
-  it('polls every connection, and local git, on the first pass', async () => {
+  it('polls every connection on the first pass', async () => {
     const h = harness()
     await scheduler(h.deps).tick()
 
-    // Local git is scheduled like a connection under its reserved id — the
-    // branches lane is the one that ages with nothing to refresh it otherwise.
-    expect(h.polls).toEqual(['gh-1', 'jira-1', 'local'])
+    // Every target is a connection. Local git used to be appended as a
+    // pseudo-target under a reserved id, so the lane it fed aged and recovered
+    // by the same rules as everything else; there is no such lane now.
+    expect(h.polls).toEqual(['gh-1', 'jira-1'])
   })
 
   it('holds each provider to its own cadence', async () => {
@@ -156,14 +170,22 @@ describe('poll scheduler', () => {
     await poller.tick()
     expect(h.polls).toContain('gh-1')
 
-    // Two failures now — 240s — while local git, which is fine, kept its own
-    // cadence throughout. XV in the time dimension: one provider failing must
-    // not change what any other provider does.
+    // Two failures now — 240s — while the other connection, which is fine,
+    // kept its own cadence throughout. XV in the time dimension: one connection
+    // failing must not change what any other connection does. The healthy
+    // target used to be local git; it is now the Jira connection, which is due
+    // at 300s and so is polled inside this window.
+    //
+    // The window is chosen so both halves are live at once: at t=310s the failing
+    // connection is not due (last polled at 130s, backed off to 240s) and the
+    // healthy one is (last polled at 0s, due every 300s). A window where the
+    // second was also not due would make the first assertion pass for the wrong
+    // reason.
     h.polls.length = 0
-    h.advance(130 * SECOND)
+    h.advance(180 * SECOND)
     await poller.tick()
     expect(h.polls).not.toContain('gh-1')
-    expect(h.polls).toContain('local')
+    expect(h.polls).toContain('jira-1')
   })
 
   it('treats a thrown sync as a failure', async () => {
@@ -304,8 +326,8 @@ describe('poll scheduler', () => {
       startedAt: '',
       finishedAt: '',
       results: [
-        { connectionId: 'gh-1', resourceKind: 'pulls' as const, ok: true, count: 1 },
-        { connectionId: 'local', resourceKind: 'local' as const, ok: true, count: 2 },
+        { connectionId: 'gh-1', resourceKind: 'tickets' as const, ok: true, count: 1 },
+        { connectionId: 'jira-1', resourceKind: 'tickets' as const, ok: true, count: 2 },
       ],
     }))
     await dispatch('sync.now', {})
@@ -368,7 +390,7 @@ describe('poll scheduler', () => {
     h.timers[0]?.run()
     await settle()
 
-    expect(h.polls).toEqual(['gh-1', 'jira-1', 'local'])
+    expect(h.polls).toEqual(['gh-1', 'jira-1'])
     expect(h.timers[1]?.ms).toBe(15_000)
 
     stop()

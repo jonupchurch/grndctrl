@@ -1,7 +1,5 @@
 import { credentialRef, credentialRefString, type CredentialStore } from '../auth/keychain.js'
-import type { Connection, Project, ProviderKind, ViewerIdentity } from '../domain/types.js'
-import { parseRepositoryRef } from '../domain/keys.js'
-import { githubProvider } from '../providers/github/index.js'
+import type { Connection, ProviderKind, ViewerIdentity } from '../domain/types.js'
 import { jiraProvider } from '../providers/jira/index.js'
 import type { Fetcher } from '../providers/http.js'
 import { invalid, notFound } from '../registry/errors.js'
@@ -28,11 +26,13 @@ import type { MirrorRepository } from '../store/mirror/repository.js'
  *   what XI forbids, and it is the one that would get used.
  *
  * `test` is separate from `add` because authenticating and being *useful* are
- * different questions. A GitHub token can authenticate perfectly, read a
- * repository perfectly, and still lack the scope `compare` needs — and the only
- * symptom is an ahead/behind column that is quietly empty everywhere (research
- * R3). So the compare probe is reported as its own named check rather than
- * inferred from the sync working.
+ * different questions. The case that made this vivid is gone with GitHub — a
+ * token could authenticate perfectly, read a repository perfectly, and still
+ * lack the scope `compare` needed, and the only symptom was an ahead/behind
+ * column quietly empty everywhere (R3). The shape it argued for stays: a token
+ * that authenticates against a Jira site and cannot see the project the operator
+ * bound is the same class of failure, and one tick over the pair reports
+ * neither. Each probe is still its own named check.
  */
 
 export interface ConnectionCheck {
@@ -59,15 +59,13 @@ export interface AddConnectionInput {
 export interface ConnectionsService {
   list(): Connection[]
   add(input: AddConnectionInput): Connection
-  test(input: { connectionId: string; repo?: string | undefined }): Promise<ConnectionTestResult>
+  test(input: { connectionId: string }): Promise<ConnectionTestResult>
   remove(connectionId: string): { removed: boolean }
 }
 
 export interface ConnectionsServiceDeps {
   mirror: MirrorRepository
   credentials: CredentialStore
-  /** Bound projects, so a GitHub test knows which repository to probe. */
-  projects(): readonly Project[]
   fetcher?: Fetcher | undefined
   now?: (() => Date) | undefined
 }
@@ -80,11 +78,7 @@ export function connectionsService(deps: ConnectionsServiceDeps): ConnectionsSer
       const siteOrHost = normaliseHost(input.siteOrHost)
       if (siteOrHost === '') throw invalid('A site or host is required.')
       if (input.accountLabel.trim() === '') {
-        throw invalid(
-          input.kind === 'jira'
-            ? 'A Jira account email is required — Jira Cloud authenticates as email plus token.'
-            : 'A GitHub login is required, so the board can tell your pull requests from everyone else’s.',
-        )
+        throw invalid('A Jira account email is required — Jira Cloud authenticates as email plus token.')
       }
 
       // Trailing whitespace from a copy-paste is the single most common cause of
@@ -129,7 +123,7 @@ export function connectionsService(deps: ConnectionsServiceDeps): ConnectionsSer
       return connection
     },
 
-    async test({ connectionId, repo }) {
+    async test({ connectionId }) {
       const connection = deps.mirror.listConnections().find((c) => c.id === connectionId)
       if (connection === undefined) throw notFound(`No connection '${connectionId}'.`)
 
@@ -146,9 +140,17 @@ export function connectionsService(deps: ConnectionsServiceDeps): ConnectionsSer
         return fail('credential', 'no secret is stored for this connection')
       }
 
-      return connection.kind === 'jira'
-        ? testJira(connection, secret, deps)
-        : testGitHub(connection, secret, repo, deps)
+      // Still checked. A `github` row written by 0.3.0 is in the mirror until
+      // M4's migration drops it, and pointing a Jira client at `github.com`
+      // would report an authentication failure the operator cannot act on.
+      if (connection.kind !== 'jira') {
+        return fail(
+          'provider',
+          'This connection is for a code host, which Ground Control no longer reads. Remove it.',
+        )
+      }
+
+      return testJira(connection, secret, deps)
     },
 
     remove(connectionId) {
@@ -211,62 +213,6 @@ async function testJira(
   return { ok: checks.every((c) => c.ok), viewerIdentity: viewer, checks }
 }
 
-async function testGitHub(
-  connection: Connection,
-  token: string,
-  repo: string | undefined,
-  deps: ConnectionsServiceDeps,
-): Promise<ConnectionTestResult> {
-  const provider = githubProvider({
-    token,
-    host: connection.siteOrHost,
-    connectionId: connection.id,
-    ...(deps.fetcher === undefined ? {} : { fetcher: deps.fetcher }),
-    ...(deps.now === undefined ? {} : { now: deps.now }),
-  })
-
-  // An explicit repository wins; otherwise any project already bound to this
-  // connection. A fine-grained token is scoped per repository, so "can it read
-  // a repository" is not answerable without naming one.
-  const bound = deps
-    .projects()
-    .find((p) => p.githubConnectionId === connection.id && p.repoOwner !== null && p.repoName !== null)
-
-  const target =
-    repo !== undefined
-      ? parseRepositoryRef(repo)
-      : bound === undefined
-        ? null
-        : { owner: bound.repoOwner as string, name: bound.repoName as string }
-
-  if (target === null) {
-    let viewer: ViewerIdentity | null = null
-    try {
-      viewer = await provider.viewer()
-    } catch (e) {
-      return { ok: false, viewerIdentity: null, checks: [check('authentication', false, messageOf(e))] }
-    }
-
-    return {
-      ok: false,
-      viewerIdentity: viewer,
-      checks: [
-        check('authentication', true, `authenticated as ${viewer.displayName}`),
-        check(
-          'repository',
-          false,
-          'no repository to test against — bind a project to this connection, or name one. A fine-grained token is scoped per repository.',
-        ),
-      ],
-    }
-  }
-
-  // The provider owns the probe, so this screen and `grndctrl-cli probe` ask the
-  // same question and cannot disagree about the answer.
-  const result = await provider.probe({ owner: target.owner, repo: target.name })
-  return { ok: result.ok, viewerIdentity: result.viewer, checks: result.checks }
-}
-
 const check = (name: string, ok: boolean, detail: string): ConnectionCheck => ({ name, ok, detail })
 
 const fail = (name: string, detail: string): ConnectionTestResult => ({
@@ -285,7 +231,9 @@ function normaliseHost(raw: string): string {
  * its credential instead of leaving an orphan nobody can see.
  *
  * The bare kind is used for the first connection of that kind, which keeps the
- * ids the CLI has already written (`github`, `jira`) valid.
+ * id the CLI has already written (`jira`) valid. Still takes the kind rather
+ * than hard-coding it: the ids in an existing database were minted from it, and
+ * an id scheme that changed shape would orphan the keychain entry it names.
  */
 function idFor(kind: ProviderKind, accountLabel: string, existing: readonly Connection[]): string {
   if (!existing.some((c) => c.id === kind)) return kind

@@ -3,12 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Database } from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { providerUnavailable } from '../../src/registry/errors.js'
-import type { CodeProvider, LocalGitProvider, TicketProvider } from '../../src/providers/seam.js'
+import type { TicketProvider } from '../../src/providers/seam.js'
 import { runSync } from '../../src/services/sync.js'
 import { mirrorRepository, type MirrorRepository } from '../../src/store/mirror/repository.js'
 import { openMirror } from '../../src/store/open.js'
-import { branch, check, project, pullRequest, settings, ticket, workspace, NOW } from '../correlation/builders.js'
+import { project, settings, ticket, NOW } from '../correlation/builders.js'
 
 /**
  * Several projects, one connection.
@@ -22,6 +21,13 @@ import { branch, check, project, pullRequest, settings, ticket, workspace, NOW }
  * connection. That is the shape this file exists to stop being true: the unit of
  * fetching and the unit of writing have to agree, and nothing else here checks
  * that they do.
+ *
+ * **006 removed the GitHub and checkout halves of this file**, which held the
+ * same rule against `replaceRepository` and `replaceWorkspaces`. The rule itself
+ * is unchanged and is about to matter again: 007 adds a second ticket query on
+ * the same connection — the handed-off lane — and `replaceTickets` still
+ * deletes by connection, so those two result sets have to go in as one write or
+ * the second discards the first. This file is where that will be caught.
  */
 
 let dir: string
@@ -95,8 +101,6 @@ describe('two projects on one Jira connection', () => {
       targets: {
         projects: [ALPHA, BETA],
         ticketProviders: new Map([['jira-1', tickets]]),
-        codeProviders: new Map(),
-        git: { readWorkspaces: async () => [] },
       },
       settings: settings(),
       now: () => NOW,
@@ -128,8 +132,6 @@ describe('two projects on one Jira connection', () => {
       targets: {
         projects: [ALPHA, BETA],
         ticketProviders: new Map([['jira-1', tickets]]),
-        codeProviders: new Map(),
-        git: { readWorkspaces: async () => [] },
       },
       settings: settings(),
       now: () => NOW,
@@ -158,8 +160,6 @@ describe('two projects on one Jira connection', () => {
       targets: {
         projects: [ALPHA, BETA],
         ticketProviders: new Map([['jira-1', tickets]]),
-        codeProviders: new Map(),
-        git: { readWorkspaces: async () => [] },
       },
       settings: settings(),
       now: () => NOW,
@@ -186,8 +186,6 @@ describe('who the operator is', () => {
       targets: {
         projects: [ALPHA],
         ticketProviders: new Map([['jira-1', provider]]),
-        codeProviders: new Map(),
-        git: { readWorkspaces: async () => [] },
       },
       settings: settings(),
       now: () => NOW,
@@ -263,8 +261,6 @@ describe('ticket pages', () => {
       targets: {
         projects: [ALPHA],
         ticketProviders: new Map([['jira-1', provider]]),
-        codeProviders: new Map(),
-        git: { readWorkspaces: async () => [] },
       },
       settings: settings(),
       now: () => NOW,
@@ -296,173 +292,20 @@ describe('ticket pages', () => {
   })
 })
 
-describe('two projects on one GitHub connection', () => {
-  const codeFor = (calls: string[]): CodeProvider => ({
-    viewer: async () => ({ accountId: 'me', displayName: 'Jon', email: null }),
-    fetchRepository: async ({ owner, repo }) => {
-      calls.push(`${owner}/${repo}`)
-      return {
-        pullRequests: [pullRequest({ number: repo === 'alpha' ? 1 : 2 })],
-        branches: [branch()],
-        checks: [check()],
-      }
-    },
-    compareBranches: async () => [],
-    probe: async () => ({ ok: true, viewer: null, checks: [] }),
-  })
-
-  it('keeps both repositories’ pull requests', async () => {
-    const calls: string[] = []
-
-    await runSync({
-      mirror,
-      targets: {
-        projects: [ALPHA, BETA],
-        ticketProviders: new Map(),
-        codeProviders: new Map([['gh-1', codeFor(calls)]]),
-        git: { readWorkspaces: async () => [] },
-      },
-      settings: settings(),
-      now: () => NOW,
-    })
-
-    expect(calls).toEqual(['acme/alpha', 'acme/beta'])
-    expect(mirror.listPullRequests()).toHaveLength(2)
-  })
-
-  it('writes nothing when one repository fails, rather than deleting the other', async () => {
-    const good = codeFor([])
-    await runSync({
-      mirror,
-      targets: {
-        projects: [ALPHA],
-        ticketProviders: new Map(),
-        codeProviders: new Map([['gh-1', good]]),
-        git: { readWorkspaces: async () => [] },
-      },
-      settings: settings(),
-      now: () => NOW,
-    })
-    expect(mirror.listPullRequests()).toHaveLength(1)
-
-    // Now the second project's repository is unreachable. The naive fix —
-    // write whatever succeeded — would replace the connection's rows with only
-    // alpha's, silently discarding beta's cached work while freshness read
-    // "fresh". Better to write nothing and let XV report the connection stale.
-    const flaky: CodeProvider = {
-      ...good,
-      fetchRepository: async ({ repo }) => {
-        if (repo === 'beta') throw providerUnavailable('github is down')
-        return { pullRequests: [pullRequest({ number: 1 })], branches: [branch()], checks: [check()] }
-      },
-    }
-
-    const report = await runSync({
-      mirror,
-      targets: {
-        projects: [ALPHA, BETA],
-        ticketProviders: new Map(),
-        codeProviders: new Map([['gh-1', flaky]]),
-        git: { readWorkspaces: async () => [] },
-      },
-      settings: settings(),
-      now: () => NOW,
-    })
-
-    expect(mirror.listPullRequests()).toHaveLength(1)
-    // Scoped to the connection under test. These fixtures also name a Jira
-    // connection that this case deliberately gives no provider, and a missing
-    // provider is now reported as a failed refresh rather than skipped in
-    // silence — so an unscoped filter picks up a `tickets` failure that is
-    // true, and is about a different connection.
-    expect(
-      report.results
-        .filter((r) => !r.ok && r.connectionId === 'gh-1')
-        .map((r) => r.resourceKind)
-        .sort(),
-    ).toEqual(['branches', 'checks', 'pulls'])
-  })
-})
-
-describe('checkouts shared between projects', () => {
-  it('reads each distinct path once', async () => {
-    const read: string[] = []
-    const git: LocalGitProvider = {
-      readWorkspaces: async ({ repoPath }) => {
-        read.push(repoPath)
-        return [workspace()]
-      },
-    }
-
-    const shared = project({ id: 'p-shared', code: 'SHARED', checkoutPaths: ['D:\\work\\alpha'] })
-
-    await runSync({
-      mirror,
-      targets: {
-        projects: [ALPHA, shared],
-        ticketProviders: new Map(),
-        codeProviders: new Map(),
-        git,
-      },
-      settings: settings(),
-      now: () => NOW,
-    })
-
-    // `replaceWorkspaces` takes no scope, so a second read of the same checkout
-    // would insert the same workspace twice — or, before the fix, the second
-    // project's call would delete the first's entirely.
-    expect(read).toEqual(['D:\\work\\alpha'])
-    expect(mirror.listWorkspaces()).toHaveLength(1)
-  })
-})
-
-describe('a refresh scoped to one connection', () => {
-  const reader = (read: string[]): LocalGitProvider => ({
-    readWorkspaces: async ({ repoPath }) => {
-      read.push(repoPath)
-      return [workspace()]
-    },
-  })
-
-  const scopedTo = (connectionId: string | undefined, git: LocalGitProvider) =>
-    runSync({
-      mirror,
-      targets: {
-        projects: [ALPHA],
-        ticketProviders: new Map(),
-        codeProviders: new Map(),
-        git,
-      },
-      settings: settings(),
-      now: () => NOW,
-      ...(connectionId === undefined ? {} : { connectionId }),
-    })
-
-  it('leaves the checkouts alone', async () => {
-    const read: string[] = []
-    await scopedTo('jira-1', reader(read))
-
-    // Local git ignored the scope until the poll scheduler arrived. Two costs:
-    // clicking Refresh on the tickets lane spawned a git subprocess per
-    // checkout, and it stamped the branches lane as freshly synced — a
-    // freshness claim about a question the operator had not asked. It also made
-    // per-target backoff impossible, since every other connection's poll
-    // retried a checkout that had just failed.
-    expect(read).toEqual([])
-  })
-
-  it('reads them when it is the local target that was asked for', async () => {
-    const read: string[] = []
-    const report = await scopedTo('local', reader(read))
-
-    expect(read).toEqual(['D:\\work\\alpha'])
-    expect(report.results.map((r) => r.connectionId)).toEqual(['local'])
-  })
-
-  it('reads them when nothing was named', async () => {
-    const read: string[] = []
-    await scopedTo(undefined, reader(read))
-
-    expect(read).toEqual(['D:\\work\\alpha'])
-  })
-})
+/*
+ * Three describes ended this file and all three went with their providers.
+ *
+ * "two projects on one GitHub connection" held the same delete-by-connection
+ * rule against `replaceRepository`, including the case where one repository
+ * failing must not delete the other's rows. "checkouts shared between projects"
+ * checked each distinct path was read once. "a refresh scoped to one connection"
+ * checked that refreshing Jira did not re-read every checkout on disk and stamp
+ * the branches lane as freshly synced <E> work the operator did not ask for, and
+ * a freshness claim about a question they did not ask.
+ *
+ * The scoping behaviour they tested (`--connection`, and `wanted()` inside
+ * `runSync`) is still there and still applies to the one provider left. It is
+ * not re-asserted here because with a single resource kind there is nothing for
+ * a scoped refresh to leave alone, which is precisely what those tests were
+ * about. If a second thing to refresh ever arrives, this is the gap to fill.
+ */

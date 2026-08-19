@@ -37,7 +37,7 @@ beforeEach(() => {
   db = openMirror({ dir }).db
   mirror = mirrorRepository(db)
   store = inMemoryKeychain()
-  connections = connectionsService({ mirror, credentials: store, projects: () => [] })
+  connections = connectionsService({ mirror, credentials: store })
 })
 
 afterEach(() => {
@@ -71,11 +71,11 @@ describe('adding a credential', () => {
     expect(store.get(credentialRef('jira'))).toBeNull()
   })
 
-  it('requires the account label, and says why per provider', () => {
+  it('requires the account label, and says what it is for', () => {
+    // The message used to differ by provider: a Jira email, or a GitHub login
+    // so the board could tell the operator's pull requests from everyone
+    // else's. One provider, one explanation.
     expect(() => connections.add({ ...JIRA, accountLabel: '' })).toThrow(/email plus token/)
-    expect(() =>
-      connections.add({ kind: 'github', siteOrHost: 'github.com', accountLabel: '', secret: 'x' }),
-    ).toThrow(/pull requests/)
   })
 
   it('replaces the credential when the same account is re-authorized', () => {
@@ -115,11 +115,7 @@ describe('adding a credential', () => {
     // FR-006. A row written here would claim a configured connection whose
     // secret does not exist, and the failure would surface at the first sync
     // as an auth error — pointing the operator at the wrong problem.
-    const refusing = connectionsService({
-      mirror,
-      credentials: unavailableKeychain(),
-      projects: () => [],
-    })
+    const refusing = connectionsService({ mirror, credentials: unavailableKeychain() })
 
     expect(() => refusing.add(JIRA)).toThrow()
     expect(mirror.listConnections()).toEqual([])
@@ -127,7 +123,7 @@ describe('adding a credential', () => {
 
   it('writes no row when the keychain accepts but does not return the secret', () => {
     const amnesiac = { ...inMemoryKeychain(), get: () => null }
-    const unreliable = connectionsService({ mirror, credentials: amnesiac, projects: () => [] })
+    const unreliable = connectionsService({ mirror, credentials: amnesiac })
 
     expect(() => unreliable.add(JIRA)).toThrow(/did not return it/)
     expect(mirror.listConnections()).toEqual([])
@@ -171,11 +167,7 @@ describe('testing a connection', () => {
     // Different condition, different remedy (FR-006). Folding them together
     // sends the operator to re-issue a token that was never the problem.
     connections.add(JIRA)
-    const refusing = connectionsService({
-      mirror,
-      credentials: unavailableKeychain(),
-      projects: () => [],
-    })
+    const refusing = connectionsService({ mirror, credentials: unavailableKeychain() })
 
     const result = await refusing.test({ connectionId: 'jira' })
     expect(result.checks[0]?.name).toBe('credential store')
@@ -187,26 +179,38 @@ describe('testing a connection', () => {
     )
   })
 
-  it('says which repository it needs when GitHub has nothing bound', async () => {
-    // A fine-grained token is scoped per repository, so "can it read a
-    // repository" is not answerable without naming one — and the operator has
-    // to be told that rather than shown a bare failure. Authentication has to
-    // *succeed* for this to be the interesting case, so the viewer is stubbed.
-    const fetcher = async () =>
-      new Response(JSON.stringify({ data: { viewer: { id: 'u1', login: 'jon', name: 'Jon' } } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
+  /**
+   * A code-host row written by 0.3.0 is still in the mirror until M4's
+   * migration drops it, and testing it must say something the operator can act
+   * on.
+   *
+   * The test that was here checked the opposite direction: a GitHub connection
+   * with no repository bound, told which repository it needed, because a
+   * fine-grained token is scoped per repository and "can it read one" is not
+   * answerable without naming one. That whole flow is gone. What replaces it is
+   * the case that is now reachable — and the reason it is not simply deleted
+   * is that a row of the wrong kind reaching `testJira` would report an
+   * authentication failure against a host that was never a Jira site, sending
+   * the operator to re-issue a token that was never the problem.
+   */
+  it('tells the operator to remove a connection for a provider that is gone', async () => {
+    mirror.upsertConnection({
+      id: 'github',
+      kind: 'github',
+      siteOrHost: 'github.com',
+      accountLabel: 'jon',
+      viewerIdentity: null,
+      credentialRef: 'grndctrl/github',
+    })
+    store.set(credentialRef('github'), 'x')
 
-    const stubbed = connectionsService({ mirror, credentials: store, projects: () => [], fetcher })
-    stubbed.add({ kind: 'github', siteOrHost: 'github.com', accountLabel: 'jon', secret: 'x' })
+    const result = await connections.test({ connectionId: 'github' })
 
-    const result = await stubbed.test({ connectionId: 'github' })
-
-    expect(result.checks.find((c) => c.name === 'authentication')?.ok).toBe(true)
     expect(result.ok).toBe(false)
-    expect(result.checks.find((c) => c.name === 'repository')?.detail).toMatch(
-      /scoped per repository/,
-    )
+    expect(result.checks[0]?.name).toBe('provider')
+    expect(result.checks[0]?.detail).toMatch(/no longer reads/)
+    // Not an authentication failure. That is the wrong remedy and the whole
+    // point of reporting this separately.
+    expect(result.checks.map((c) => c.name)).not.toContain('authentication')
   })
 })

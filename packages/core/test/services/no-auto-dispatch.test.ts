@@ -15,13 +15,15 @@ import { at, ctx, confirmAndEnqueue, outboxFixture, SUBJECT } from './outbox-fix
  *
  * The rule is that an action reaches the outbox only through an operator
  * gesture. A rule stated in prose lasts until the first person who has not read
- * it adds an `await outbox.enqueue(...)` inside a drift rule, in good faith,
+ * it adds an `await outbox.enqueue(...)` inside the sync, in good faith,
  * because it would obviously be helpful. So the rule is enforced two ways here,
  * and the first is the one that catches that person:
  *
- * 1. **Statically.** Walk the import graph from every module in sync,
- *    correlation and drift. The confirmation minter must be unreachable — not
- *    "not called", *unreachable*, so the import itself fails the build.
+ * 1. **Statically.** Walk the import graph from every module in sync and
+ *    correlation. The confirmation minter must be unreachable — not "not
+ *    called", *unreachable*, so the import itself fails the build. Drift was the
+ *    third layer walked, and the one the scenario above was written about; it is
+ *    gone, and the rule it was an instance of is not.
  * 2. **At runtime.** `mintConfirmation` is `ui-only`, so the registry refuses it
  *    on the MCP and HTTP surfaces. An agent cannot manufacture its own work.
  */
@@ -30,7 +32,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const SRC = resolve(HERE, '../../src')
 
 /** The layers that run on a timer, on a sync, or on correlated data — never on a gesture. */
-const AUTOMATIC_LAYERS = ['services/sync.ts', 'correlation', 'drift']
+const AUTOMATIC_LAYERS = ['services/sync.ts', 'correlation']
 
 /** What they must not be able to reach. */
 const FORBIDDEN = ['services/confirmation.ts', 'services/outbox.ts']
@@ -86,7 +88,7 @@ describe('the automatic layers cannot reach the confirmation minter', () => {
     for (const forbidden of FORBIDDEN) {
       expect(
         reachable,
-        `${forbidden} is reachable from sync/correlation/drift. An action must originate with the ` +
+        `${forbidden} is reachable from sync/correlation. An action must originate with the ` +
           `operator (FR-060, XVI) — if this layer genuinely needs to read the outbox, that is a ` +
           `design conversation, not a test to relax.`,
       ).not.toContain(forbidden)
@@ -96,7 +98,7 @@ describe('the automatic layers cannot reach the confirmation minter', () => {
   it('is checking something — the same walk finds a module that IS imported', () => {
     // A reachability test that can never fail proves nothing. This asserts the
     // walk resolves real edges, so a false pass above would be visible.
-    const reachable = [...reachableFrom(filesUnder('drift'))].map((f) =>
+    const reachable = [...reachableFrom(filesUnder('correlation'))].map((f) =>
       relative(SRC, f).replace(/\\/g, '/'),
     )
     expect(reachable).toContain('domain/types.ts')

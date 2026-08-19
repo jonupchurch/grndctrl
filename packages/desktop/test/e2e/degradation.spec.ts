@@ -73,16 +73,22 @@ test('a refresh that could not happen is reported as a failure, not a success', 
 
   expect(report).not.toBeNull()
 
-  // The bug this pins: both remote providers used to be skipped in silence, so
-  // the results array held one entry — `local`, **ok** — and the whole refresh
-  // reported success while every part of the board that needed a credential
-  // could not be fetched at all.
+  // The bug this pins: a connection with no credential used to be skipped in
+  // silence, so the results array came back holding nothing that failed and the
+  // whole refresh reported success — while the part of the board that needed
+  // that credential could not be fetched at all.
   //
-  // `local` is in this list too, and it belongs there: the fixture's checkout
-  // path does not exist on any machine, and a checkout that cannot be read used
-  // to answer "no branches" rather than "could not look".
+  // One entry now. The list held three: `jira-1`, `gh-1`, and `local` for the
+  // fixture's checkout path, which exists on no machine. The two that left are
+  // not synced any more, and `gh-1` is skipped rather than reported precisely
+  // because it is a row about to be deleted rather than a connection the
+  // operator has to fix.
   const failed = (report?.results ?? []).filter((r) => !r.ok)
-  expect(failed.map((r) => r.connectionId).sort()).toEqual(['gh-1', 'jira-1', 'local'])
+  expect(failed.map((r) => r.connectionId).sort()).toEqual(['jira-1'])
+
+  // Paired with the presence: a report with no results at all would satisfy the
+  // line above, and "nothing failed" was the original bug.
+  expect(report?.results.length).toBeGreaterThan(0)
 })
 
 test('the lane keeps its data and its own reading', async () => {

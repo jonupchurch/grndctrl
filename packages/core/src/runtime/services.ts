@@ -1,13 +1,10 @@
 import type { Database } from 'better-sqlite3'
 import type { CredentialStore } from '../auth/keychain.js'
 import { credentialRef, unavailableKeychain } from '../auth/keychain.js'
-import type { DriftFinding, WorkItem } from '../domain/types.js'
-import { gitRunner } from '../providers/git/exec.js'
-import { localGitProvider } from '../providers/git/read.js'
+import type { WorkItem } from '../domain/types.js'
 import type { Fetcher } from '../providers/http.js'
-import type { LocalGitProvider } from '../providers/seam.js'
 import type { Envelope } from '../registry/envelope.js'
-import { buildBoard, envelopeBoard, type Board } from '../services/board.js'
+import { buildBoard, envelopeBoard } from '../services/board.js'
 import { runSync, type SyncReport } from '../services/sync.js'
 import { buildSyncTargets, type BuiltTargets } from './providers.js'
 import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
@@ -16,12 +13,7 @@ import { outboxService, type OutboxService } from '../services/outbox.js'
 import { connectionsService, type ConnectionsService } from '../services/connections.js'
 import { sessionsService, type SessionsService } from '../services/sessions.js'
 import { settingsStore, type SettingsStore } from '../services/settings.js'
-import {
-  dismissalsRepository,
-  projectsRepository,
-  type DismissalsRepository,
-  type ProjectsRepository,
-} from '../store/authored/config.js'
+import { projectsRepository, type ProjectsRepository } from '../store/authored/config.js'
 import { notesRepository } from '../store/authored/notes.js'
 import { outboxRepository } from '../store/authored/outbox.js'
 import { sessionsRepository } from '../store/authored/sessions.js'
@@ -34,9 +26,9 @@ import { subjectPresenceResolver } from './presence.js'
  *
  * This is where the two stores are joined, and it is the *only* place. Neither
  * repository holds a handle to the other's file, so anything needing both —
- * "is this note's subject still there?", "which work items are in drift?" —
- * is assembled here in code (XIII). There is no SQL join to write because there
- * is no foreign key to join on, by design.
+ * "is this note's subject still there?", "which tickets have an agent on them?"
+ * — is assembled here in code (XIII). There is no SQL join to write because
+ * there is no foreign key to join on, by design.
  *
  * Nothing in this file knows what an adapter is. It builds fine with Electron
  * uninstalled, which is the point of XVIII and the reason the CLI can drive the
@@ -48,7 +40,6 @@ export interface CoreServices {
   projects: ProjectsRepository
   /** Adding, testing and removing provider credentials (FR-005 to FR-007). */
   connections: ConnectionsService
-  dismissals: DismissalsRepository
   notes: NotesService
   sessions: SessionsService
   outbox: OutboxService
@@ -67,8 +58,6 @@ export interface CoreServices {
 
 export interface BoardView {
   workItems: WorkItem[]
-  findings: DriftFinding[]
-  dangling: Board['dangling']
 }
 
 export interface CoreServicesOptions {
@@ -83,8 +72,6 @@ export interface CoreServicesOptions {
    * (XVIII). The host injects the real store.
    */
   credentials?: CredentialStore
-  /** Injected so tests, and the CLI's fixture mode, never shell out to git. */
-  git?: LocalGitProvider
   /** Injected so a sync can be driven from recorded fixtures with no network. */
   fetcher?: Fetcher
   /**
@@ -103,7 +90,6 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   const notesRepo = notesRepository(authoredDb)
   const sessionsRepo = sessionsRepository(authoredDb)
   const projects = projectsRepository(authoredDb)
-  const dismissals = dismissalsRepository(authoredDb)
   const settings = settingsStore(authoredDb)
 
   // Notes ask the sessions store whether a session subject exists; sessions ask
@@ -127,7 +113,6 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   const outbox = outboxService({ outbox: outboxRepository(authoredDb), confirmations })
 
   const credentials = options.credentials ?? unavailableKeychain()
-  const git = options.git ?? localGitProvider(gitRunner())
 
   /**
    * Providers are rebuilt per sync rather than cached.
@@ -141,23 +126,16 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
       projects: projects.list(),
       connections: mirror.listConnections(),
       credentials,
-      git,
       fetcher: options.fetcher,
       now,
     })
 
-  const connections = connectionsService({
-    mirror,
-    credentials,
-    projects: () => projects.list(),
-    fetcher: options.fetcher,
-  })
+  const connections = connectionsService({ mirror, credentials, fetcher: options.fetcher })
 
   return {
     mirror,
     projects,
     connections,
-    dismissals,
     notes,
     sessions,
     outbox,
@@ -172,23 +150,17 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
         mirror,
         projects: projects.list(),
         // The real note data, at last. Until now these were inputs a caller had
-        // to supply; the count on every row and the questions driving Attention
-        // and ball-in-court now come from what the operator and agents wrote
+        // to supply; the count on every row, and the questions driving
+        // ball-in-court, now come from what the operator and agents wrote
         // (FR-052, FR-053).
         noteCounts: notesRepo.countsBySubject(),
         openQuestionSubjects: notesRepo.openQuestionSubjects(),
         sessions: sessionsRepo.list(),
-        dismissals: dismissals.list(),
         settings: current,
         now,
       })
 
-      return envelopeBoard(
-        { workItems: board.workItems, findings: board.findings, dangling: board.dangling },
-        mirror,
-        now,
-        current,
-      )
+      return envelopeBoard({ workItems: board.workItems }, mirror, now, current)
     },
 
     hasCredential(connectionId) {

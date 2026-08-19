@@ -1,13 +1,4 @@
-import type {
-  BranchRef,
-  CheckResult,
-  Comparison,
-  LocalWorkspace,
-  PullRequest,
-  Ticket,
-  TicketActivity,
-  ViewerIdentity,
-} from '../domain/types.js'
+import type { Ticket, TicketActivity, ViewerIdentity } from '../domain/types.js'
 
 /**
  * The provider seam.
@@ -22,6 +13,11 @@ import type {
  * the function does not exist, so the mistake is a compile error rather than an
  * incident. A future contributor who wants one has to add it to this file
  * first, which is exactly the moment the constitution should be consulted.
+ *
+ * **There were three seams and there is one.** `CodeProvider` and
+ * `LocalGitProvider` are gone with their implementations. The read-only rule is
+ * unaffected: it was never about how many providers there were, and the one that
+ * remains still has no write method for the same reason.
  */
 
 export interface TicketProvider {
@@ -53,59 +49,10 @@ export interface TicketProvider {
    * Issue history, fetched separately.
    *
    * Not an optimisation: the enhanced search endpoint does not dependably carry
-   * changelogs, and `updated` is the field FR-027 exists to distrust. Staleness
-   * and three drift rules rest on this call (R2).
+   * changelogs, and `updated` is the field FR-027 exists to distrust. The whole
+   * staleness display rests on this call (R2).
    */
   fetchChangelogs(issueKeys: readonly string[]): Promise<TicketActivity[]>
-}
-
-export interface CodeProvider {
-  viewer(): Promise<ViewerIdentity>
-
-  fetchRepository(options: { owner: string; repo: string }): Promise<{
-    pullRequests: PullRequest[]
-    branches: BranchRef[]
-    checks: CheckResult[]
-  }>
-
-  /**
-   * Ahead/behind for tracked branches, against a base ref.
-   *
-   * Takes a list rather than a single branch because each comparison is its own
-   * field selection and must be aliased into one document — one request per
-   * branch would spend the hourly budget on comparisons alone (R3).
-   */
-  compareBranches(options: {
-    owner: string
-    repo: string
-    baseRef: string
-    branches: readonly { name: string; headSha: string }[]
-  }): Promise<Comparison[]>
-
-  /**
-   * Verify a connection is usable.
-   *
-   * `checks` reports each probe separately, because a token can authenticate
-   * and still lack the scope `compare` needs — and that failure is otherwise
-   * invisible until ahead/behind is quietly missing everywhere (R3).
-   */
-  probe(options: { owner: string; repo: string }): Promise<{
-    ok: boolean
-    viewer: ViewerIdentity | null
-    checks: { name: string; ok: boolean; detail: string }[]
-  }>
-}
-
-export interface LocalGitProvider {
-  /**
-   * Read local state for a checkout.
-   *
-   * Everything here is what only local git knows: dirty state, unpushed
-   * commits, the worktree list. Ahead/behind is deliberately absent — it comes
-   * from the code host, because obtaining it locally would require a fetch, and
-   * this application runs no git network operation at all (FR-017, FR-018).
-   */
-  readWorkspaces(options: { repoPath: string }): Promise<LocalWorkspace[]>
 }
 
 /** Rate-limit state, surfaced so the UI can say when a refresh will be retried. */

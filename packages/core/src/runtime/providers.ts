@@ -1,9 +1,8 @@
 import type { CredentialStore } from '../auth/keychain.js'
 import { credentialRef } from '../auth/keychain.js'
 import type { Connection, Project } from '../domain/types.js'
-import { githubProvider } from '../providers/github/index.js'
 import { jiraProvider } from '../providers/jira/index.js'
-import type { CodeProvider, LocalGitProvider, TicketProvider } from '../providers/seam.js'
+import type { TicketProvider } from '../providers/seam.js'
 import type { Fetcher } from '../providers/http.js'
 import type { SyncTargets } from '../services/sync.js'
 
@@ -20,13 +19,20 @@ import type { SyncTargets } from '../services/sync.js'
  * substituted with an anonymous client. An unauthenticated request to Jira
  * succeeds against public issues and returns a plausible, wrong, much shorter
  * board — which is worse than a lane that says it failed (XV).
+ *
+ * **The credential handling and the `unavailable` reporting below are unchanged
+ * by 006**, and that is deliberate rather than incidental. Narrowing to one
+ * provider makes the `kind` check look redundant and the second map look like
+ * dead weight; what would go with them is the branch that reports a keychain
+ * failure separately from a missing credential, which is the distinction FR-006
+ * exists for and the one an operator needs to tell "I never added a token" from
+ * "this machine's keyring is broken".
  */
 
 export interface BuildTargetsOptions {
   projects: readonly Project[]
   connections: readonly Connection[]
   credentials: CredentialStore
-  git: LocalGitProvider
   /** Injected in tests so provider construction never needs the network. */
   fetcher?: Fetcher | undefined
   now?: (() => Date) | undefined
@@ -40,7 +46,6 @@ export interface BuiltTargets {
 
 export function buildSyncTargets(options: BuildTargetsOptions): BuiltTargets {
   const ticketProviders = new Map<string, TicketProvider>()
-  const codeProviders = new Map<string, CodeProvider>()
   const unavailable: BuiltTargets['unavailable'] = []
 
   for (const connection of options.connections) {
@@ -60,30 +65,24 @@ export function buildSyncTargets(options: BuildTargetsOptions): BuiltTargets {
       continue
     }
 
-    if (connection.kind === 'jira') {
-      // The email is an identifier, not a secret, so it lives on the connection
-      // row and only the API token goes to the keychain. Keeping the keychain
-      // payload a pure secret is what lets the no-secrets audit scan for one
-      // thing rather than parse a blob.
-      ticketProviders.set(
-        connection.id,
-        jiraProvider({
-          site: connection.siteOrHost,
-          email: connection.accountLabel,
-          apiToken: secret,
-          connectionId: connection.id,
-          ...(options.fetcher === undefined ? {} : { fetcher: options.fetcher }),
-          ...(options.now === undefined ? {} : { now: options.now }),
-        }),
-      )
-      continue
-    }
+    // Still checked, not assumed. A `github` row written by 0.3.0 survives in
+    // the mirror until M4's migration drops it, and building a Jira client
+    // against `github.com` with a GitHub token would authenticate as nobody and
+    // report an empty board — the plausible-wrong answer the paragraph above
+    // is about. It is skipped rather than reported `unavailable`, because it is
+    // not a connection the operator has to fix: it is one about to be deleted.
+    if (connection.kind !== 'jira') continue
 
-    codeProviders.set(
+    // The email is an identifier, not a secret, so it lives on the connection
+    // row and only the API token goes to the keychain. Keeping the keychain
+    // payload a pure secret is what lets the no-secrets audit scan for one thing
+    // rather than parse a blob.
+    ticketProviders.set(
       connection.id,
-      githubProvider({
-        token: secret,
-        host: connection.siteOrHost,
+      jiraProvider({
+        site: connection.siteOrHost,
+        email: connection.accountLabel,
+        apiToken: secret,
         connectionId: connection.id,
         ...(options.fetcher === undefined ? {} : { fetcher: options.fetcher }),
         ...(options.now === undefined ? {} : { now: options.now }),
@@ -91,13 +90,5 @@ export function buildSyncTargets(options: BuildTargetsOptions): BuiltTargets {
     )
   }
 
-  return {
-    targets: {
-      projects: options.projects,
-      ticketProviders,
-      codeProviders,
-      git: options.git,
-    },
-    unavailable,
-  }
+  return { targets: { projects: options.projects, ticketProviders }, unavailable }
 }

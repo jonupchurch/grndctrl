@@ -1,15 +1,6 @@
-import { branchKey } from '../domain/keys.js'
-import type {
-  BranchRef,
-  FailureReason,
-  Project,
-  ResourceKind,
-  Settings,
-  Ticket,
-} from '../domain/types.js'
+import type { FailureReason, Project, ResourceKind, Settings, Ticket } from '../domain/types.js'
 import { applyActivity } from '../providers/jira/index.js'
-import { branchesNeedingComparison } from '../providers/github/query.js'
-import type { CodeProvider, LocalGitProvider, TicketProvider } from '../providers/seam.js'
+import type { TicketProvider } from '../providers/seam.js'
 import { isOperationError, type ErrorCode } from '../registry/errors.js'
 import type { MirrorRepository } from '../store/mirror/repository.js'
 
@@ -24,13 +15,19 @@ import type { MirrorRepository } from '../store/mirror/repository.js'
  * The instinct to wrap the whole sync in one try/catch is exactly the bug the
  * gate exists to prevent — the lanes just look empty, which reads as "no work"
  * rather than "no data".
+ *
+ * **`syncTickets` is the whole of this file now.** `syncCode` fetched pull
+ * requests, branches, checks and comparisons; `syncLocal` read every checkout on
+ * disk. Both are gone with their providers, and so is the reserved `local`
+ * connection id they needed. The isolation the gate asks for is unchanged and
+ * still worth having: with several Jira connections, one failing must not empty
+ * the others, and it is the same per-connection-per-resource-kind boundary that
+ * made that true across three providers.
  */
 
 export interface SyncTargets {
   projects: readonly Project[]
   ticketProviders: ReadonlyMap<string, TicketProvider>
-  codeProviders: ReadonlyMap<string, CodeProvider>
-  git: LocalGitProvider
   /**
    * Connections that could not be given a provider, and why.
    *
@@ -71,20 +68,6 @@ export interface SyncResult {
  */
 const MAX_TICKETS_PER_CONNECTION = 2_000
 
-/**
- * The reserved connection id local git records itself under.
- *
- * Local git has no `Connection` row — there is no host and no credential — but
- * the mirror's freshness table is keyed by connection and resource kind, and
- * the branches lane has to be able to say how old it is like every other lane
- * does (XIV). So it gets an id that no provider can collide with.
- *
- * Named rather than spelled out at each use because the poll scheduler now
- * schedules against it too, and a literal in two packages is a literal that
- * will disagree with itself eventually.
- */
-export const LOCAL_CONNECTION_ID = 'local'
-
 export interface SyncOptions {
   mirror: MirrorRepository
   targets: SyncTargets
@@ -116,9 +99,7 @@ export async function runSync(options: SyncOptions): Promise<SyncReport> {
   for (const connection of options.mirror.listConnections()) {
     if (!wanted(connection.id)) continue
 
-    const provider =
-      options.targets.ticketProviders.get(connection.id) ??
-      options.targets.codeProviders.get(connection.id)
+    const provider = options.targets.ticketProviders.get(connection.id)
     if (provider === undefined) continue
 
     try {
@@ -140,40 +121,26 @@ export async function runSync(options: SyncOptions): Promise<SyncReport> {
   // deleted the first's rows and reported `ok: true` for both. Invisible with
   // one project per connection, which is every fixture and every test we had.
   //
-  // Jira, GitHub and local git are still refreshed independently of each other.
-  // Awaiting in sequence keeps the rate-limit story simple; the isolation that
-  // matters is the error boundary, not the concurrency.
+  // Connections are still refreshed independently of each other. Awaiting in
+  // sequence keeps the rate-limit story simple; the isolation that matters is
+  // the error boundary, not the concurrency.
   for (const [connectionId, projects] of byConnection(options.targets.projects, (p) => p.jiraConnectionId)) {
     if (wanted(connectionId)) {
       results.push(...(await syncTickets(options, projects, connectionId, now)))
     }
   }
 
-  for (const [connectionId, projects] of byConnection(options.targets.projects, (p) => p.githubConnectionId)) {
-    if (wanted(connectionId)) {
-      results.push(...(await syncCode(options, projects, connectionId, now)))
-    }
-  }
-
-  // `replaceWorkspaces` takes no scope at all, so this has to be once for the
-  // whole run rather than once per project.
-  //
-  // Scoped by `wanted` like the other two, under the reserved id the mirror
-  // already records it against. It was unconditional until the poll scheduler
-  // arrived (T074), and that made per-target backoff impossible: a checkout on
-  // an unmounted drive would be retried by every GitHub poll no matter how many
-  // times it had just failed, because the GitHub poll ran it too. It also meant
-  // a refresh of one Jira connection re-read every checkout on disk and stamped
-  // the branches lane as freshly synced, which is work the operator did not ask
-  // for and a freshness claim about a question they did not ask.
-  if (wanted(LOCAL_CONNECTION_ID)) {
-    results.push(...(await syncLocal(options, options.targets.projects, now)))
-  }
-
   return { startedAt, finishedAt: now().toISOString(), results }
 }
 
-/** Projects grouped by one of their connections, skipping those that have none. */
+/**
+ * Projects grouped by one of their connections, skipping those that have none.
+ *
+ * Still a helper taking an accessor, with one caller. It was called three times
+ * with three different accessors; keeping the shape costs a parameter and makes
+ * the grouping-by-connection rule — which is what stopped one project's rows
+ * deleting another's — a named thing rather than an inline `reduce`.
+ */
 function byConnection(
   projects: readonly Project[],
   connectionOf: (project: Project) => string | null,
@@ -217,10 +184,14 @@ async function syncTickets(
     // nobody had touched. A command station is the work you are holding, not an
     // export of the tracker.
     //
-    // The recently-closed arm is kept, still inside the assignee filter, because
-    // drift rules D1 and D4 compare a ticket's terminal status against an open
-    // or merged PR -- and a ticket that closed yesterday is exactly the one
-    // those rules have something to say about.
+    // The recently-closed arm is kept, still inside the assignee filter, and its
+    // justification has changed. It was here for drift rules D1 and D4, which
+    // compared a ticket's terminal status against an open or merged pull
+    // request; both are gone. It stays because a ticket the operator closed
+    // yesterday is still theirs to see for a moment -- work that has just landed
+    // vanishing from the board the instant it is marked Done reads as work that
+    // was lost. That is a weaker argument than the one it replaces, and it is
+    // written here rather than left as an unexplained clause.
     //
     // The parentheses are load bearing: JQL binds AND tighter than OR, so
     // without them the recency arm escapes both the project and the assignee
@@ -307,161 +278,6 @@ async function syncTickets(
   } catch (e) {
     return [recordFailure(options, connectionId, 'tickets', e, now)]
   }
-}
-
-async function syncCode(
-  options: SyncOptions,
-  projects: readonly Project[],
-  connectionId: string,
-  now: () => Date,
-): Promise<SyncResult[]> {
-  const provider = options.targets.codeProviders.get(connectionId)
-
-  // Distinct repositories: two projects on one connection may share one, and
-  // fetching it twice would double every row before the single write below.
-  const repos = [
-    ...new Map(
-      projects.flatMap((p) =>
-        p.repoOwner === null || p.repoName === null
-          ? []
-          : [[`${p.repoOwner}/${p.repoName}`, { owner: p.repoOwner, repo: p.repoName }] as const],
-      ),
-    ).values(),
-  ]
-  // Order matters: no repositories bound is a configuration, not a failure, and
-  // reporting it as one would put a red lane on a correctly configured board.
-  if (repos.length === 0) return []
-  if (provider === undefined) return [unusable(options, connectionId, 'pulls', now)]
-
-  const pullRequests = []
-  const checks = []
-  const perRepo: { owner: string; repo: string; branches: BranchRef[] }[] = []
-
-  try {
-    for (const { owner, repo } of repos) {
-      const fetched = await provider.fetchRepository({ owner, repo })
-      pullRequests.push(...fetched.pullRequests)
-      checks.push(...fetched.checks)
-      perRepo.push({ owner, repo, branches: fetched.branches })
-    }
-  } catch (e) {
-    // Every repository or none. A partial set written here would replace the
-    // whole connection's rows and delete good cached data for the repositories
-    // that did answer -- while freshness read "fresh" over a half-empty board.
-    // Leaving the mirror alone lets XV do its job: stale, and saying so.
-    return [
-      recordFailure(options, connectionId, 'pulls', e, now),
-      recordFailure(options, connectionId, 'branches', e, now),
-      recordFailure(options, connectionId, 'checks', e, now),
-    ]
-  }
-
-  const branches = perRepo.flatMap((r) => r.branches)
-
-  options.mirror.replacePullRequests(connectionId, pullRequests)
-  options.mirror.replaceChecks(connectionId, checks)
-  options.mirror.replaceBranches(connectionId, branches)
-
-  const at = now().toISOString()
-  options.mirror.recordSuccess(connectionId, 'pulls', at)
-  options.mirror.recordSuccess(connectionId, 'checks', at)
-  options.mirror.recordSuccess(connectionId, 'branches', at)
-
-  const results: SyncResult[] = [
-    { connectionId, resourceKind: 'pulls', ok: true, count: pullRequests.length },
-    { connectionId, resourceKind: 'branches', ok: true, count: branches.length },
-    { connectionId, resourceKind: 'checks', ok: true, count: checks.length },
-  ]
-
-  // Comparisons are their own resource kind because they fail on their own:
-  // a token can read a repository and still lack the scope compare needs, and
-  // that must degrade ahead/behind without taking the PR lane with it (R3).
-  try {
-    const comparisons = []
-
-    for (const { owner, repo, branches: repoBranches } of perRepo) {
-      const remote = `github.com/${owner}/${repo}`
-      const needed = branchesNeedingComparison(
-        repoBranches.map((b) => ({ name: b.name, headSha: b.headSha })),
-        options.mirror.listComparisons(),
-        (name) => branchKey(remote, name),
-      )
-
-      comparisons.push(
-        ...(await provider.compareBranches({ owner, repo, baseRef: 'main', branches: needed })),
-      )
-    }
-
-    // An upsert keyed per branch, so accumulating across repositories is safe.
-    options.mirror.upsertComparisons(comparisons)
-    options.mirror.recordSuccess(connectionId, 'comparisons', now().toISOString())
-    results.push({ connectionId, resourceKind: 'comparisons', ok: true, count: comparisons.length })
-  } catch (e) {
-    results.push(recordFailure(options, connectionId, 'comparisons', e, now))
-  }
-
-  return results
-}
-
-async function syncLocal(
-  options: SyncOptions,
-  projects: readonly Project[],
-  now: () => Date,
-): Promise<SyncResult[]> {
-  // Every checkout across every project, deduplicated: `replaceWorkspaces` is
-  // not scoped to anything, so it has to be called once with the complete set.
-  // Two projects sharing a checkout would otherwise insert it twice.
-  const paths = [...new Set(projects.flatMap((p) => p.checkoutPaths))]
-  if (paths.length === 0) return []
-
-  const workspaces = []
-  const failures: string[] = []
-
-  for (const path of paths) {
-    try {
-      workspaces.push(...(await options.targets.git.readWorkspaces({ repoPath: path })))
-    } catch (e) {
-      // One missing checkout must not hide the others (FR-004's spirit and the
-      // spec's "which checkout is missing" edge case).
-      failures.push(`${path}: ${messageOf(e)}`)
-    }
-  }
-
-  const at = now().toISOString()
-
-  if (failures.length === 0) {
-    options.mirror.replaceWorkspaces(workspaces)
-    options.mirror.recordSuccess(LOCAL_CONNECTION_ID, 'local', at)
-    return [{ connectionId: LOCAL_CONNECTION_ID, resourceKind: 'local', ok: true, count: workspaces.length }]
-  }
-
-  /**
-   * Nothing is written when any path failed — the same rule the GitHub fetch
-   * follows, and for the same reason.
-   *
-   * This used to write the partial set, on the argument that a checkout which
-   * cannot be read is one that is genuinely not on disk. That argument does not
-   * survive contact with an external drive, a network share, or a VPN that
-   * dropped: the branches are still there, and this process simply could not
-   * look. `replaceWorkspaces` takes no scope, so writing the partial set
-   * deletes every workspace under the path that failed — and the lane then
-   * shows an empty list *while saying it failed to refresh*, which reads as
-   * "you have no branches" to anyone who does not stop to reconcile the two.
-   *
-   * Keeping the cache and reporting the failure is the honest pair: the rows
-   * are what was last true, and the lane says they are not current.
-   */
-  options.mirror.recordFailure(LOCAL_CONNECTION_ID, 'local', at, 'notFound', null)
-  return [
-    {
-      connectionId: LOCAL_CONNECTION_ID,
-      resourceKind: 'local',
-      ok: false,
-      count: workspaces.length,
-      failureReason: 'notFound',
-      detail: failures.join('; '),
-    },
-  ]
 }
 
 /**

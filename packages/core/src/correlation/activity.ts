@@ -1,11 +1,4 @@
-import type {
-  ActivityAuthorKind,
-  CheckResult,
-  PullRequest,
-  Ticket,
-  TicketActivity,
-  Timestamp,
-} from '../domain/types.js'
+import type { ActivityAuthorKind, Ticket, TicketActivity, Timestamp } from '../domain/types.js'
 
 /**
  * "Last real activity" — the number the whole staleness display rests on.
@@ -85,25 +78,22 @@ export function lastRealActivity(entries: readonly TicketActivity[]): Timestamp 
 /**
  * Roll a work item's activity up from everything that contributes to it.
  *
- * The maximum across the ticket, its PRs, its check results, and its agent
- * sessions. A ticket nobody has touched in a fortnight is not stale if an agent
- * pushed to its branch an hour ago — the work is moving, just not where the
- * ticket tracker can see it.
+ * The maximum across the ticket and its agent sessions. It used to also take
+ * pull request activity and check completion times, and the argument for the
+ * roll-up was theirs: a ticket nobody has touched in a fortnight is not stale if
+ * an agent pushed to its branch an hour ago, because the work is moving just not
+ * where the tracker can see it.
+ *
+ * **That argument survives with one source instead of three**, and it is why
+ * this is still a maximum rather than a field read. An agent reporting activity
+ * through `sessions.activity` is the remaining case of work moving somewhere the
+ * tracker cannot see, and it is the one this product is actually about.
  */
 export function workItemActivity(parts: {
   ticket?: Ticket | null
-  pullRequests?: readonly PullRequest[]
-  checks?: readonly CheckResult[]
   sessionActivity?: readonly (Timestamp | null)[]
 }): Timestamp | null {
-  const candidates: (Timestamp | null | undefined)[] = [
-    parts.ticket?.lastRealActivityAt,
-    ...(parts.pullRequests ?? []).map((p) => p.lastRealActivityAt),
-    ...(parts.checks ?? []).map((c) => c.completedAt),
-    ...(parts.sessionActivity ?? []),
-  ]
-
-  return latestOf(candidates)
+  return latestOf([parts.ticket?.lastRealActivityAt, ...(parts.sessionActivity ?? [])])
 }
 
 export function latestOf(timestamps: readonly (Timestamp | null | undefined)[]): Timestamp | null {

@@ -1,36 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import { ballInCourt, type BallInput } from '../../src/correlation/ball.js'
 
+/**
+ * Whose move is it, with three of the seven conditions removed.
+ *
+ * The two things this file has to hold after 006 are the **order** and the fact
+ * that **`them` is still reachable**. The order because several conditions are
+ * true at once on a busy item and a fixed sequence is what stops the board
+ * flickering between answers across refreshes (FR-024). `them` because it was
+ * reachable three ways and two of them were pull requests — a bucket that
+ * silently stopped filling would look exactly like a bucket that had nothing in
+ * it, which is the reading that makes the panel useless.
+ */
+
 const base: BallInput = {
   hasOpenQuestion: false,
-  authoredPullRequests: [],
-  reviewRequestedOfOperator: false,
   ticket: null,
-  awaitingOthersReview: false,
   hasLiveSession: false,
 }
 
 const ball = (over: Partial<BallInput>) => ballInCourt({ ...base, ...over }).ball
 
-const pr = (over: Partial<BallInput['authoredPullRequests'][number]> = {}) => ({
-  reviewDecision: null,
-  requiredChecksFailing: false,
-  isDraft: false,
-  ...over,
-})
-
 describe('ball in court', () => {
   it('is yours when an agent has asked a question', () => {
     expect(ball({ hasOpenQuestion: true })).toBe('you')
-  })
-
-  it('is yours when your own PR has failing checks or requested changes', () => {
-    expect(ball({ authoredPullRequests: [pr({ requiredChecksFailing: true })] })).toBe('you')
-    expect(ball({ authoredPullRequests: [pr({ reviewDecision: 'changesRequested' })] })).toBe('you')
-  })
-
-  it('is yours when a review was requested from you', () => {
-    expect(ball({ reviewRequestedOfOperator: true })).toBe('you')
   })
 
   it('is yours when the ticket is assigned to you and actionable', () => {
@@ -39,11 +32,17 @@ describe('ball in court', () => {
     ).toBe('you')
   })
 
-  it('is theirs when waiting on someone else to review', () => {
-    expect(ball({ awaitingOthersReview: true })).toBe('them')
-  })
-
-  it('is theirs when the ticket belongs to someone else and nothing is moving', () => {
+  /**
+   * The one that had to survive the removal.
+   *
+   * `them` used to be reachable three ways: a review requested on the operator's
+   * own pull request, a pull request waiting on somebody else's review, and a
+   * ticket assigned to another person. The first two went with the code host.
+   * This is the third, and it is a ticket-only signal, so the bucket still
+   * fills — asserted here rather than left to be noticed when the panel reads
+   * zero on a board where half the work belongs to other people.
+   */
+  it('is still theirs when the ticket belongs to someone else and nothing is moving', () => {
     expect(
       ball({ ticket: { assignedToOperator: false, assignedToSomeoneElse: true, actionable: true } }),
     ).toBe('them')
@@ -64,34 +63,19 @@ describe('precedence when several conditions hold', () => {
     expect(
       ball({
         hasOpenQuestion: true,
-        awaitingOthersReview: true,
         hasLiveSession: true,
         ticket: { assignedToOperator: false, assignedToSomeoneElse: true, actionable: true },
       }),
     ).toBe('you')
   })
 
-  it('puts your blocked PR above a review you owe someone else', () => {
-    expect(
-      ball({ authoredPullRequests: [pr({ requiredChecksFailing: true })], awaitingOthersReview: true }),
-    ).toBe('you')
-  })
-
-  // A review is small, immediate, and unblocking. Burying it under a
-  // long-running assignment is how reviews sit for days.
-  it('puts a review requested of you above your own ticket assignment', () => {
+  it('puts your own actionable ticket above a running agent', () => {
     expect(
       ball({
-        reviewRequestedOfOperator: true,
+        hasLiveSession: true,
         ticket: { assignedToOperator: true, assignedToSomeoneElse: false, actionable: true },
       }),
     ).toBe('you')
-  })
-
-  // A human review is the thing nothing else can unblock. An agent working
-  // alongside it is not what is holding the item up.
-  it('puts a pending human review above a running agent', () => {
-    expect(ball({ awaitingOthersReview: true, hasLiveSession: true })).toBe('them')
   })
 
   // An assignee is bookkeeping; a running agent is the thing actually moving
@@ -136,11 +120,7 @@ describe('reasons', () => {
   it('explains itself in every branch', () => {
     const cases: Partial<BallInput>[] = [
       { hasOpenQuestion: true },
-      { authoredPullRequests: [pr({ requiredChecksFailing: true })] },
-      { authoredPullRequests: [pr({ reviewDecision: 'changesRequested' })] },
-      { reviewRequestedOfOperator: true },
       { ticket: { assignedToOperator: true, assignedToSomeoneElse: false, actionable: true } },
-      { awaitingOthersReview: true },
       { hasLiveSession: true },
       { ticket: { assignedToOperator: false, assignedToSomeoneElse: true, actionable: true } },
       {},
@@ -149,5 +129,34 @@ describe('reasons', () => {
     for (const c of cases) {
       expect(ballInCourt({ ...base, ...c }).because.length).toBeGreaterThan(0)
     }
+  })
+
+  /**
+   * Every branch is covered, and the count says so.
+   *
+   * Four conditions plus the default. The list above used to have nine entries
+   * for seven conditions plus the default, and a list that merely *shrank*
+   * would still pass if a branch had been dropped by accident — the assertion
+   * is that the reasons are all distinct, so a case that stopped reaching its
+   * own branch would collide with another's text.
+   */
+  it('gives each branch its own reason', () => {
+    const reasons = new Set(
+      [
+        ballInCourt({ ...base, hasOpenQuestion: true }),
+        ballInCourt({
+          ...base,
+          ticket: { assignedToOperator: true, assignedToSomeoneElse: false, actionable: true },
+        }),
+        ballInCourt({ ...base, hasLiveSession: true }),
+        ballInCourt({
+          ...base,
+          ticket: { assignedToOperator: false, assignedToSomeoneElse: true, actionable: true },
+        }),
+        ballInCourt(base),
+      ].map((r) => r.because),
+    )
+
+    expect(reasons.size).toBe(5)
   })
 })

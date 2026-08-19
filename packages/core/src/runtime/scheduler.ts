@@ -1,5 +1,5 @@
 import type { ProviderKind, Settings } from '../domain/types.js'
-import { LOCAL_CONNECTION_ID, type SyncReport } from '../services/sync.js'
+import type { SyncReport } from '../services/sync.js'
 
 /**
  * What makes the board refresh without being asked (T074, FR-013).
@@ -44,7 +44,7 @@ export type SchedulerDispatch = (operation: string, payload: unknown) => Promise
 
 export interface PollTarget {
   id: string
-  kind: ProviderKind | 'local'
+  kind: ProviderKind
 }
 
 export interface SchedulerDeps {
@@ -104,7 +104,7 @@ export interface Scheduler {
 
 export interface PollState {
   id: string
-  kind: ProviderKind | 'local'
+  kind: ProviderKind
   /** Consecutive failed polls. Reset to 0 by any success, manual or automatic. */
   failures: number
   lastPolledAt: string | null
@@ -144,7 +144,7 @@ export function scheduler(deps: SchedulerDeps): Scheduler {
   }
 
   const entries = new Map<string, Entry>()
-  let kinds = new Map<string, ProviderKind | 'local'>()
+  let kinds = new Map<string, ProviderKind>()
   let stopped = false
 
   const entryFor = (id: string): Entry => {
@@ -163,20 +163,20 @@ export function scheduler(deps: SchedulerDeps): Scheduler {
   /**
    * How long this target waits between polls, given how it has been going.
    *
-   * Local git takes the GitHub interval rather than one of its own. Not
-   * arbitrary: `board.ts` derives the stale threshold for `branches` and
-   * `local` from `pollIntervalSec.github`, so any other cadence here would put
-   * the lane in a state it declares stale before the poll that would clear it.
-   * Two numbers describing one rhythm have to come from one place.
+   * One kind, one interval. There were three targets on two cadences: Jira on
+   * its own, GitHub on its own, and local git deliberately borrowing GitHub's —
+   * because `board.ts` derived the stale threshold for `branches` and `local`
+   * from `pollIntervalSec.github`, and any other cadence there would have put a
+   * lane into a state it declared stale before the poll that would clear it. The
+   * rule that survives is the one that mattered: **two numbers describing one
+   * rhythm have to come from one place.**
    */
-  const intervalMs = (kind: ProviderKind | 'local', settings: Pick<Settings, 'pollIntervalSec'>) => {
-    const base = kind === 'jira' ? settings.pollIntervalSec.jira : settings.pollIntervalSec.github
-    return base * 1_000
-  }
+  const intervalMs = (kind: ProviderKind, settings: Pick<Settings, 'pollIntervalSec'>) =>
+    settings.pollIntervalSec[kind] * 1_000
 
   const delayMs = (
     entry: Entry,
-    kind: ProviderKind | 'local',
+    kind: ProviderKind,
     settings: Pick<Settings, 'pollIntervalSec'>,
   ): number => {
     const base = intervalMs(kind, settings)
@@ -219,14 +219,12 @@ export function scheduler(deps: SchedulerDeps): Scheduler {
   }> => {
     const [connections, settings] = await Promise.all([deps.connections(), deps.settings()])
 
-    // Local git is a target like any other, under the reserved id the mirror
-    // already records it against — so the lane it feeds ages and recovers by
-    // the same rules as the rest of the board, rather than only when the
-    // operator happens to refresh something else.
-    const targets: PollTarget[] = [
-      ...connections.map((c) => ({ id: c.id, kind: c.kind })),
-      { id: LOCAL_CONNECTION_ID, kind: 'local' as const },
-    ]
+    // Every target is a connection now. Local git used to be appended here as a
+    // pseudo-target under a reserved id, so the lane it fed aged and recovered by
+    // the same rules as the rest of the board rather than only when the operator
+    // happened to refresh something else. That reasoning is why it was here, and
+    // there is no longer a lane it feeds.
+    const targets: PollTarget[] = connections.map((c) => ({ id: c.id, kind: c.kind }))
 
     // Forget the state of a connection that has been removed, so re-adding one
     // that was failing does not inherit its backoff.
@@ -317,7 +315,7 @@ export function scheduler(deps: SchedulerDeps): Scheduler {
     state: () =>
       [...entries.entries()].map(([id, entry]) => ({
         id,
-        kind: kinds.get(id) ?? 'local',
+        kind: kinds.get(id) ?? 'jira',
         failures: entry.failures,
         lastPolledAt:
           entry.lastPolledAt === null ? null : new Date(entry.lastPolledAt).toISOString(),

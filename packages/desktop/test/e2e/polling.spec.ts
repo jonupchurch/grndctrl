@@ -92,10 +92,16 @@ test('polls on its own, without anything being clicked', async () => {
     .poll(async () => stamp(await status(it), 'jira-1'), { timeout: 30_000, intervals: [500] })
     .not.toBe(stamp(seeded, 'jira-1'))
 
-  // Both providers, not just whichever one happened to be first in the map.
-  await expect
-    .poll(async () => stamp(await status(it), 'gh-1'), { timeout: 30_000, intervals: [500] })
-    .not.toBe(stamp(seeded, 'gh-1'))
+  /*
+   * A second assertion followed, against `gh-1`: both providers polled, not
+   * just whichever one happened to be first in the map. The seeded scenario has
+   * a GitHub connection and it is no longer synced, so there is one target here
+   * and nothing to compare it against.
+   *
+   * The property is not lost — `scheduler.test.ts` drives two targets on two
+   * cadences directly, which is where the map-ordering question belongs anyway.
+   * 007 does not add a second connection, so this stays a unit-level guarantee.
+   */
 })
 
 test('tells the window a poll happened, so the numbers on screen follow', async () => {

@@ -5,21 +5,12 @@ import type { Database } from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { correlate } from '../../src/correlation/join.js'
 import { providerUnavailable, rateLimited, unauthorized } from '../../src/registry/errors.js'
-import type { CodeProvider, LocalGitProvider, TicketProvider } from '../../src/providers/seam.js'
+import type { TicketProvider } from '../../src/providers/seam.js'
 import { runSync } from '../../src/services/sync.js'
 import { mirrorRepository, type MirrorRepository } from '../../src/store/mirror/repository.js'
 import { openMirror } from '../../src/store/open.js'
 import { freshnessView } from '../../src/registry/envelope.js'
-import {
-  branch,
-  check,
-  project,
-  pullRequest,
-  settings,
-  ticket,
-  workspace,
-  NOW,
-} from '../correlation/builders.js'
+import { project, settings, ticket, NOW } from '../correlation/builders.js'
 
 /**
  * Constitution XV: a failing provider must not degrade any other provider's
@@ -30,30 +21,29 @@ import {
  * broken, and an app that blanks itself because one of five connections failed
  * has chosen a purity that serves nobody — the failure mode is silent, because
  * the lanes just look empty, which reads as "no work" rather than "no data".
+ *
+ * **The demonstration changed shape with 006 and did not weaken.** It used to
+ * fail one of three providers and check the other two were untouched. There is
+ * one provider, so the isolation is now demonstrated across **two connections of
+ * the same kind** — which is the case an operator actually has: two Jira sites,
+ * or a personal account and a work one, where one token expiring must not empty
+ * the other's lane.
+ *
+ * That is not a lesser test. The boundary being checked is the same one:
+ * per connection, per resource kind, with the mirror written independently. The
+ * bug it exists to prevent — one try/catch around the whole sync — would fail
+ * here exactly as it failed before.
  */
 
 let dir: string
 let db: Database
 let mirror: MirrorRepository
 
-const okTickets: TicketProvider = {
+const okTickets = (issueKey: string): TicketProvider => ({
   viewer: async () => ({ accountId: 'me', displayName: 'Jon', email: null }),
-  searchIssues: async () => ({ tickets: [ticket()], nextPageToken: null }),
+  searchIssues: async () => ({ tickets: [ticket({ issueKey })], nextPageToken: null }),
   fetchChangelogs: async () => [],
-}
-
-const okCode: CodeProvider = {
-  viewer: async () => ({ accountId: 'me', displayName: 'Jon', email: null }),
-  fetchRepository: async () => ({
-    pullRequests: [pullRequest()],
-    branches: [branch()],
-    checks: [check()],
-  }),
-  compareBranches: async () => [],
-  probe: async () => ({ ok: true, viewer: null, checks: [] }),
-}
-
-const okGit: LocalGitProvider = { readWorkspaces: async () => [workspace()] }
+})
 
 const failing = <T>(error: unknown): T =>
   new Proxy({} as object, {
@@ -62,16 +52,17 @@ const failing = <T>(error: unknown): T =>
     },
   }) as T
 
-function targets(over: {
-  tickets?: TicketProvider
-  code?: CodeProvider
-  git?: LocalGitProvider
-} = {}) {
+/** Two Jira connections, each with its own project bound to it. */
+const MERC = project({ id: 'p-merc', code: 'MERC', jiraProjectKey: 'MERC', jiraConnectionId: 'jira-1' })
+const ATLS = project({ id: 'p-atls', code: 'ATLS', jiraProjectKey: 'ATLS', jiraConnectionId: 'jira-2' })
+
+function targets(over: { first?: TicketProvider; second?: TicketProvider } = {}) {
   return {
-    projects: [project()],
-    ticketProviders: new Map([['jira-1', over.tickets ?? okTickets]]),
-    codeProviders: new Map([['gh-1', over.code ?? okCode]]),
-    git: over.git ?? okGit,
+    projects: [MERC, ATLS],
+    ticketProviders: new Map([
+      ['jira-1', over.first ?? okTickets('MERC-1184')],
+      ['jira-2', over.second ?? okTickets('ATLS-7')],
+    ]),
   }
 }
 
@@ -89,12 +80,12 @@ beforeEach(() => {
     credentialRef: 'grndctrl/jira-1',
   })
   mirror.upsertConnection({
-    id: 'gh-1',
-    kind: 'github',
-    siteOrHost: 'github.com',
-    accountLabel: 'work',
+    id: 'jira-2',
+    kind: 'jira',
+    siteOrHost: 'example.atlassian.net',
+    accountLabel: 'other',
     viewerIdentity: null,
-    credentialRef: 'grndctrl/gh-1',
+    credentialRef: 'grndctrl/jira-2',
   })
 })
 
@@ -120,87 +111,47 @@ const sync = (over: Parameters<typeof targets>[0] = {}) => {
 }
 
 describe('a healthy sync', () => {
-  it('populates every lane', async () => {
+  it('populates the lane from every connection', async () => {
     const report = await sync()
 
     expect(report.results.every((r) => r.ok)).toBe(true)
-    expect(mirror.listTickets()).toHaveLength(1)
-    expect(mirror.listPullRequests()).toHaveLength(1)
-    expect(mirror.listWorkspaces()).toHaveLength(1)
+    expect(mirror.listTickets()).toHaveLength(2)
   })
 })
 
-describe('when one provider fails', () => {
-  it('keeps GitHub and local data when Jira is unreachable', async () => {
+describe('when one connection fails', () => {
+  it('keeps the other connection’s tickets when one site is unreachable', async () => {
     await sync() // establish good data first
-    await sync({ tickets: failing<TicketProvider>(providerUnavailable('Jira is down', 'jira-1')) })
+    await sync({ first: failing<TicketProvider>(providerUnavailable('Jira is down', 'jira-1')) })
 
-    // The lane the failure belongs to keeps its last known data...
-    expect(mirror.listTickets()).toHaveLength(1)
-    // ...and every other lane is untouched.
-    expect(mirror.listPullRequests()).toHaveLength(1)
-    expect(mirror.listWorkspaces()).toHaveLength(1)
+    // The failing connection keeps its last known data...
+    expect(mirror.listTickets().filter((t) => t.issueKey === 'MERC-1184')).toHaveLength(1)
+    // ...and the healthy one is untouched and current.
+    expect(mirror.listTickets().filter((t) => t.issueKey === 'ATLS-7')).toHaveLength(1)
 
-    const ticketFreshness = mirror.listFreshness().find((f) => f.resourceKind === 'tickets')
-    expect(ticketFreshness?.failureReason).toBe('network')
+    const freshness = mirror.listFreshness()
+    expect(freshness.find((f) => f.connectionId === 'jira-1')?.failureReason).toBe('network')
+    expect(freshness.find((f) => f.connectionId === 'jira-2')?.failureReason).toBeNull()
   })
 
-  it('keeps Jira and local data when GitHub is unreachable', async () => {
+  /**
+   * The failure is recorded against the connection, not the resource kind.
+   *
+   * Both connections feed the same lane, so a board-wide `tickets` failure flag
+   * would put the healthy site's rows behind a "failed to refresh" notice they
+   * have nothing to do with. This is the assertion that keeps the freshness key
+   * a *pair*.
+   */
+  it('marks only the connection that failed', async () => {
     await sync()
-    await sync({ code: failing<CodeProvider>(providerUnavailable('GitHub is down', 'gh-1')) })
+    await sync({ second: failing<TicketProvider>(unauthorized('token rejected', 'jira-2')) })
 
-    expect(mirror.listTickets()).toHaveLength(1)
-    expect(mirror.listPullRequests()).toHaveLength(1)
-
-    const kinds = mirror
+    const failed = mirror
       .listFreshness()
       .filter((f) => f.failureReason !== null)
-      .map((f) => f.resourceKind)
-      .sort()
+      .map((f) => f.connectionId)
 
-    // Every GitHub-fed resource is marked, and nothing else is.
-    expect(kinds).toEqual(['branches', 'checks', 'pulls'])
-  })
-
-  it('keeps provider data when a local checkout has moved', async () => {
-    await sync()
-    await sync({
-      git: {
-        readWorkspaces: async () => {
-          throw new Error('ENOENT: D:\\work\\mercury')
-        },
-      },
-    })
-
-    expect(mirror.listTickets()).toHaveLength(1)
-    expect(mirror.listPullRequests()).toHaveLength(1)
-
-    const local = mirror.listFreshness().find((f) => f.resourceKind === 'local')
-    expect(local?.failureReason).toBe('notFound')
-  })
-
-  it('keeps the branches it knew about when the checkout cannot be read', async () => {
-    await sync()
-    expect(mirror.listWorkspaces()).toHaveLength(1)
-
-    await sync({
-      git: {
-        readWorkspaces: async () => {
-          throw new Error('ENOENT: E:\\work\\mercury')
-        },
-      },
-    })
-
-    // An unmounted drive, a network share, a VPN that dropped: the branches are
-    // still there and this process could not look. Writing the partial set —
-    // which `replaceWorkspaces` applies with no scope — deleted them, and the
-    // lane then showed an empty list *while saying it failed to refresh*. To
-    // anyone not stopping to reconcile the two, that reads as "you have no
-    // branches". The same rule the GitHub fetch already follows.
-    expect(mirror.listWorkspaces()).toHaveLength(1)
-    expect(mirror.listFreshness().find((f) => f.resourceKind === 'local')?.failureReason).toBe(
-      'notFound',
-    )
+    expect(failed).toEqual(['jira-2'])
   })
 })
 
@@ -222,30 +173,29 @@ describe('when the credential itself has gone', () => {
       mirror,
       targets: {
         ...targets(),
-        // No provider for Jira, exactly as `buildSyncTargets` leaves it when
-        // the keychain has no secret under this connection's reference.
-        ticketProviders: new Map(),
+        // No provider for the first connection, exactly as `buildSyncTargets`
+        // leaves it when the keychain has no secret under its reference.
+        ticketProviders: new Map([['jira-2', okTickets('ATLS-7')]]),
         unavailable: [{ connectionId: 'jira-1', reason: 'no-credential' }],
       },
       settings: settings(),
       now: clock,
     })
 
-    const tickets = report.results.filter((r) => r.resourceKind === 'tickets')
-    expect(tickets).toHaveLength(1)
-    expect(tickets[0]?.ok).toBe(false)
-    expect(tickets[0]?.failureReason).toBe('auth')
-    expect(tickets[0]?.detail).toContain('No credential is stored')
+    const first = report.results.filter((r) => r.connectionId === 'jira-1')
+    expect(first).toHaveLength(1)
+    expect(first[0]?.ok).toBe(false)
+    expect(first[0]?.failureReason).toBe('auth')
+    expect(first[0]?.detail).toContain('No credential is stored')
 
     // The lane says so, through the same freshness path every other failure
     // uses — so `LaneStatus` needs to know nothing new to render it.
-    expect(mirror.listFreshness().find((f) => f.resourceKind === 'tickets')?.failureReason).toBe(
+    expect(mirror.listFreshness().find((f) => f.connectionId === 'jira-1')?.failureReason).toBe(
       'auth',
     )
     // And the data it last fetched is still there. XV: the lane degrades, it
-    // does not blank.
-    expect(mirror.listTickets()).toHaveLength(1)
-    expect(mirror.listPullRequests()).toHaveLength(1)
+    // does not blank — including the half of it that came from the other site.
+    expect(mirror.listTickets()).toHaveLength(2)
   })
 
   it('says the keychain is unreachable rather than blaming the token', async () => {
@@ -263,7 +213,7 @@ describe('when the credential itself has gone', () => {
       now: clock,
     })
 
-    const detail = report.results.find((r) => r.resourceKind === 'tickets')?.detail ?? ''
+    const detail = report.results.find((r) => r.connectionId === 'jira-1')?.detail ?? ''
     expect(detail).toContain('credential store could not be reached')
     expect(detail).toContain('will not fall back')
   })
@@ -276,10 +226,8 @@ describe('when the credential itself has gone', () => {
     const report = await runSync({
       mirror,
       targets: {
-        projects: [{ ...project(), jiraProjectKey: null }],
+        projects: [{ ...MERC, jiraProjectKey: null }],
         ticketProviders: new Map(),
-        codeProviders: new Map([['gh-1', okCode]]),
-        git: okGit,
         unavailable: [{ connectionId: 'jira-1', reason: 'no-credential' }],
       },
       settings: settings(),
@@ -292,16 +240,16 @@ describe('when the credential itself has gone', () => {
 
 describe('failure reasons are distinguished', () => {
   it('reports an expired token as auth, not as a network problem', async () => {
-    await sync({ tickets: failing<TicketProvider>(unauthorized('token rejected', 'jira-1')) })
-    expect(mirror.listFreshness().find((f) => f.resourceKind === 'tickets')?.failureReason).toBe('auth')
+    await sync({ first: failing<TicketProvider>(unauthorized('token rejected', 'jira-1')) })
+    expect(mirror.listFreshness().find((f) => f.connectionId === 'jira-1')?.failureReason).toBe('auth')
   })
 
   // Rate limiting is the one failure the user should wait out rather than act
   // on, so it carries a retry time (FR-015).
   it('records a retry time for a rate limit', async () => {
-    await sync({ tickets: failing<TicketProvider>(rateLimited('slow down', 240, 'jira-1')) })
+    await sync({ first: failing<TicketProvider>(rateLimited('slow down', 240, 'jira-1')) })
 
-    const record = mirror.listFreshness().find((f) => f.resourceKind === 'tickets')
+    const record = mirror.listFreshness().find((f) => f.connectionId === 'jira-1')
     expect(record?.failureReason).toBe('rateLimit')
     expect(record?.nextAttemptAt).toBe(new Date(clock().getTime() + 240_000).toISOString())
   })
@@ -317,8 +265,8 @@ describe('when ticket history fails but the search succeeds', () => {
     const report = await runSync({
       mirror,
       targets: targets({
-        tickets: {
-          viewer: okTickets.viewer,
+        first: {
+          viewer: async () => ({ accountId: 'me', displayName: 'Jon', email: null }),
           searchIssues: async () => ({
             tickets: [ticket({ lastRealActivityAt: null, lastStatusChangeAt: null })],
             nextPageToken: null,
@@ -332,29 +280,27 @@ describe('when ticket history fails but the search succeeds', () => {
       now: clock,
     })
 
-    expect(mirror.listTickets()).toHaveLength(1)
-    expect(mirror.listTickets()[0]?.lastRealActivityAt).toBeNull()
+    expect(mirror.listTickets().find((t) => t.issueKey === 'MERC-1184')?.lastRealActivityAt).toBeNull()
 
-    const degraded = report.results.find((r) => !r.ok && r.resourceKind === 'tickets')
+    const degraded = report.results.find((r) => !r.ok && r.connectionId === 'jira-1')
     expect(degraded?.detail).toMatch(/activity is unknown/)
   })
 })
 
 /**
- * Constitution XV again, at the correlation layer: a work item whose ticket
- * cannot be fetched still shows its branches, PRs, and notes, marked partially
- * resolved rather than hidden.
+ * Constitution XV again, at the correlation layer.
+ *
+ * This used to say a work item whose *ticket* could not be fetched still shows
+ * its branches, pull requests and notes. There is nothing left to show without a
+ * ticket, so what it says now is narrower and still worth saying: the cached
+ * rows render, and they are marked as possibly behind rather than presented as
+ * current.
  */
 describe('correlation degrades rather than hides', () => {
-  it('still renders work when the ticket lane failed', () => {
+  it('still renders cached tickets when the ticket lane failed', () => {
     const { workItems } = correlate({
-      projects: [project()],
-      tickets: [],
-      pullRequests: [pullRequest()],
-      checks: [],
-      branches: [],
-      comparisons: [],
-      workspaces: [workspace()],
+      projects: [MERC],
+      tickets: [ticket()],
       sessions: [],
       noteCounts: {},
       openQuestionSubjects: [],
@@ -373,9 +319,9 @@ describe('correlation degrades rather than hides', () => {
 describe('freshness stays legible through a failure', () => {
   it('reports failed rather than stale when the last attempt errored', async () => {
     await sync()
-    await sync({ tickets: failing<TicketProvider>(unauthorized('nope', 'jira-1')) })
+    await sync({ first: failing<TicketProvider>(unauthorized('nope', 'jira-1')) })
 
-    const record = mirror.listFreshness().find((f) => f.resourceKind === 'tickets')
+    const record = mirror.listFreshness().find((f) => f.connectionId === 'jira-1')
     const view = freshnessView(record, clock().getTime() + 60_000, 300)
 
     expect(view.state).toBe('failed')
@@ -391,10 +337,10 @@ describe('freshness stays legible through a failure', () => {
   })
 
   it('does not resurrect a cleared failure on the next success', async () => {
-    await sync({ tickets: failing<TicketProvider>(unauthorized('nope', 'jira-1')) })
+    await sync({ first: failing<TicketProvider>(unauthorized('nope', 'jira-1')) })
     await sync()
 
-    const record = mirror.listFreshness().find((f) => f.resourceKind === 'tickets')
+    const record = mirror.listFreshness().find((f) => f.connectionId === 'jira-1')
     const view = freshnessView(record, clock().getTime(), 300)
 
     // The failure is still on record -- a lane that failed twice this hour is a

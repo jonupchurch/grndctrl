@@ -1,4 +1,3 @@
-export * from './match.js'
 export * from './activity.js'
 export * from './staleness.js'
 export * from './severity.js'

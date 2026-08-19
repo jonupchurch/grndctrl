@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { maxSeverity, severityOf, type SeverityInputs } from '../../src/correlation/severity.js'
 
 const base: SeverityInputs = {
-  inDrift: false,
   ticket: null,
-  pullRequests: [],
-  workspaces: [],
   sessions: [],
   thresholdMultiple: 0,
 }
@@ -17,19 +14,18 @@ const sev = (over: Partial<SeverityInputs>) => severityOf({ ...base, ...over }).
  * each level it can produce, plus the max-of-several case that is the actual
  * rule. The sample severities in the design files are hand-picked illustrations
  * and are deliberately not asserted here (spec Assumption 4).
+ *
+ * **Three of the six sources are gone**: drift, pull requests and workspaces.
+ * What this file has to prove now is FR-120 — that the three that remain produce
+ * *exactly* what they produced before, for exactly the same inputs. The tempting
+ * thing while removing half the table is to rebalance the rest, because
+ * `critical` suddenly looks sparse; that would be a product change wearing a
+ * removal's clothes, and the first anyone would know of it is a board that had
+ * started shouting about different things.
  */
 describe('the severity table', () => {
   it('is good when nothing is wrong', () => {
     expect(sev({})).toBe('good')
-  })
-
-  describe('drift', () => {
-    // Serious, not critical. The *finding* renders critical in Attention where
-    // it is actionable; the row should not outrank a failing required check,
-    // which is a harder fact about the world.
-    it('contributes serious', () => {
-      expect(sev({ inDrift: true })).toBe('serious')
-    })
   })
 
   describe('ticket state', () => {
@@ -43,70 +39,6 @@ describe('the severity table', () => {
 
     it('is good when in progress and nobody is waiting', () => {
       expect(sev({ ticket: { isBlocked: false, awaitingOtherParty: false } })).toBe('good')
-    })
-  })
-
-  describe('pull request state', () => {
-    const pr = (over: Partial<SeverityInputs['pullRequests'][number]>) => ({
-      isDraft: false,
-      reviewDecision: null,
-      requiredChecksFailing: false,
-      ...over,
-    })
-
-    it('is critical when a required check is failing', () => {
-      expect(sev({ pullRequests: [pr({ requiredChecksFailing: true })] })).toBe('critical')
-    })
-
-    it('is serious when changes were requested', () => {
-      expect(sev({ pullRequests: [pr({ reviewDecision: 'changesRequested' })] })).toBe('serious')
-    })
-
-    it('is a warning for a draft', () => {
-      expect(sev({ pullRequests: [pr({ isDraft: true })] })).toBe('warning')
-    })
-
-    it('is a warning when awaiting review', () => {
-      expect(sev({ pullRequests: [pr({ reviewDecision: 'reviewRequired' })] })).toBe('warning')
-    })
-
-    it('is good when approved and green', () => {
-      expect(sev({ pullRequests: [pr({ reviewDecision: 'approved' })] })).toBe('good')
-    })
-
-    // An optional check failing is noise; a required one is a wall.
-    it('does not go critical for an optional check failing', () => {
-      expect(sev({ pullRequests: [pr({ requiredChecksFailing: false })] })).toBe('good')
-    })
-  })
-
-  describe('workspace state', () => {
-    const ws = (over: Partial<SeverityInputs['workspaces'][number]>) => ({
-      hasUncommittedChanges: false,
-      orphaned: false,
-      hasLiveSession: false,
-      ...over,
-    })
-
-    it('is critical when the branch or worktree is gone', () => {
-      expect(sev({ workspaces: [ws({ orphaned: true })] })).toBe('critical')
-    })
-
-    // The distinction that makes this lane worth reading. Dirty with an agent
-    // running is something being written right now; dirty with nobody home is
-    // work somebody walked away from.
-    it('is serious for uncommitted changes with no session running', () => {
-      expect(sev({ workspaces: [ws({ hasUncommittedChanges: true })] })).toBe('serious')
-    })
-
-    it('is only a warning for uncommitted changes while an agent is editing', () => {
-      expect(
-        sev({ workspaces: [ws({ hasUncommittedChanges: true, hasLiveSession: true })] }),
-      ).toBe('warning')
-    })
-
-    it('is good for a clean workspace', () => {
-      expect(sev({ workspaces: [ws({})] })).toBe('good')
     })
   })
 
@@ -138,12 +70,38 @@ describe('the severity table', () => {
     })
   })
 
-  // The actual rule: the highest of the six, not the first or the last.
+  /**
+   * FR-120, stated as one table rather than left implicit in the cases above.
+   *
+   * Every surviving (input, severity) pair, in one place, so that a change to
+   * any of them fails here with the old value and the new one side by side —
+   * rather than as one test somewhere in the file quietly flipping.
+   */
+  it('produces the same severity for the same inputs as it did before 006', () => {
+    const table: [string, Partial<SeverityInputs>, string][] = [
+      ['blocked ticket', { ticket: { isBlocked: true, awaitingOtherParty: false } }, 'critical'],
+      ['ticket awaiting another party', { ticket: { isBlocked: false, awaitingOtherParty: true } }, 'warning'],
+      ['ticket in progress', { ticket: { isBlocked: false, awaitingOtherParty: false } }, 'good'],
+      ['silent agent', { sessions: [{ state: 'silent' }] }, 'serious'],
+      ['agent waiting on you', { sessions: [{ state: 'needs-you' }] }, 'warning'],
+      ['running agent', { sessions: [{ state: 'running' }] }, 'good'],
+      ['failed session', { sessions: [{ state: 'failed' }] }, 'good'],
+      ['1x threshold', { thresholdMultiple: 1 }, 'warning'],
+      ['2x threshold', { thresholdMultiple: 2 }, 'serious'],
+      ['3x threshold', { thresholdMultiple: 3 }, 'critical'],
+    ]
+
+    for (const [label, input, expected] of table) {
+      expect(sev(input), `${label} should be ${expected}`).toBe(expected)
+    }
+  })
+
+  // The actual rule: the highest, not the first or the last.
   describe('combining contributions', () => {
     it('takes the maximum across contributions', () => {
       expect(
         sev({
-          inDrift: true, // serious
+          sessions: [{ state: 'silent' }], // serious
           ticket: { isBlocked: false, awaitingOtherParty: true }, // warning
           thresholdMultiple: 1, // warning
         }),
@@ -151,40 +109,50 @@ describe('the severity table', () => {
 
       expect(
         sev({
-          inDrift: true, // serious
-          pullRequests: [{ isDraft: false, reviewDecision: null, requiredChecksFailing: true }],
+          sessions: [{ state: 'silent' }], // serious
+          ticket: { isBlocked: true, awaitingOtherParty: false }, // critical
         }),
       ).toBe('critical')
     })
 
     it('is not lowered by a good contribution alongside a bad one', () => {
-      expect(
-        sev({
-          pullRequests: [
-            { isDraft: false, reviewDecision: 'approved', requiredChecksFailing: false },
-            { isDraft: false, reviewDecision: 'changesRequested', requiredChecksFailing: false },
-          ],
-        }),
-      ).toBe('serious')
+      expect(sev({ sessions: [{ state: 'running' }, { state: 'silent' }] })).toBe('serious')
     })
 
     it('reports why, highest contribution first', () => {
       const result = severityOf({
         ...base,
-        inDrift: true,
         thresholdMultiple: 1,
+        sessions: [{ state: 'silent' }],
         ticket: { isBlocked: true, awaitingOtherParty: false },
       })
 
       expect(result.severity).toBe('critical')
       expect(result.contributions[0]?.severity).toBe('critical')
-      expect(result.contributions.map((c) => c.source)).toContain('drift')
+      expect(result.contributions.map((c) => c.source)).toContain('ticket')
+      expect(result.contributions.map((c) => c.source)).toContain('session')
+      expect(result.contributions.map((c) => c.source)).toContain('staleness')
       expect(result.contributions.every((c) => c.because.length > 0)).toBe(true)
     })
 
     it('reports no contributions when everything is fine', () => {
       expect(severityOf(base).contributions).toEqual([])
     })
+  })
+
+  /**
+   * All four severities are still reachable, and from what.
+   *
+   * With three of six sources removed, the question worth asking is not "does
+   * the table still work" but "is any level now unreachable" — a severity that
+   * nothing can produce is a shape the operator will never learn to read, and
+   * `every-severity.json` exists to put all four on one screen (FR-104).
+   */
+  it('can still reach all four severities', () => {
+    expect(sev({})).toBe('good')
+    expect(sev({ thresholdMultiple: 1 })).toBe('warning')
+    expect(sev({ sessions: [{ state: 'silent' }] })).toBe('serious')
+    expect(sev({ ticket: { isBlocked: true, awaitingOtherParty: false } })).toBe('critical')
   })
 })
 

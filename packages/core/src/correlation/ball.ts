@@ -12,21 +12,23 @@ import type { BallInCourt } from '../domain/types.js'
  * "you". A board that under-reports your own court is a board you stop trusting
  * to tell you when you are the bottleneck — which is the one question it exists
  * to answer.
+ *
+ * **Three of the seven conditions are gone and the order of the rest is
+ * unchanged**, which is the property to check here rather than assume. The three
+ * were the operator's own blocked pull request, a review requested *of* the
+ * operator, and a pull request awaiting somebody else's review. Two of those
+ * produced `you` and one produced `them`.
+ *
+ * `them` is the one worth naming, because it is the bucket that could have
+ * silently emptied: it was reachable three ways and two of them were pull
+ * requests. What is left is a ticket assigned to somebody else, which is a
+ * ticket-only signal and untouched — so the bucket still fills, and
+ * `ball.test.ts` asserts that specifically rather than leaving it to be noticed.
  */
 
 export interface BallInput {
   /** A question-for-human note is open on this item. */
   hasOpenQuestion: boolean
-
-  /** PRs the operator authored. */
-  authoredPullRequests: readonly {
-    reviewDecision: 'approved' | 'changesRequested' | 'reviewRequired' | null
-    requiredChecksFailing: boolean
-    isDraft: boolean
-  }[]
-
-  /** The operator is a requested reviewer on at least one open PR. */
-  reviewRequestedOfOperator: boolean
 
   ticket: {
     assignedToOperator: boolean
@@ -35,10 +37,7 @@ export interface BallInput {
     actionable: boolean
   } | null
 
-  /** At least one PR is open and waiting on a review from someone else. */
-  awaitingOthersReview: boolean
-
-  /** A live agent session owns a workspace on this item. */
+  /** A live agent session is reporting against this item. */
   hasLiveSession: boolean
 }
 
@@ -55,38 +54,23 @@ export function ballInCourt(input: BallInput): BallResult {
     return { ball: 'you', because: 'an agent is waiting on your answer' }
   }
 
-  // 2. The operator's own PR needs the operator: a failing required check or
-  //    requested changes is work only the author can clear.
-  const blockedOwnPr = input.authoredPullRequests.find(
-    (pr) => pr.requiredChecksFailing || pr.reviewDecision === 'changesRequested',
-  )
-  if (blockedOwnPr !== undefined) {
-    return {
-      ball: 'you',
-      because: blockedOwnPr.requiredChecksFailing
-        ? 'checks are failing on a pull request you opened'
-        : 'changes were requested on a pull request you opened',
-    }
-  }
-
-  // 3. A review requested of the operator. Checked before ticket assignment
-  //    because a review is a small, immediate, and unblocking task, and burying
-  //    it under a long-running assignment is how reviews sit for days.
-  if (input.reviewRequestedOfOperator) {
-    return { ball: 'you', because: 'a review was requested from you' }
-  }
+  // 2 and 3 were here and are gone with the code host: the operator's own pull
+  // request needing the operator (a failing required check, or requested
+  // changes), and a review requested *of* the operator. Both produced `you`, and
+  // both sat above ticket assignment because a review is small, immediate and
+  // unblocking, and burying it under a long-running assignment is how reviews sit
+  // for days. Nothing else moves up to take their place: the numbering below is
+  // the original numbering, so a future reader comparing this against FR-032 can
+  // see which rules left rather than wondering why it starts at four.
 
   // 4. A ticket assigned to the operator in a status that expects action.
   if (input.ticket?.assignedToOperator === true && input.ticket.actionable) {
     return { ball: 'you', because: 'the ticket is assigned to you and is actionable' }
   }
 
-  // 5. Waiting on a review from someone else. This outranks a running agent:
-  //    a review is a human action that nothing else can unblock, and the agent
-  //    working alongside it is not the thing holding the item up.
-  if (input.awaitingOthersReview) {
-    return { ball: 'them', because: 'waiting on a review from someone else' }
-  }
+  // 5 was "waiting on a review from someone else", which outranked a running
+  // agent because a review is a human action nothing else can unblock. It went
+  // with the pull requests, and it was one of the two ways `them` was reachable.
 
   // 6. An agent is actively working. Deliberately above "assigned to someone
   //    else": an assignee is bookkeeping, and a running agent is the thing

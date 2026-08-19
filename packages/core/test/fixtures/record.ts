@@ -328,7 +328,7 @@ function scrubUrl(url: string): string {
 export interface RecordOptions {
   /** The live fetcher to record through. */
   fetcher?: Fetcher
-  /** Where the scrubbed payloads land — `fixtures/jira`, `fixtures/github`. */
+  /** Where the scrubbed payloads land — `fixtures/jira`. */
   dir: string
   secrets?: readonly string[]
 }
