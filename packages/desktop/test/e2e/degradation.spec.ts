@@ -63,7 +63,11 @@ test('the board says it cannot refresh, rather than ageing quietly', async () =>
 
   // Naming which one. "A connection is broken" sends the operator to check all
   // of them, which is the work the application is supposed to have done.
-  await expect(notice.getByText(/Jira · example.atlassian.net/)).toBeVisible()
+  // The site the *scenario* names, which is where the seeded connection's site
+  // now comes from. It read `example.atlassian.net` until 2026-08-20 — a literal
+  // the seeder invented, against tickets keyed to `acme.atlassian.net`, so the
+  // seeded board disagreed with itself and nothing compared the two.
+  await expect(notice.getByText(/Jira · acme\.atlassian\.net/)).toBeVisible()
 
   // And saying that pressing Refresh cannot help, because it cannot — that is
   // the sentence that distinguishes this from an ordinary stale lane.

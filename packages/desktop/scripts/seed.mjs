@@ -79,13 +79,38 @@ for (const project of input.projects ?? []) {
   if (id !== null && id !== undefined) connectionIds.add(id)
 }
 
+/*
+ * The connection's site comes from the scenario's own ticket keys.
+ *
+ * It was the literal `example.atlassian.net` while every checked-in scenario
+ * used `acme.atlassian.net` for its tickets, so **every seeded board has been
+ * internally inconsistent** since the first one: a connection claiming one site,
+ * rows keyed to another. Nothing compared them, so nothing failed -- and the
+ * notes these scenarios seed were, strictly, attached to a site the board was
+ * not configured for.
+ *
+ * Surfaced on 2026-08-20 by the site check that closed exactly that bug in the
+ * product (`services/sites.ts`), which refused the seeder's own notes the first
+ * time it ran. A fixture that the application's own rules reject is not a
+ * fixture, and deriving the site rather than declaring it makes the
+ * disagreement unrepresentable instead of merely fixed.
+ */
+const siteFor = (id) => {
+  const ticket = (input.tickets ?? []).find((t) => t.connectionId === id)
+  if (ticket === undefined) return 'example.atlassian.net'
+
+  // `jira:<site>/<ISSUE-KEY>`.
+  const site = ticket.key.slice('jira:'.length).split('/')[0]
+  return site === '' ? 'example.atlassian.net' : site
+}
+
 for (const id of connectionIds) {
   const accountId = (input.operatorAccountIds ?? [])[0] ?? null
 
   mirror.upsertConnection({
     id,
     kind: 'jira',
-    siteOrHost: 'example.atlassian.net',
+    siteOrHost: siteFor(id),
     accountLabel: `${id} (seeded)`,
     // The viewer identity is what makes "mine" resolvable, and the scenarios
     // carry the account id their tickets are assigned to. Without it every row

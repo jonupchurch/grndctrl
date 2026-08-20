@@ -34,6 +34,16 @@ import type { FocusRepository } from '../store/authored/focus.js'
 
 export interface FocusServiceDeps {
   focus: FocusRepository
+  /**
+   * Refuses a ticket key naming a Jira site no connection knows (`sites.ts`).
+   *
+   * Rule 2 below says the key's *existence* is not checked, and that stands: a
+   * ticket the mirror has never held is legal and is the case FR-131 is written
+   * for. A **site** nothing is configured to talk to is neither shape nor
+   * existence — it is a key that can never resolve, and pointing the board at
+   * one produces a panel that will say "not on your board" forever.
+   */
+  assertKnownSite?(key: NaturalKey): void
 }
 
 export interface FocusService {
@@ -59,6 +69,8 @@ export function focusService(deps: FocusServiceDeps): FocusService {
           `The active ticket must be a ticket key (jira:<site>/<KEY>); received '${ticketKey}'.`,
         )
       }
+
+      deps.assertKnownSite?.(ticketKey)
 
       return focus.set({
         ticketKey,

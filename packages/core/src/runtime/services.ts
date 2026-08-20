@@ -9,6 +9,7 @@ import { runSync, type SyncReport } from '../services/sync.js'
 import { buildSyncTargets, type BuiltTargets } from './providers.js'
 import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
 import { focusService, type FocusService } from '../services/focus.js'
+import { siteCheck } from '../services/sites.js'
 import { updatesService, type UpdatesService } from '../services/updates.js'
 import { promptsService, type PromptsService } from '../services/prompts.js'
 import { notesService, type NotesService } from '../services/notes.js'
@@ -105,6 +106,22 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   const projects = projectsRepository(authoredDb)
   const settings = settingsStore(authoredDb)
 
+  /*
+   * "Could this ticket key ever resolve?", shared by both authored write paths.
+   *
+   * Read from the mirror's connection list per call, so a connection added while
+   * the app is running takes effect without a restart. Jira only: it is the one
+   * provider whose keys carry a site, and the check is a no-op for every other
+   * kind of key.
+   */
+  const sites = siteCheck({
+    configuredSites: () =>
+      mirror
+        .listConnections()
+        .filter((c) => c.kind === 'jira')
+        .map((c) => c.siteOrHost),
+  })
+
   // Notes ask the sessions store whether a session subject exists; sessions ask
   // the notes store which subjects have open questions. Both at the repository
   // level, so the two services do not depend on each other and neither has to
@@ -112,9 +129,13 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   const notes = notesService({
     notes: notesRepo,
     subjectPresence: subjectPresenceResolver({ mirror, hasSession: (key) => sessionsRepo.has(key) }),
+    assertKnownSite: (key) => sites.assertKnown(key),
   })
 
-  const focus = focusService({ focus: focusRepository(authoredDb) })
+  const focus = focusService({
+    focus: focusRepository(authoredDb),
+    assertKnownSite: (key) => sites.assertKnown(key),
+  })
 
   // Both dependencies are read per call rather than captured, so an update
   // posted after the operator moves focus captures the ticket that is active

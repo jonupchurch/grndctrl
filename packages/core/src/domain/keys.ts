@@ -229,6 +229,31 @@ export function subjectKindOf(key: NaturalKey | string): SubjectKind | null {
   return null
 }
 
+/**
+ * The site back out of a `jira:` key, or `null` if it is not one.
+ *
+ * The one place a key's contents are read rather than its prefix, and it earns
+ * that: a ticket key names a **site**, and a site that no configured connection
+ * knows can never resolve to anything, ever. That is a different fact from "the
+ * mirror has not fetched this ticket yet", which is legitimate and common
+ * (FR-131) — and until 2026-08-20 the write paths could not tell them apart, so
+ * a note attached to a misspelled site was accepted, stored, flagged
+ * `orphaned: true`, and never seen again.
+ *
+ * Returns the segment between `jira:` and the first `/`, lowercased the same way
+ * `ticketKey` writes it. A key with no `/` has no issue part and so no site
+ * worth reporting.
+ */
+export function siteOfTicketKey(key: NaturalKey | string): string | null {
+  if (!key.startsWith('jira:')) return null
+
+  const rest = key.slice('jira:'.length)
+  const slash = rest.indexOf('/')
+  if (slash <= 0) return null
+
+  return rest.slice(0, slash).toLowerCase()
+}
+
 /** `project:<id>` — the subject key for a configured project. */
 export function projectKey(projectId: string): NaturalKey {
   return asKey(`project:${projectId}`)

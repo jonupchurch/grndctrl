@@ -62,6 +62,18 @@ export interface NotesServiceDeps {
    * held both handles would be the coupling XIII exists to forbid.
    */
   subjectPresence(key: NaturalKey): SubjectPresence
+  /**
+   * Refuses a ticket key naming a Jira site no connection knows (`sites.ts`).
+   *
+   * Separate from `subjectPresence` because the two answer different questions
+   * and only one of them is a reason to refuse a write: presence says whether
+   * the mirror *has* this ticket, which is allowed to be "not yet"; this says
+   * whether the key could ever name anything at all.
+   *
+   * Optional so a caller that has not wired it keeps the old behaviour rather
+   * than crashing — the composition root supplies the real one.
+   */
+  assertKnownSite?(key: NaturalKey): void
   /** Overridable so tests get stable ids without stubbing global crypto. */
   newId?(): string
 }
@@ -143,6 +155,11 @@ export function notesService(deps: NotesServiceDeps): NotesService {
       if (kind === null || !NOTEABLE.includes(kind)) {
         throw invalid(`Notes cannot be attached to '${input.subjectKey}'.`)
       }
+
+      // Before the write, not after. A note on an unresolvable site was
+      // previously accepted, stored, and returned with `orphaned: true` — which
+      // reads as normal to an agent, so nothing surfaced the mistake.
+      deps.assertKnownSite?.(input.subjectKey)
 
       const body = input.body.trim()
       if (body === '') throw invalid('A note needs a body.')
