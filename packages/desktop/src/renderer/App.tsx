@@ -351,13 +351,14 @@ export function App(): ReactElement {
                 </LaneBoundary>
 
                 {/*
-                  T145 puts the handed-off lane here, between the tickets and
-                  the active ticket. **It does not exist**: M2 is blocked on a
-                  JQL probe against a real Jira that has not been run, and
-                  FR-123b says report that lane unbuildable rather than
-                  approximate it. The gap is left in the arrangement rather than
-                  closed over, so the column does not have to be re-reasoned
-                  when it arrives.
+                  T145 put a "no longer mine" lane here, between the tickets and
+                  the active ticket. **It was dropped on 2026-08-20**, by the
+                  operator, rather than shipped as an approximation: it needed
+                  JQL history operators verified against a real Jira and there
+                  was none to reach. Nothing was ever built, so nothing was
+                  removed from this file — this note exists so the next reader
+                  does not re-derive the lane from the specification and wonder
+                  where it went. See `specs/007-agent-console/spec.md`.
                 */}
 
                 <LaneBoundary lane="Active ticket">

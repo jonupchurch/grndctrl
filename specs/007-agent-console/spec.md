@@ -30,13 +30,32 @@ And a board that is now seven regions tall on one page needs to be foldable, or 
 
 | Added | Cost |
 |---|---|
-| **A "no longer mine" lane** | A second query per connection per sync, and a dependency on JQL history operators that [must be verified before anything is built](./research.md#-the-one-thing-that-must-be-verified-before-building). |
+| ~~**A "no longer mine" lane**~~ | ⛔ **Dropped 2026-08-20** — see below. The verification it depended on could not be done. |
 | **Active ticket panel** | The first time this application fetches and renders a ticket's **description**, which is rich text from an untrusted source in a format that is not plain text. See [R1](./research.md#r1--the-ticket-description-is-not-a-string--changes-the-design). |
 | **Agent update panel** | A new authored table, a new MCP tool, and a retention policy — an append-only log with no bound grows until it is a problem. |
 | **Recent prompts panel** | A new authored table, a new MCP tool, and **the first new capability the shell has granted the renderer since 001**: writing to the system clipboard. |
 | **Collapsible sections** | Persisted per-section state, and a rule about what "collapsed" means to everything that counts rows. |
 
 ### What the lane actually is
+
+> **⛔ Out of scope, by the operator's decision on 2026-08-20.** The lane needed
+> JQL history operators (`assignee CHANGED FROM currentUser() AFTER -7d`) verified
+> against a real Jira, which could not be reached from where the work was being
+> done. Asked whether to ship without it, wait, or drop it, the operator answered:
+> *"we can remove that feature if it's going to create crazy issues. Drop it and
+> mark it as out of scope."*
+>
+> **Nothing was built, so nothing was removed** — no operation, no lane, no
+> column, no migration. What follows is kept as written rather than deleted,
+> because it is the record of a feature that was specified and then declined, and
+> the reasoning in it is the reason not to reach for the wider "everything not
+> assigned to me" later.
+>
+> **The one real cost is recorded in [tasks.md](./tasks.md#t111):** two end-to-end
+> assertions were retired at 006 on the explicit promise that T111 would restore
+> them against a second lane. There is no second lane now. Both are replaced by
+> source-level tests rather than left dangling.
+
 
 The screenshot said *"Recent Tickets not assigned"*, which reads as the backlog. It is not. Corrected twice by the operator in conversation: **items that were assigned to them, now are not, and changed hands in the last seven days.**
 
@@ -88,7 +107,26 @@ Prompts the operator has given agents are recorded as they are used. The panel l
 
 ---
 
-### User Story 3 - Notice what stopped being yours (Priority: P3)
+### User Story 3 - Notice what stopped being yours (Priority: P3) — ⛔ OUT OF SCOPE
+
+> **⛔ Out of scope, by the operator's decision on 2026-08-20.** The lane needed
+> JQL history operators (`assignee CHANGED FROM currentUser() AFTER -7d`) verified
+> against a real Jira, which could not be reached from where the work was being
+> done. Asked whether to ship without it, wait, or drop it, the operator answered:
+> *"we can remove that feature if it's going to create crazy issues. Drop it and
+> mark it as out of scope."*
+>
+> **Nothing was built, so nothing was removed** — no operation, no lane, no
+> column, no migration. What follows is kept as written rather than deleted,
+> because it is the record of a feature that was specified and then declined, and
+> the reasoning in it is the reason not to reach for the wider "everything not
+> assigned to me" later.
+>
+> **The one real cost is recorded in [tasks.md](./tasks.md#t111):** two end-to-end
+> assertions were retired at 006 on the explicit promise that T111 would restore
+> them against a second lane. There is no second lane now. Both are replaced by
+> source-level tests rather than left dangling.
+
 
 A ticket the operator was assigned is reassigned, or unassigned, and today it simply disappears from the board between two syncs. A lane shows what left their hands in the last seven days, and who has it now.
 
@@ -147,7 +185,26 @@ Every region on the board — lanes, panels, and the tile row — can be collaps
 
 Numbering continues the single namespace 001 established.
 
-### The "no longer mine" lane
+### The "no longer mine" lane — ⛔ OUT OF SCOPE
+
+> **⛔ Out of scope, by the operator's decision on 2026-08-20.** The lane needed
+> JQL history operators (`assignee CHANGED FROM currentUser() AFTER -7d`) verified
+> against a real Jira, which could not be reached from where the work was being
+> done. Asked whether to ship without it, wait, or drop it, the operator answered:
+> *"we can remove that feature if it's going to create crazy issues. Drop it and
+> mark it as out of scope."*
+>
+> **Nothing was built, so nothing was removed** — no operation, no lane, no
+> column, no migration. What follows is kept as written rather than deleted,
+> because it is the record of a feature that was specified and then declined, and
+> the reasoning in it is the reason not to reach for the wider "everything not
+> assigned to me" later.
+>
+> **The one real cost is recorded in [tasks.md](./tasks.md#t111):** two end-to-end
+> assertions were retired at 006 on the explicit promise that T111 would restore
+> them against a second lane. There is no second lane now. Both are replaced by
+> source-level tests rather than left dangling.
+
 
 - **FR-123**: The system MUST fetch, for each bound project, tickets whose assignee **changed away from the operator within the last seven days and is not the operator now** — scoped at the query, using the tracker's issue history. It MUST NOT fetch tickets that were never the operator's.
 - **FR-123a**: The query MUST match tickets that became **unassigned** as well as tickets reassigned to a person. A comparison operator alone does not match an empty field, and a lane that silently omits the unassigned ones has dropped the rows nobody picked up.

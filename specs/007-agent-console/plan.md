@@ -106,6 +106,10 @@ docs/agents.md   + the CLAUDE.md snippet that makes an agent actually call these
 
 ### M2 — The "no longer mine" lane
 
+> **⛔ Out of scope from 2026-08-20.** The request below was never sent — no
+> reachable Jira — and the operator chose to drop the milestone rather than ship
+> an approximation or hold the release. Nothing was built.
+
 **Starts with one request against a real Jira**, not with code: does `/rest/api/3/search/jql` accept `assignee CHANGED FROM currentUser() AFTER -7d`? There is no client-side fallback ([R2](./research.md#-the-one-thing-that-must-be-verified-before-building)), so if the answer is no this milestone stops and becomes a conversation rather than an approximation.
 
 Then the second query, the single write, the correlation exclusion, and the lane with its assignee column.

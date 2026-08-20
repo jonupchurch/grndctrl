@@ -55,6 +55,16 @@ Three clauses, each load-bearing:
 
 ### ⚠ The one thing that must be verified before building
 
+> **⛔ It was never verified, and on 2026-08-20 the operator dropped the feature
+> instead.** No Jira was reachable from where the work was being done, and the
+> choice was between shipping without the lane, waiting for a machine that could
+> reach one, or removing it. They removed it.
+>
+> **This section stays because the argument in it outlives the feature.** If a
+> "not assigned to me" lane is ever proposed again, everything below is why the
+> obvious version of it is the wrong one — and the paragraph after next is why
+> there is no client-side way to answer the question at all.
+
 **JQL's history operators may not be available on the enhanced search endpoint.** `CHANGED`, `WAS` and `WAS IN` are backed by the issue changelog, and this application uses `/rest/api/3/search/jql` — the replacement for the deprecated `/search`, which came with its own restrictions (R2 of 001 found two already).
 
 **There is no fallback.** Changelogs are fetched by `/rest/api/3/changelog/bulkfetch`, which takes issue keys — and the keys of tickets reassigned away are precisely the ones this application no longer has, because the assignee-scoped query stopped returning them. The history cannot be searched from the client side.

@@ -278,17 +278,22 @@ changes ship as one release.
 
 Named rather than left to be discovered.
 
-- **The "no longer assigned to me" lane is not in this release.** It was
-  specified — tickets that were yours and changed hands in the last seven days —
-  and it is the one part of the agent console that is not built. It needs a JQL
-  query (`assignee CHANGED FROM currentUser() AFTER -7d`) verified against a real
-  Jira before anything is written against it, because this endpoint has already
-  produced two restrictions its documentation does not mention. There is **no
-  client-side fallback**: the changelog endpoint takes issue keys, and the keys
-  of tickets reassigned away are exactly the ones the assignee-scoped query
-  stopped returning. Rather than approximate it with the wider "everything not
-  assigned to me" — a different question, and the one the scope was narrowed
-  away *from* — the lane is absent and this entry says so.
+- **The "no longer assigned to me" lane was specified and then dropped.** It
+  would have shown tickets that were yours and changed hands in the last seven
+  days. It needed JQL history operators (`assignee CHANGED FROM currentUser()
+  AFTER -7d`) verified against a real Jira before anything could be written
+  against them — this endpoint has already produced two restrictions its
+  documentation does not mention — and no Jira could be reached to run that one
+  request. There is **no client-side fallback**: the changelog endpoint takes
+  issue keys, and the keys of tickets reassigned away are exactly the ones the
+  assignee-scoped query stopped returning.
+
+  The choice was to ship without it, wait, or remove it, and it was removed.
+  **Nothing was built, so nothing was removed from the product** — no operation,
+  no lane, no column, no migration; the specification records the decision
+  instead. The wider reading, "everything not assigned to me", remains the one
+  thing that will not be substituted: it is a different question and the export
+  the scoping rule exists to prevent.
 
 - **Three of the four new regions are empty until an agent uses them.** The
   active ticket, the update stream and the prompt shelf are all populated over

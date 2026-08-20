@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-20 (0.4.0 cut on a branch, not published; 007 complete but for its blocked lane) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-20 (0.4.0 ready to tag; 006 and 007 both complete) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.4.0 is not on the registry.** It is cut on
 `006-remove-code-host-and-local-git`, which is **pushed to `origin` and not
@@ -805,21 +805,23 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Decide whether 0.4.0 ships without the handed-off lane.** Everything else in
-006 and 007 is built: M1, M3a, M3b, M4, M5 and M6 are done, the branch is
-**pushed** to `origin` with CI green, and nothing is tagged — so nothing is
-published. `release.yml` fires on `v*` tags only.
+**Cut 0.4.0 and tag it.** 006 and 007 are both complete. The branch is **pushed**
+to `origin` with CI green, and nothing is tagged — so nothing is published;
+`release.yml` fires on `v*` tags only.
 
-**This is a question rather than a task.** The standing decision from 2026-08-19
-was that 006 and 007 release together as one 0.4.0 and **nothing is tagged until
-007 is done**. 007 is done except M2, the "no longer assigned to me" lane, which
-is blocked on a JQL probe against a real Jira that the operator cannot reach from
-where they are working. So either 0.4.0 ships with that lane named as a known gap
-— it is written up as one in `CHANGELOG.md` — or the release waits for a machine
-that can reach a Jira. Both are defensible and the choice is not mine.
+**007 is complete because M2 was dropped, not because it was finished.** On
+2026-08-20 the operator was asked whether to ship without the "no longer mine"
+lane, wait for a Jira to probe, or remove it. They removed it: *"we can remove
+that feature if it's going to create crazy issues. Drop it and mark it as out of
+scope."* Nothing had been built, so nothing was removed from the product — no
+operation, no lane, no column, no migration. The specification, the tasks file,
+the research and the changelog all record the decision rather than deleting the
+feature, because the reasoning in them is the reason not to reach for the wider
+"everything not assigned to me" later.
 
-T152's remaining half, the version cut and the tag, follows whichever way that
-goes.
+So the standing decision from 2026-08-19 — one 0.4.0 for 006 and 007, nothing
+tagged until 007 is done — is now satisfied. **Tagging is publishing and is not
+reversible**, so it is the operator's to trigger.
 
 ### The decisions taken on 2026-08-19, all by the operator
 
@@ -848,7 +850,12 @@ for every one of them — which is how this was nearly waved through. The
 question "would a push carry this?" has exactly one reliable form, and it is
 `--rev HEAD`.
 
-**M2 is blocked, and the block is a fact rather than a preference.** The
+> **⛔ Superseded 2026-08-20: the lane was dropped rather than probed.** The
+> paragraphs below are kept because the argument in them is why the obvious
+> replacement is the wrong one, and because "there is no client-side fallback" is
+> the fact that made dropping it the honest option rather than a shortcut.
+
+**M2 was blocked, and the block was a fact rather than a preference.** The
 handed-off lane needs `assignee CHANGED FROM currentUser() AFTER -7d` on Jira's
 enhanced `/rest/api/3/search/jql`, and T106a says to verify that against a real
 site before writing anything else in that milestone. The operator cannot reach a
@@ -875,12 +882,12 @@ without any of the others.
 | Milestone | State |
 |---|---|
 | M1 — Collapsible regions | ✅ Complete — T101—T106 |
-| M2 — The handed-off lane | ⛔ Blocked on T106a, moved to last |
+| M2 — The handed-off lane | ⛔ **Dropped 2026-08-20** — out of scope, never built |
 | M3a — The active ticket | ✅ Complete — T114—T120 |
 | M3b — The ticket description | ✅ Complete — T121—T127 |
 | M4 — Agent updates | ✅ Complete — T128—T134 |
 | M5 — Prompts and the clipboard | ✅ Complete — T135—T144 |
-| M6 — Layout, docs, audits | ✅ Complete — T145—T151; T152 needs a decision |
+| M6 — Layout, docs, audits | ✅ Complete — T145—T151; T152 is the tag |
 
 827 unit tests and 105 end-to-end tests green, nothing skipped, nothing known
 failing.
@@ -1014,6 +1021,17 @@ those rows need is M2's to decide, and a fixture guessing at it would be rewritt
 by the milestone that defines it. The scenario-reader test now enumerates the
 directory rather than naming two files, so the third one could not have been
 skipped in silence.
+
+**The one real cost of dropping M2, and it is not the lane.** Two end-to-end
+assertions in `board.spec.ts` were retired at 006 *on the explicit promise that
+T111 would restore them* against a second lane: per-lane sort independence, and
+the `data-metrics` opt-in for a lane without metric columns. Both guarantees are
+still real in the code and both are now permanently unobservable end-to-end — the
+board has one sortable lane and every lane carries the metric columns. They are
+replaced by source-level assertions in `test/renderer/lane-guarantees.test.ts`,
+which is **weaker than what it replaces** and says so: it proves the construction
+rather than the behaviour. If a second lane ever arrives, restore the real
+assertions and delete that file.
 
 **What M3a and M3b leave open.** Two of 007's four new panels are empty until an
 agent is configured to call the new tools, and nothing in this application can

@@ -270,9 +270,14 @@ test('a column heading sorts its lane, and a third press gives the order back', 
  * It is simply unobservable on a board with a single sortable lane, and a test
  * that cannot fail is worse than an absent one because it reads as cover.
  *
- * 007 adds the handed-off lane, and its T111 carries restoring this. That is
- * the whole reason this comment exists rather than a quiet deletion: a
- * guarantee dropped silently at M1 is a guarantee nobody remembers at M6.
+ * This said "007 adds the handed-off lane, and its T111 carries restoring
+ * this". **That lane was dropped on 2026-08-20 without being built**, so the
+ * promise is void and there is no second sortable lane coming. The comment is
+ * kept rather than deleted for its original reason -- a guarantee dropped
+ * silently is a guarantee nobody remembers -- and the assertion now lives in
+ * `test/renderer/lane-guarantees.test.ts`, against the source, which is weaker
+ * than this was and is what is available. If a second lane ever arrives, restore
+ * the real test here and delete that one.
  */
 
 /**
@@ -351,9 +356,13 @@ test('the column headings line up with the cells beneath them', async () => {
  * goes for the same reason as the per-lane sort test above: it needed a lane
  * without the metric columns, and after 006 every lane on the board has them.
  *
- * The opt-in behaviour it guarded is intact — `data-metrics` still drives both
- * the grid template and the headings from one flag — and 007's handed-off lane
- * is the next lane that will not carry them. T111 restores the assertion there.
+ * The opt-in behaviour it guarded is intact -- `data-metrics` still drives both
+ * the grid template and the headings from one flag. This said 007's handed-off
+ * lane would be the next lane without them and that T111 would restore the
+ * assertion; **that lane was dropped on 2026-08-20 without being built**. There
+ * is no lane on the board that omits the metric columns, so this cannot be
+ * observed end-to-end at all. `test/renderer/lane-guarantees.test.ts` asserts
+ * the construction instead.
  */
 
 test('the operator court tile filters the whole board', async () => {

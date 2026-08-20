@@ -34,6 +34,9 @@ Then launch and:
 
 ## M2 — The "no longer mine" lane
 
+> **⛔ M2 is out of scope from 2026-08-20.** Skip this step; the lane it gates
+> was dropped rather than approximated.
+
 **First, before any of this** (T106a): send `assignee CHANGED FROM currentUser() AFTER -7d` to `/rest/api/3/search/jql` and see if Jira accepts it. One request. If it does not, the lane cannot be built as specified and that is a conversation, not a workaround.
 
 Then:

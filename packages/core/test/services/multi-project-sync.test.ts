@@ -25,7 +25,7 @@ import { project, settings, ticket, NOW } from '../correlation/builders.js'
  * **006 removed the GitHub and checkout halves of this file**, which held the
  * same rule against `replaceRepository` and `replaceWorkspaces`. The rule itself
  * is unchanged and is about to matter again: 007 adds a second ticket query on
- * the same connection — the handed-off lane — and `replaceTickets` still
+ * the same connection — 007 planned a second one — and `replaceTickets` still
  * deletes by connection, so those two result sets have to go in as one write or
  * the second discards the first. This file is where that will be caught.
  */

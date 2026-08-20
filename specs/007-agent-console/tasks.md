@@ -37,8 +37,23 @@ Applied to the existing regions first, so the four new ones inherit it rather th
 
 Needs nothing from the agent surface. Needs one thing from Jira, and that comes first.
 
-- **T106a** **Before any code**: send `assignee CHANGED FROM currentUser() AFTER -7d` to `/rest/api/3/search/jql` against a real site and see whether it is accepted. **There is no client-side fallback** — the changelog endpoint takes issue keys, and the keys of tickets reassigned away are exactly the ones this application no longer holds ([R2](./research.md#-the-one-thing-that-must-be-verified-before-building)). If it is refused, stop and report it (FR-123b); do not substitute the wider "everything not assigned to me", which is the reading the operator narrowed away from.
-- **T107** `services/sync.ts` — the second query:
+> **⛔ M2 is out of scope from 2026-08-20**, by the operator's decision. The
+> probe below could not be run — no reachable Jira — and asked whether to ship
+> without the lane, wait for one, or drop it, they chose to drop it. **T106a to
+> T113 are all cancelled.** Nothing had been built, so nothing was removed.
+>
+> <a id="t111"></a>**The one thing that does not simply cancel is T111.** Two
+> end-to-end assertions in `board.spec.ts` were retired at 006 *on the explicit
+> promise that T111 would restore them* against a second lane: per-lane sort
+> independence, and the `data-metrics` opt-in for a lane without metric columns.
+> Both guarantees are still real in the code and both are now permanently
+> unobservable end-to-end, because the board has one sortable lane and every lane
+> carries the metric columns. They are replaced by source-level assertions in
+> `test/renderer/lane-guarantees.test.ts` rather than left pointing at a
+> milestone that will never arrive.
+
+- **T106a** ⛔ *(cancelled)* **Before any code**: send `assignee CHANGED FROM currentUser() AFTER -7d` to `/rest/api/3/search/jql` against a real site and see whether it is accepted. **There is no client-side fallback** — the changelog endpoint takes issue keys, and the keys of tickets reassigned away are exactly the ones this application no longer holds ([R2](./research.md#-the-one-thing-that-must-be-verified-before-building)). If it is refused, stop and report it (FR-123b); do not substitute the wider "everything not assigned to me", which is the reading the operator narrowed away from.
+- **T107** ⛔ *(cancelled)* `services/sync.ts` — the second query:
 
   ```
   project IN (…)
@@ -48,13 +63,13 @@ Needs nothing from the agent surface. Needs one thing from Jira, and that comes 
   ```
 
   **Both result sets concatenated into one `replaceTickets` call** — the R2 write trap. Two writes and the second discards the first.
-- **T108** **Probe T107 first, not after.** Write it as two writes, confirm the test catches it, then fix it. This bug's symptom is a lane empty on alternate syncs — the kind that reaches a bug report as "sometimes it does not work".
-- **T108a** **Probe the NULL clause.** Drop `OR assignee IS EMPTY` and confirm SC-021 fails. JQL comparison operators do not match empty fields, so the naive query still returns plenty of rows and looks fine — it has just silently lost every ticket that became unassigned, which are the ones nobody picked up.
-- **T109** `correlation/join.ts` — exclude tickets whose `assignee?.accountId` is not among `operatorAccountIds`, **once, at the top** (FR-124). Six consumers would otherwise each need to remember. **Not `mineOnly`** — it tests `ballInCourt !== 'you'` and `ball.ts` awards an unassigned ticket to the operator, so it passes exactly the rows it appears to remove.
-- **T110** `registry/ops/work.ts` — `tickets.handedOff`, envelope, `providerDerived`, carrying the window length alongside the rows ([operations.md](./contracts/operations.md#ticketshandedoff)). No cap: the set is bounded by construction and truncating it would hide the row worth seeing.
-- **T111** `renderer/lanes/HandedOff.tsx` — a lane on `Section`, newest first, obeying the project filter, **showing who holds each ticket now** (or that nobody does), stating the seven-day window, rows opening at the tracker.
-- **T112** SC-014: add rows to this lane in a scenario and assert **no** headline count, tile or ball-in-court number moves.
-- **T113** Update `docs/` and the sync comment. The comment in `sync.ts` argues *against* fetching anything but the operator's own work; it is still right — this lane is work the operator *was* holding — and must be rewritten to say so rather than deleted, or the next reader will re-derive the wrong conclusion and widen the query.
+- **T108** ⛔ *(cancelled)* **Probe T107 first, not after.** Write it as two writes, confirm the test catches it, then fix it. This bug's symptom is a lane empty on alternate syncs — the kind that reaches a bug report as "sometimes it does not work".
+- **T108a** ⛔ *(cancelled)* **Probe the NULL clause.** Drop `OR assignee IS EMPTY` and confirm SC-021 fails. JQL comparison operators do not match empty fields, so the naive query still returns plenty of rows and looks fine — it has just silently lost every ticket that became unassigned, which are the ones nobody picked up.
+- **T109** ⛔ *(cancelled)* `correlation/join.ts` — exclude tickets whose `assignee?.accountId` is not among `operatorAccountIds`, **once, at the top** (FR-124). Six consumers would otherwise each need to remember. **Not `mineOnly`** — it tests `ballInCourt !== 'you'` and `ball.ts` awards an unassigned ticket to the operator, so it passes exactly the rows it appears to remove.
+- **T110** ⛔ *(cancelled)* `registry/ops/work.ts` — `tickets.handedOff`, envelope, `providerDerived`, carrying the window length alongside the rows ([operations.md](./contracts/operations.md#ticketshandedoff)). No cap: the set is bounded by construction and truncating it would hide the row worth seeing.
+- **T111** ⛔ *(cancelled — but see the note above)* `renderer/lanes/HandedOff.tsx` — a lane on `Section`, newest first, obeying the project filter, **showing who holds each ticket now** (or that nobody does), stating the seven-day window, rows opening at the tracker.
+- **T112** ⛔ *(cancelled)* SC-014: add rows to this lane in a scenario and assert **no** headline count, tile or ball-in-court number moves.
+- **T113** ⛔ *(cancelled)* Update `docs/` and the sync comment. The comment in `sync.ts` argues *against* fetching anything but the operator's own work; it is still right — this lane is work the operator *was* holding — and must be rewritten to say so rather than deleted, or the next reader will re-derive the wrong conclusion and widen the query.
 
 ---
 
