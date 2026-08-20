@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
   Menu,
   screen,
@@ -12,7 +13,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { appDataDir, type Connection, type Settings, type SyncReport } from '@grndctrl/core'
 import { scheduler } from '@grndctrl/core/scheduler'
-import { CREDENTIAL_CHANNEL, OPEN_CHANNEL, OPEN_URL_CHANNEL } from '../shared/channels.js'
+import { COPY_CHANNEL, CREDENTIAL_CHANNEL, OPEN_CHANNEL, OPEN_URL_CHANNEL } from '../shared/channels.js'
+import { promptCopier, type CopyRequest } from './clipboard.js'
 import { credentialHandler, type CredentialResult } from './credential.js'
 import { registerIpcAdapter, type IpcResult, type IpcSender } from './ipc.js'
 import {
@@ -251,6 +253,34 @@ async function main(): Promise<void> {
       }
     },
   )
+
+  // The fourth. It takes a prompt *id* and reads the text here, so the string
+  // the operating system hands to the next application is one core stored rather
+  // than one the page chose (FR-139) — and it reads the clipboard back before
+  // reporting success, because a copy that silently did nothing is only
+  // discovered at the paste (FR-138). See `main/clipboard.ts`.
+  const copyPrompt = promptCopier({
+    dispatch,
+    writeText: (text) => clipboard.writeText(text),
+    readText: () => clipboard.readText(),
+  })
+
+  ipcMain.handle(COPY_CHANNEL, async (event, request: CopyRequest): Promise<IpcResult> => {
+    if (!trusted(senderOf(event))) {
+      return { ok: false, error: { code: 'invalid', message: 'Unrecognised sender.' } }
+    }
+    try {
+      return { ok: true, data: await copyPrompt(request) }
+    } catch (e) {
+      return {
+        ok: false,
+        error: {
+          code: 'invalid',
+          message: e instanceof Error ? e.message : 'Could not copy that prompt.',
+        },
+      }
+    }
+  })
 
   // The second non-operation channel, for the reason set out in
   // `shared/channels.ts`: a secret that never enters the registry cannot be put

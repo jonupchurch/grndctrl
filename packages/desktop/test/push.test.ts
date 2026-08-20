@@ -172,6 +172,43 @@ describe('events derived from what actually ran', () => {
     expect(target.sent).toEqual([])
   })
 
+  it('announces a prompt being recorded or deleted', async () => {
+    // Two callers on two surfaces: an agent records over MCP and the operator
+    // deletes from the window. Without this event each is invisible to the
+    // other, and the panel is only ever right about the half that happened here.
+    const target = recorder()
+    const dispatch = push({ targets: () => [target] }).observing(() => Promise.resolve({}))
+
+    for (const operation of ['prompts.record', 'prompts.delete']) {
+      await dispatch(operation, {})
+    }
+
+    expect(target.sent.map((s) => s.channel)).toEqual([
+      PUSH_CHANNELS.promptsChanged,
+      PUSH_CHANNELS.promptsChanged,
+    ])
+  })
+
+  it('says nothing when a prompt is read to be copied', async () => {
+    /*
+     * `prompts.get` is the copy path (FR-139), and it runs on every click.
+     *
+     * Announcing it would refetch the whole list each time the operator copied
+     * something, for data that had not changed - and would redraw the panel
+     * underneath the confirmation the click had just produced.
+     */
+    const target = recorder()
+    const dispatch = push({
+      targets: () => [target],
+      mutates: (operation) => operation !== 'prompts.get' && operation !== 'prompts.list',
+    }).observing(() => Promise.resolve({}))
+
+    await dispatch('prompts.get', { id: 'prompt:1' })
+    await dispatch('prompts.list', {})
+
+    expect(target.sent).toEqual([])
+  })
+
   // A heartbeat is explicitly *not* activity — the service is careful about that
   // — but it does move `sinceHeartbeatSec`, which is what turns a running
   // session amber. A liveness display that only updates when the agent does real

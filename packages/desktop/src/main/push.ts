@@ -36,6 +36,10 @@ import { PUSH_CHANNELS } from '../shared/channels.js'
  * - `updates:changed` — an agent posted an update. The panel is the one place
  *   an agent talks to the operator in sentences, and it is worth nothing if it
  *   only catches up when something else happens to invalidate the board.
+ * - `prompts:changed` — a prompt was recorded or deleted. Recorded almost
+ *   always by an agent and deleted only by the operator, so the two directions
+ *   of this one travel over different surfaces and neither would reach the other
+ *   without it.
  * - `focus:changed` — the active ticket was set or cleared. This is the event
  *   with the highest ratio of *agent* to *window* traffic on the list: the
  *   operator can set focus from a ticket row, but the caller it was built for is
@@ -107,6 +111,7 @@ export interface Push {
   focusChanged(): void
   updatesChanged(): void
   notesChanged(): void
+  promptsChanged(): void
   /**
    * Emit whatever this operation implies, having run.
    *
@@ -140,6 +145,7 @@ export function push(options: PushOptions): Push {
     focusChanged: () => broadcast(PUSH_CHANNELS.focusChanged, {}),
     updatesChanged: () => broadcast(PUSH_CHANNELS.updatesChanged, {}),
     notesChanged: () => broadcast(PUSH_CHANNELS.notesChanged, {}),
+    promptsChanged: () => broadcast(PUSH_CHANNELS.promptsChanged, {}),
 
     afterDispatch(operation) {
       // A read changes nothing, and announcing one is not merely wasteful — it
@@ -164,6 +170,10 @@ export function push(options: PushOptions): Push {
       if (operation.startsWith('focus.')) self.focusChanged()
       if (operation.startsWith('updates.')) self.updatesChanged()
       if (operation.startsWith('notes.')) self.notesChanged()
+      // `prompts.get` is a read and is filtered out above — which matters here
+      // because it is the copy path, and the operator pressing copy must not
+      // make the board refetch a list that did not change.
+      if (operation.startsWith('prompts.')) self.promptsChanged()
     },
 
     start() {

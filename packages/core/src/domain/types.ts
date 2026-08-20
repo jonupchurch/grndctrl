@@ -317,6 +317,33 @@ export interface AgentUpdate {
   postedAt: Timestamp
 }
 
+/**
+ * A prompt somebody was given, kept so it can be given again (007/FR-136).
+ *
+ * **The text is never truncated in storage and never truncated on the way to
+ * the clipboard** (FR-138). The panel truncates for display, which is a fact
+ * about a row being one line and nothing else; a copy that stopped mid-sentence
+ * would fail silently at the paste, which is a long way from the click.
+ *
+ * `sessionKey` and `projectId` are both nullable because an agent may record a
+ * prompt before it has started a session or while working outside any project,
+ * and refusing the record would lose the one thing worth keeping.
+ *
+ * This is the only entity in 007 with a delete (FR-140), and the reason is the
+ * content: a prompt is free text an agent was handed, and it may carry something
+ * the operator would rather not keep.
+ */
+export interface Prompt {
+  id: string
+  /** The whole thing, exactly as recorded. */
+  text: string
+  /** Who recorded it. From the session where there is one, from `Ctx` otherwise. */
+  agentId: string
+  sessionKey: NaturalKey | null
+  projectId: string | null
+  recordedAt: Timestamp
+}
+
 export type ActionKind = 'transition-ticket' | 'investigate'
 
 export type ActionState = 'pending' | 'claimed' | 'complete' | 'failed' | 'expired' | 'cancelled'

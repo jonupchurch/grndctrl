@@ -32,6 +32,17 @@ export interface Bridge {
     subjectKey: string
     url: string
   }): Promise<{ ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }>
+  /**
+   * Copy a recorded prompt. Takes its **id**, never its text (FR-139) — main
+   * reads the prompt and copies what it read, and answers with how many
+   * characters it read back off the clipboard.
+   */
+  copy(request: {
+    id: string
+  }): Promise<
+    | { ok: true; data: { id: string; length: number } }
+    | { ok: false; error: { code: string; message: string } }
+  >
   on: {
     syncProgress(listener: (payload: unknown) => void): () => void
     freshnessTick(listener: (payload: unknown) => void): () => void
@@ -40,6 +51,7 @@ export interface Bridge {
     focusChanged(listener: (payload: unknown) => void): () => void
     updatesChanged(listener: (payload: unknown) => void): () => void
     notesChanged(listener: (payload: unknown) => void): () => void
+    promptsChanged(listener: (payload: unknown) => void): () => void
   }
 }
 
@@ -159,6 +171,33 @@ export async function openDescriptionLink(subjectKey: string, url: string): Prom
 
   const result = await bridge.openLink({ subjectKey, url })
   if (!result.ok) throw new BridgeError(result.error.code, result.error.message)
+}
+
+/**
+ * Copy a recorded prompt to the clipboard.
+ *
+ * **Takes an id and returns a length**, and both halves are the requirement
+ * rather than a convenience. The id, because the renderer must not be able to
+ * name the string that lands on the operator's clipboard (FR-139) - main reads
+ * the prompt and copies what it read. The length, because a copy has to confirm
+ * it happened (FR-138): main reads the clipboard back and this number is what
+ * came off it, so a caller showing "copied 412 characters" is making a claim
+ * about the clipboard rather than about the click.
+ *
+ * Failure throws, so a caller cannot accidentally report success. A silent
+ * no-op here is the failure mode the whole feature is written around: it is
+ * indistinguishable from a working copy until the paste, in another window,
+ * later.
+ */
+export async function copyPrompt(id: string): Promise<{ length: number }> {
+  const bridge = window.grndctrl
+  if (bridge === undefined) {
+    throw new BridgeError('invalid', 'The application bridge is not available.')
+  }
+
+  const result = await bridge.copy({ id })
+  if (!result.ok) throw new BridgeError(result.error.code, result.error.message)
+  return { length: result.data.length }
 }
 
 export async function openSubject(subjectKey: string, target?: string): Promise<void> {

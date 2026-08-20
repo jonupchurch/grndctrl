@@ -394,6 +394,82 @@ const CASES: MigrationCase[] = [
       expect(survived?.agent_id).toBe('claude')
     },
   },
+  {
+    version: 5,
+    name: 'prompts',
+    /**
+     * Additive, and the case carries two properties beyond survival.
+     *
+     * **The text is stored whole.** FR-138 is a promise about what reaches the
+     * clipboard, and the only place a truncation could not be undone is the
+     * write. A `TEXT` column has no bound, so what is really being pinned here
+     * is that nobody adds one — a `CHECK (length(text) <= n)` would look like
+     * tidiness and would silently shorten the one field the feature exists to
+     * reproduce exactly.
+     *
+     * **No foreign keys**, asserted the same way migration 4's absence is: by
+     * deleting the things a reference would point at. A prompt recorded against
+     * a session that has since been tidied away, or a project the operator has
+     * removed, is still a prompt they may want to send again.
+     */
+    seed: (db) => {
+      db.prepare(
+        `INSERT INTO agent_sessions (key, agent_id, session_id, started_at, last_heartbeat_at,
+                                     heartbeat_interval_sec)
+         VALUES ('session:claude/b', 'claude', 'b', '2026-08-01T09:00:00Z',
+                 '2026-08-01T09:00:00Z', 60)`,
+      ).run()
+      db.prepare(
+        `INSERT INTO agent_updates (id, session_key, agent_id, ticket_key, text, posted_at)
+         VALUES ('u2', 'session:claude/b', 'claude', NULL, 'Still here.', '2026-08-01T10:00:00Z')`,
+      ).run()
+    },
+    verify: (db) => {
+      const columns = (db.prepare(`PRAGMA table_info("prompts")`).all() as { name: string }[]).map(
+        (c) => c.name,
+      )
+      expect(columns).toEqual([
+        'id',
+        'text',
+        'agent_id',
+        'session_key',
+        'project_id',
+        'recorded_at',
+      ])
+
+      // Migration 4's rows are untouched. A rebuild of a neighbouring table
+      // would pass a column check and lose these.
+      expect(
+        (db.prepare('SELECT text FROM agent_updates WHERE id = ?').get('u2') as { text: string })
+          .text,
+      ).toBe('Still here.')
+
+      // Thirty thousand characters in and thirty thousand out. The number is
+      // arbitrary; being far past anything a length constraint would be set to
+      // is not.
+      const long = 'x'.repeat(30_000)
+      db.prepare(
+        `INSERT INTO prompts (id, text, agent_id, session_key, project_id, recorded_at)
+         VALUES ('p1', ?, 'claude', 'session:claude/b', 'proj-1', '2026-08-01T11:00:00Z')`,
+      ).run(long)
+
+      expect(
+        (db.prepare('SELECT text FROM prompts WHERE id = ?').get('p1') as { text: string }).text
+          .length,
+      ).toBe(30_000)
+
+      // Neither reference is a constraint. Both deletions would fail, or would
+      // cascade, if one had been added.
+      db.prepare(`DELETE FROM agent_sessions WHERE key = 'session:claude/b'`).run()
+      db.prepare(`DELETE FROM projects WHERE id = 'proj-1'`).run()
+
+      const kept = db.prepare('SELECT session_key, project_id FROM prompts WHERE id = ?').get('p1') as
+        | { session_key: string | null; project_id: string | null }
+        | undefined
+      expect(kept?.session_key).toBe('session:claude/b')
+      expect(kept?.project_id).toBe('proj-1')
+    },
+  },
 ]
 
 describe('authored migrations', () => {

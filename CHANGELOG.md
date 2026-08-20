@@ -194,6 +194,42 @@ changes ship as one release.
   at 400 characters by the operation's schema, which is what makes terse a
   property of the data rather than a hope about agent behaviour.
 
+- **Recent prompts**, one click from the clipboard.
+
+  An agent records a prompt worth keeping through `grndctrl_record_prompt`; the
+  operator clicks it and the whole thing is on their clipboard. Four operations
+  — `prompts.list`, `prompts.get`, `prompts.record`, `prompts.delete` — of which
+  **`prompts.delete` is `ui-only`**: recording is an agent's and curating the
+  operator's own history is not. An agent that could delete a prompt could remove
+  the record of what it was asked to do.
+
+  **The renderer never supplies the text that gets copied.** The click sends a
+  prompt *id*; main reads that prompt through core and copies what it read. So a
+  page rendering provider-supplied strings cannot choose what the operator pastes
+  into a terminal next — the same discipline the launcher applies to URLs, one
+  step stricter, because there is no free-text argument at all.
+
+  **And the copy is verified against the clipboard, not against the argument.**
+  Main writes, reads back, and refuses to report success unless what came back is
+  what went in; the confirmation the row shows is that character count. A
+  clipboard write can fail silently when another application holds the OS
+  clipboard, and a copy that did nothing is indistinguishable from one that
+  worked until the paste — in another window, much later.
+
+  Nothing truncates on the way in or out. The row shows the first 160 characters,
+  cut in the renderer rather than with a CSS ellipsis, so the rest of the prompt
+  is genuinely not in the page. Retention is 200 across everything, pruned inside
+  the same write that records — one list, one bound, newest first.
+
+  This adds the **fourth** non-operation IPC channel, `grndctrl:copy`. Writing to
+  the system clipboard is a host affordance like opening a browser, and
+  `navigator.clipboard` is unavailable to a `file:` page under
+  `default-src 'none'` in any case.
+
+  **A recorded prompt may contain a secret somebody pasted.** It is authored data
+  in the operator's own local store, there is no automated redaction, and the
+  delete control is why deleting exists at all.
+
 - **Open questions from agents have a home again.** A `question-for-human` note
   appears at the top of the update panel, visually distinct from the stream, and
   opens the note so the answer is written where the question was asked. 006

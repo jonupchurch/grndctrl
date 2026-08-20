@@ -5,6 +5,7 @@ import { focusOperations } from './ops/focus.js'
 import { linksOperations } from './ops/links.js'
 import { notesOperations } from './ops/notes.js'
 import { outboxOperations } from './ops/outbox.js'
+import { promptsOperations } from './ops/prompts.js'
 import { sessionsOperations } from './ops/sessions.js'
 import { syncOperations } from './ops/sync.js'
 import { updatesOperations } from './ops/updates.js'
@@ -41,6 +42,7 @@ export function buildRegistry(services: CoreServices): Registry {
     ...notesOperations(services.notes),
     ...focusOperations(services.focus),
     ...updatesOperations(services.updates),
+    ...promptsOperations(services.prompts),
     ...sessionsOperations(services.sessions),
     ...outboxOperations(services.outbox),
     ...syncOperations(services),

@@ -112,9 +112,10 @@ test('the bridge exposes exactly the enumerated operations', async () => {
 
   expect(surface.operations).toEqual([...OPERATIONS].sort())
   // `open` is the launcher, `credential` is the write-only path to the keychain,
-  // `openLink` opens a link inside a ticket description, and `on` is the push
-  // subscriptions. Nothing else has any business being on the bridge, and a
-  // fifth member arriving here is the thing this assertion exists to notice.
+  // `openLink` opens a link inside a ticket description, `copy` puts a recorded
+  // prompt on the clipboard, and `on` is the push subscriptions. Nothing else
+  // has any business being on the bridge, and a sixth member arriving here is
+  // the thing this assertion exists to notice.
   //
   // `credential` is not an operation on purpose: the registry is served on the
   // loopback API and MCP too, so a secret in it would be kept off those surfaces
@@ -129,10 +130,15 @@ test('the bridge exposes exactly the enumerated operations', async () => {
   // capability being added here is "open a link the operator can already see",
   // not "open a URL".
   //
+  // `copy` is the newest and takes the least: a prompt **id**, no string at all.
+  // Main reads that prompt and copies what it read, so the page cannot choose
+  // what the operator pastes next - the same discipline as `openLink`, one step
+  // further, since there is no free-text argument to check in the first place.
+  //
   // **Named exhaustively.** The obvious fix when this fails is `toContain`, and
   // it would then wave through every future addition as well, which is the
   // entire failure this file exists to catch.
-  expect(surface.other).toEqual(['credential', 'on', 'open', 'openLink'])
+  expect(surface.other).toEqual(['copy', 'credential', 'on', 'open', 'openLink'])
 })
 
 test('the credential path is write-only', async () => {

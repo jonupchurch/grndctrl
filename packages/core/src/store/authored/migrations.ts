@@ -324,6 +324,45 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_updates_session ON agent_updates(session_key, posted_at DESC);
     `,
   },
+  {
+    version: 5,
+    name: 'prompts',
+    /**
+     * Prompts worth keeping, so they can be given again (007/FR-136).
+     *
+     * **The tasks file calls this "migration 3" too**, for the same reason
+     * migration 4 was misnumbered: the plan had M2 before both of these. Two
+     * entries with the same `version` is not a conflict SQLite reports — the
+     * second one silently never runs on a database that applied the first, and
+     * the symptom is a missing table on exactly the machines that upgraded.
+     *
+     * **`text` has no length limit and must not gain one.** FR-138 is that the
+     * whole prompt reaches the clipboard; a bound here would truncate at the
+     * write, which is the one place a truncation cannot be undone. The panel
+     * truncates for display and that is a property of a row, not of the store.
+     *
+     * **`session_key` and `project_id` are nullable, and neither is a foreign
+     * key.** An agent can be handed a prompt before it has started a session
+     * cleanly, and refusing that record would lose the thing worth keeping to
+     * enforce a reference nothing reads. Same reasoning as `agent_updates`
+     * above, and as `freshness.connection_id` before it.
+     *
+     * The index is on `recorded_at DESC` alone: every reader wants the newest
+     * few, across all sessions and all projects. It is also what the prune
+     * inside each write reads, which is the same shape the updates index serves.
+     */
+    up: `
+      CREATE TABLE prompts (
+        id          TEXT PRIMARY KEY,
+        text        TEXT NOT NULL,
+        agent_id    TEXT NOT NULL,
+        session_key TEXT,
+        project_id  TEXT,
+        recorded_at TEXT NOT NULL
+      );
+      CREATE INDEX idx_prompts_recorded ON prompts(recorded_at DESC);
+    `,
+  },
 ]
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {

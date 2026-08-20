@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   channelFor,
+  COPY_CHANNEL,
   CREDENTIAL_CHANNEL,
   OPEN_CHANNEL,
   OPEN_URL_CHANNEL,
@@ -108,6 +109,20 @@ contextBridge.exposeInMainWorld('grndctrl', {
   openLink: (request: { subjectKey: string; url: string }) =>
     ipcRenderer.invoke(OPEN_URL_CHANNEL, request),
 
+  /**
+   * Put a recorded prompt on the clipboard.
+   *
+   * Takes an id and not the text, deliberately (FR-139). Main reads the prompt
+   * and copies what it read, so what reaches the operating system is what core
+   * stored — the panel above has the text on screen, and being able to show a
+   * string is not the same as being able to choose the one that gets pasted.
+   *
+   * Answers with how many characters landed, read back off the clipboard rather
+   * than counted from the argument, so the confirmation the row shows is about
+   * the clipboard rather than about the click.
+   */
+  copy: (request: { id: string }) => ipcRenderer.invoke(COPY_CHANNEL, request),
+
   on: {
     syncProgress: subscribe(PUSH_CHANNELS.syncProgress),
     freshnessTick: subscribe(PUSH_CHANNELS.freshnessTick),
@@ -116,6 +131,7 @@ contextBridge.exposeInMainWorld('grndctrl', {
     focusChanged: subscribe(PUSH_CHANNELS.focusChanged),
     updatesChanged: subscribe(PUSH_CHANNELS.updatesChanged),
     notesChanged: subscribe(PUSH_CHANNELS.notesChanged),
+    promptsChanged: subscribe(PUSH_CHANNELS.promptsChanged),
   },
 })
 

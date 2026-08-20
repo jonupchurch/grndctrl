@@ -864,3 +864,104 @@
 .update--question:hover {
   background: var(--sunken);
 }
+
+/*
+ * A recorded prompt (FR-141).
+ *
+ * Same grid as an update and the same reason for not being a `.row`: the perf
+ * and greyscale suites count those, and a panel's worth of prompts in either
+ * number would be measuring the wrong thing.
+ *
+ * The text is a button and the delete is a second one, side by side, rather than
+ * a button inside a button - which is invalid markup and which browsers resolve
+ * by dropping one of the two click targets, usually the one you wanted.
+ */
+.prompt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-meta);
+}
+
+.prompt:last-child {
+  border-bottom: 0;
+}
+
+.prompt__copy {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prompt__copy:hover .prompt__text {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.prompt__text {
+  /*
+   * Wraps rather than clipping, and the clipping has already happened.
+   *
+   * The panel cuts the preview in JavaScript (`panels/Prompts.tsx`), so what is
+   * here is already short. A CSS ellipsis instead would leave the whole prompt
+   * in the DOM looking short, which is the arrangement where a copy path reading
+   * the rendered element would appear to work.
+   */
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.prompt__agent,
+.prompt__age {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.prompt__age {
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt__delete {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.prompt__delete:hover {
+  color: var(--critical);
+}
+
+/*
+ * The confirmation, and the refusal, occupy the same place.
+ *
+ * Spanning the whole row on its own line rather than squeezing beside the age:
+ * the failure text is a sentence ("The clipboard took 12 of 4,301 characters"),
+ * and a message that has to fit next to a timestamp is a message that gets
+ * truncated at exactly the moment it matters most.
+ */
+.prompt__copied,
+.prompt__failed {
+  grid-column: 1 / -1;
+  font-size: var(--t-meta);
+}
+
+.prompt__copied {
+  color: var(--good);
+}
+
+.prompt__failed {
+  color: var(--critical);
+}

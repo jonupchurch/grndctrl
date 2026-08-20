@@ -3,6 +3,7 @@ import type {
   AgentSession as CoreAgentSession,
   AgentUpdate as CoreAgentUpdate,
   Note as CoreNote,
+  Prompt as CorePrompt,
   Project as CoreProject,
   Ticket as CoreTicket,
   WorkItem as CoreWorkItem,
@@ -93,6 +94,19 @@ export type InlineNode = CoreInlineNode
 export type AgentUpdate = Pick<
   CoreAgentUpdate,
   'id' | 'sessionKey' | 'agentId' | 'ticketKey' | 'text' | 'postedAt'
+>
+
+/**
+ * A recorded prompt. Every field, and the text is the whole text.
+ *
+ * The panel truncates a row for display and **must not** truncate anything here:
+ * what the copy control sends is an id, and what main copies is what core holds
+ * (FR-138, FR-139). A narrowed type that dropped `text` would look tidier and
+ * would make the row unable to show a preview at all.
+ */
+export type Prompt = Pick<
+  CorePrompt,
+  'id' | 'text' | 'agentId' | 'sessionKey' | 'projectId' | 'recordedAt'
 >
 
 export type AgentSession = Pick<

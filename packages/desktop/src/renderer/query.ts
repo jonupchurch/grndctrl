@@ -137,6 +137,16 @@ export function usePushInvalidation(): void {
         void client.invalidateQueries({ queryKey: ['notes.questions'] })
         void client.invalidateQueries({ queryKey: ['notes.counts'] })
       }),
+      /*
+       * A prompt was recorded or deleted.
+       *
+       * Both directions matter and they arrive over different surfaces: an agent
+       * records one over MCP and the operator deletes one from the window, so
+       * without this the panel is only ever right about the half that happened
+       * here. There is no editing surface open over this list — the modal
+       * argument above does not apply — so the whole list refreshes.
+       */
+      bridge.on.promptsChanged(() => void client.invalidateQueries({ queryKey: ['prompts.list'] })),
       // Nothing changed; the numbers aged. Re-render without refetching — the
       // data is identical and only the "4 minutes ago" beside it is not.
       bridge.on.freshnessTick(() => void client.invalidateQueries({ queryKey: ['__tick'] })),

@@ -10,6 +10,7 @@ import { buildSyncTargets, type BuiltTargets } from './providers.js'
 import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
 import { focusService, type FocusService } from '../services/focus.js'
 import { updatesService, type UpdatesService } from '../services/updates.js'
+import { promptsService, type PromptsService } from '../services/prompts.js'
 import { notesService, type NotesService } from '../services/notes.js'
 import { outboxService, type OutboxService } from '../services/outbox.js'
 import { connectionsService, type ConnectionsService } from '../services/connections.js'
@@ -18,6 +19,7 @@ import { settingsStore, type SettingsStore } from '../services/settings.js'
 import { projectsRepository, type ProjectsRepository } from '../store/authored/config.js'
 import { focusRepository } from '../store/authored/focus.js'
 import { updatesRepository } from '../store/authored/updates.js'
+import { promptsRepository } from '../store/authored/prompts.js'
 import { notesRepository } from '../store/authored/notes.js'
 import { outboxRepository } from '../store/authored/outbox.js'
 import { sessionsRepository } from '../store/authored/sessions.js'
@@ -49,6 +51,8 @@ export interface CoreServices {
   focus: FocusService
   /** What agents have said while working. Append-only (FR-132). */
   updates: UpdatesService
+  /** Prompts kept so they can be sent again. The one authored thing with a delete (FR-136). */
+  prompts: PromptsService
   sessions: SessionsService
   outbox: OutboxService
   settings: SettingsStore
@@ -121,6 +125,12 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     activeTicket: () => focus.get()?.ticketKey ?? null,
   })
 
+  // Nothing injected. Unlike an update, a prompt takes its author from `Ctx`
+  // rather than from a session, and its `sessionKey` and `projectId` are labels
+  // it stores rather than references it resolves — so there is no second store
+  // for this one to reach.
+  const prompts = promptsService({ prompts: promptsRepository(authoredDb) })
+
   const sessions = sessionsService({
     sessions: sessionsRepo,
     openQuestionSubjects: () => notesRepo.openQuestionSubjects(),
@@ -188,6 +198,7 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     notes,
     focus,
     updates,
+    prompts,
     sessions,
     outbox,
     settings,

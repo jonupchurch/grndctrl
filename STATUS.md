@@ -1,9 +1,11 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-19 (0.4.0 cut on a branch, not published) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-20 (0.4.0 cut on a branch, not published) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.4.0 is not on the registry.** It is cut on
-`006-remove-code-host-and-local-git`, which is **local and unpushed**. It removes
+`006-remove-code-host-and-local-git`, which is **pushed to `origin` and not
+tagged** — CI is green on it and `release.yml` fires on `v*` tags only, so
+nothing from it is on the registry. It removes
 the GitHub provider, the local git reader and drift detection, so it is the first
 release where an upgrade takes capability away — read the breaking list in
 `CHANGELOG.md` before tagging it.
@@ -47,7 +49,8 @@ file describes only the present and the immediate next step.
 ### 0.4.0: one provider, one lane, and no drift
 
 **Cut on `006-remove-code-host-and-local-git`, not published.** The branch is
-local; nothing is tagged and nothing is pushed. What follows is what is in it.
+pushed with CI green; **nothing is tagged**, which is the part that decides
+whether anything is published. What follows is what is in it.
 
 **The GitHub provider, the local git reader and drift are gone — all of them.**
 Not six of the nine drift rules: the Attention region, the DRIFTING tile, the
@@ -802,9 +805,15 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Build 007 M5, prompts and the clipboard.** 006 is complete; 007 M1, M3a, M3b
-and M4 are built. The branch is **pushed** to `origin` and CI is green on it. Nothing is
-tagged, so nothing is published — `release.yml` fires on `v*` tags only.
+**Build 007 M6, the final layout and the release checks.** 006 is complete; 007
+M1, M3a, M3b, M4 and M5 are built. The branch is **pushed** to `origin` and CI is
+green on it. Nothing is tagged, so nothing is published — `release.yml` fires on
+`v*` tags only.
+
+**M6 opens with T145, and T146 is the one task that needs the operator**: look at
+the board running and decide about the three changes made without them — the
+"Summary" header above the tiles, the second control in the ticket row's trailing
+slot, and now the shape of the prompt panel.
 
 ### The decisions taken on 2026-08-19, all by the operator
 
@@ -864,10 +873,10 @@ without any of the others.
 | M3a — The active ticket | ✅ Complete — T114—T120 |
 | M3b — The ticket description | ✅ Complete — T121—T127 |
 | M4 — Agent updates | ✅ Complete — T128—T134 |
-| M5 — Prompts | ⬜ Next |
-| M6 — Layout, docs, audits | ⬜ |
+| M5 — Prompts and the clipboard | ✅ Complete — T135—T144 |
+| M6 — Layout, docs, audits | ⬜ Next |
 
-795 unit tests and 94 end-to-end tests green, nothing skipped, nothing known
+820 unit tests and 100 end-to-end tests green, nothing skipped, nothing known
 failing.
 
 **M4 found a defect older than 007, and it is worth reading before M5.** There
@@ -906,6 +915,48 @@ separate from the launcher so "the launcher path has no URL argument" stays
 exactly true. `preload-surface.test.ts` names all three exhaustively; it was
 updated by naming the new one, never by relaxing it to a subset check, which is
 the fix that reads as reasonable and then permits every future addition too.
+
+**M5 added the fourth non-operation IPC channel, and the argument for it is
+narrower than the third's.** `grndctrl:copy` takes a prompt **id** — no string at
+all — and main reads that prompt through `prompts.get` and copies what it read.
+So where `grndctrl:open-url` has to check a URL the renderer supplied against
+core's copy, this one has nothing to check: there is no free-text argument. The
+renderer does hold the text, because the panel lists prompts, and that is a
+different capability from choosing what the operating system hands to the next
+application. `preload-surface.test.ts` and `isolation.spec.ts` both name the four
+exhaustively, and both were updated by naming rather than by relaxing.
+
+**The copy is verified against the clipboard, not against the argument.** Main
+writes, reads back, and refuses to report success unless what came back is what
+went in — because a clipboard write can fail silently when another application
+holds the OS clipboard, and `writeText` returns nothing either way. The count the
+row shows ("Copied 1,240 characters") is that read-back, which makes the
+confirmation a claim about the clipboard rather than about the click. SC-017 asks
+for exactly this and the end-to-end test reads `clipboard.readText()` in the main
+process; probed by removing the write, two of the six tests went red.
+
+**And a test of mine was vacuous until a probe caught it.** The retention case
+listed prompts and asserted the oldest was gone — but `prompts.list` takes a limit
+the schema caps at exactly the retention bound, so "the newest 200" looks
+identical whether the 201st was deleted or is merely off the end of the page.
+Deleting the prune left all three assertions green. It now reads the oldest row
+**by id** through `prompts.get`, where a limit has no say. **A read that cannot
+see past the bound cannot be used to test the bound.**
+
+**One deviation from the tasks file, taken deliberately.** T137 says three
+operations; there are four. The fourth is `prompts.get`, which exists because the
+copy channel takes an id and main has to read the text from somewhere. It is
+`ui-only` for a surface-design reason rather than a privilege one — everything it
+returns is already in `prompts.list`, so a tool for it would put a choice in an
+agent's tool list where there is no decision to make. Nothing is withheld from
+agents by it. `prompts.delete` is `ui-only` for the real reason: curating the
+operator's own history is not an agent's business.
+
+**Authored migration numbering has now drifted twice from the tasks file, and the
+file is wrong both times.** `prompts` is migration **5**, not the 3 the file
+names — M3a took 3 and M4 took 4, because the plan had M2 before them. A
+duplicate `version` is not an error SQLite reports: the second entry silently
+never runs on a database that already applied the first.
 
 **What M3a and M3b leave open.** Two of 007's four new panels are empty until an
 agent is configured to call the new tools, and nothing in this application can

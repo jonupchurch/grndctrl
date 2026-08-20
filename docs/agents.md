@@ -187,6 +187,39 @@ wrong? Say something else; the operator is reading a history.
 
 Each session keeps its most recent 50, pruned as each one is written.
 
+### Prompts
+
+| Tool | |
+| --- | --- |
+| `grndctrl_record_prompt` | Keep a prompt the operator may want to send again |
+| `grndctrl_list_prompts` | What has been recorded, newest first, in full |
+
+The panel this fills is a **shelf, not a transcript**. Its value is that the
+operator can click a prompt and have the whole thing on their clipboard, so what
+belongs here is a prompt that worked or one worth reusing on similar work — not
+every message in a conversation. The list is bounded at 200 across everything,
+pruned as each one is written, so a chatty recorder pushes out the things worth
+keeping.
+
+**Record the prompt, not a summary of it.** Nothing truncates: the store keeps
+what you send and the clipboard gets all of it, which is the entire point. A
+prompt that arrives abridged is one the operator pastes and then has to repair.
+
+**Who recorded it comes from the caller**, like an update's author. The session
+and project are labels you may attach; neither is checked against anything and
+neither has to still exist.
+
+There is **no edit and no delete on this surface**. Editing is absent everywhere
+— a corrected prompt would make the copy control reproduce something that was
+never sent. Deleting exists only in the operator's window, because the reason a
+prompt gets removed is that it turned out to contain something they would rather
+not keep, and that judgement is theirs.
+
+Which brings up the thing worth being plain about: **a prompt you record may
+contain a secret somebody pasted at you.** It goes into the operator's own local
+store, on their machine, and there is no automated redaction. They can delete it.
+You cannot.
+
 ### Sessions
 
 | Tool | |
@@ -266,6 +299,11 @@ against the provider by construction — the provider interface has no
 `transitionIssue` and no `createComment` to call. When you claim an action, you
 perform it with **your own** credentials and tools, and report the outcome back.
 Ground Control is the board and the record; it is not the hand.
+
+**Delete a recorded prompt.** `prompts.delete` is `ui-only`. Recording is yours
+and curating is theirs - an agent that could delete a prompt could remove the
+record of what it was asked to do. Reading them back is allowed, and is often the
+fastest way to find out how work like this has been asked for before.
 
 **Touch the operator's disk.** There is no local git reader any more and no
 checkout binding to point one at. The application spawns no child process at

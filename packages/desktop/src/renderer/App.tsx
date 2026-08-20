@@ -12,11 +12,12 @@ import { LaneBoundary } from './lanes/LaneBoundary.js'
 import { Sessions } from './lanes/Sessions.js'
 import { ActiveTicket, type ActiveTicketView } from './panels/ActiveTicket.js'
 import { AgentUpdates } from './panels/AgentUpdates.js'
+import { Prompts } from './panels/Prompts.js'
 import { call } from './bridge.js'
 import { useOperation, usePushInvalidation, worstFreshness, type Envelope } from './query.js'
 import { Settings } from './settings/Settings.js'
 import { Titlebar } from './Titlebar.js'
-import type { AgentSession, AgentUpdate, Note, Project, WorkItem } from './types.js'
+import type { AgentSession, AgentUpdate, Note, Project, Prompt, WorkItem } from './types.js'
 
 /**
  * One page (T137).
@@ -95,6 +96,16 @@ export function App(): ReactElement {
   const updates = useOperation<AgentUpdate[]>('updates.list')
 
   /**
+   * Prompts worth keeping (FR-136).
+   *
+   * Unfiltered by session and by project, for the same reason the updates above
+   * are: the panel's value is that the operator can grab a prompt and send it
+   * somewhere else, and the one they want is as likely to be from last week's
+   * work as from the ticket they happen to be looking at.
+   */
+  const prompts = useOperation<Prompt[]>('prompts.list')
+
+  /**
    * Every subject a row could carry a badge for, in one call (T150).
    *
    * Taken from the **unfiltered** snapshot on purpose. Keying the query on the
@@ -154,8 +165,8 @@ export function App(): ReactElement {
    * Which regions are folded away (T102, T103).
    *
    * **The ids are literals, here and in each component that names one**:
-   * `summary`, `connections`, `tickets`, `active-ticket`, `updates`, `sessions`,
-   * `court`. They are the keys
+   * `summary`, `connections`, `tickets`, `active-ticket`, `updates`, `prompts`,
+   * `sessions`, `court`. They are the keys
    * of a stored preference, so a generated one would change between builds and
    * quietly unfold everything the operator had put away — and would leave a dead
    * key behind each time. There is no registry of them and there deliberately is
@@ -188,6 +199,23 @@ export function App(): ReactElement {
 
   const clearActive = useCallback(() => {
     void call('focus.clear', {}).catch(() => undefined)
+  }, [])
+
+  /**
+   * Removing a recorded prompt (FR-140).
+   *
+   * Nothing is invalidated here. `prompts.delete` mutates, so main's push
+   * wrapper announces `prompts:changed` when it returns and
+   * `usePushInvalidation` refetches - the same one-code-path rule the focus
+   * controls above follow.
+   *
+   * There is no confirmation dialog. The thing being deleted is one line of
+   * recorded text in the operator's own store, and a modal between them and
+   * removing a prompt that turned out to have a token in it is friction on
+   * exactly the wrong side.
+   */
+  const deletePrompt = useCallback((id: string) => {
+    void call('prompts.delete', { id }).catch(() => undefined)
   }, [])
 
   const refresh = useCallback(() => {
@@ -341,6 +369,15 @@ export function App(): ReactElement {
                     questions={(questions.data ?? []).filter((n) => n.resolvedAt === null)}
                     onOpenQuestion={(key, label) => setNotesFor({ key, label })}
                   />
+                </LaneBoundary>
+
+                {/*
+                  Below the updates, because it is the one panel here that is
+                  not about what is happening now - it is a shelf the operator
+                  reaches for when starting something.
+                */}
+                <LaneBoundary lane="Recent prompts">
+                  <Prompts prompts={prompts.data ?? []} onDelete={deletePrompt} />
                 </LaneBoundary>
 
                 <LaneBoundary lane="Agent sessions">

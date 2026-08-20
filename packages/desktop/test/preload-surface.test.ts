@@ -85,7 +85,7 @@ describe('what the preload does not expose', () => {
     expect(invocations.length).toBeGreaterThan(0)
     for (const [, , argument] of invocations) {
       expect(
-        ['channel', 'OPEN_CHANNEL', 'CREDENTIAL_CHANNEL', 'OPEN_URL_CHANNEL'],
+        ['channel', 'OPEN_CHANNEL', 'CREDENTIAL_CHANNEL', 'OPEN_URL_CHANNEL', 'COPY_CHANNEL'],
         `channel argument was '${argument}'`,
       ).toContain(argument?.trim())
     }
@@ -130,20 +130,30 @@ describe('the non-operation channels', () => {
   // forever. A secret that never enters the registry cannot be exposed by
   // getting an exposure wrong.
   //
-  // The third is the newest and the one with the most to answer for: it is the
-  // only channel that takes a URL from the renderer. It also takes the ticket
-  // the URL is supposed to be on, and main refuses any URL that ticket's own
-  // description does not contain — so the renderer still cannot name a
-  // destination, it can only point at one already on the operator's board.
+  // The third is the only channel that takes a URL from the renderer. It also
+  // takes the ticket the URL is supposed to be on, and main refuses any URL that
+  // ticket's own description does not contain — so the renderer still cannot
+  // name a destination, it can only point at one already on the operator's
+  // board.
+  //
+  // The fourth writes to the system clipboard, which is a host affordance in the
+  // same category as opening a browser — and `navigator.clipboard` is not
+  // available to a `file:` page under `default-src 'none'` in any case. It takes
+  // a prompt **id**, so what reaches the operating system is a string core
+  // stored rather than one the page composed. Same shape as the third, one layer
+  // stricter: there is no URL argument at all.
   //
   // **Named exhaustively, deliberately.** Relaxing this to `toContain` would
   // read as a perfectly reasonable diff and would then permit every future
   // addition too, which is the entire failure this assertion exists to prevent.
-  it('is exactly three: the launcher, the credential path, and description links', () => {
+  // It did exactly its job when the fourth arrived: this line went red, and the
+  // fix was to write the new name here rather than to stop counting.
+  it('is exactly four: the launcher, the credential path, description links, and the clipboard', () => {
     expect(SHELL_CHANNELS).toEqual([
       'grndctrl:open',
       'grndctrl:credential',
       'grndctrl:open-url',
+      'grndctrl:copy',
     ])
   })
 
