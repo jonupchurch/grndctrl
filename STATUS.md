@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-20 (008 built on `main`, unreleased) · **Stage:** released · **On npm:** 0.4.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-20 (0.5.0 published from a tag) · **Stage:** released · **On npm:** 0.5.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.4.0 is on the registry**, published 2026-08-20 by the tag `v0.4.0` on
 `main`, each package carrying SLSA provenance — read back from
@@ -60,12 +60,27 @@ file describes only the present and the immediate next step.
 
 ## Where we are
 
-### 0.5.0: the ticket history — built on `main`, nothing tagged
+### 0.5.0: the ticket history — published
 
-**`main` is four features ahead of what is published.** The type scale, the wider
-side rail, the removed ball-in-court column and row controls, the site-check fix,
-and now 008 — the ticket history — are all committed and CI-green, and **none of
-it is on the registry**. Package versions read `0.5.0`; the tag has not been cut.
+**On the registry**, published 2026-08-20 by the tag `v0.5.0` on `main`, each
+package carrying SLSA provenance — read back from `registry.npmjs.org` directly
+rather than through `npm view`, which caches. Sixth release cut from a tag.
+
+**The published artifact was tested, not assumed.** `npx grndctrl@0.5.0` under
+`GRNDCTRL_SMOKE=1`, over a scratch data directory, on a cleared npx cache **and
+a cleared npm cache**:
+`{"version":"0.5.0","dbVersions":{"mirror":5,"authored":6},...}`. Authored 6 is
+the ticket-history table, running on a fresh install — the half a green CI cannot
+show.
+
+**The npm client resolved `0.5.0` as `latest` and still refused
+`grndctrl@0.5.0`** for several minutes after the registry API reported it.
+`npm cache clean --force` fixed it. Worth knowing before concluding a publish
+failed: the registry had it the whole time.
+
+It carries five features rather than one. `main` had been four ahead of the
+registry since 0.4.0: the type scale, the wider side rail, the removed
+ball-in-court column and row controls, and the site-check fix. 008 joined them.
 
 **What 008 is.** One curated line per ticket, written by an agent when work
 finishes and read back months later. It is the answer to "what did we do about
@@ -870,14 +885,11 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**The release is the next action, and it is the operator's.** `main` carries
-0.5.0 — the ticket history plus the four unreleased changes before it — with CI
-green and **nothing tagged**. Publishing means `git tag v0.5.0` and pushing it;
-`release.yml` does the rest through trusted publishing. Package versions already
-read `0.5.0`, so the tag is the only remaining step and it is deliberately not
-taken without being asked.
+**Nothing is in flight.** 008 is complete and 0.5.0 is published from the tag
+`v0.5.0`. `main` carries everything and nothing is unreleased.
 
-**What is known to be outstanding after that**, none of it urgent:
+**The next piece of work has not been chosen.** What is known to be outstanding,
+none of it urgent:
 
 - **The "no longer mine" lane**, if a Jira ever becomes reachable to probe. It is
   out of scope rather than pending — see below — and picking it up means
