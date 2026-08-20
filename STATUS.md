@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-20 (0.4.0 published from a tag) · **Stage:** released · **On npm:** 0.4.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-20 (008 built on `main`, unreleased) · **Stage:** released · **On npm:** 0.4.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.4.0 is on the registry**, published 2026-08-20 by the tag `v0.4.0` on
 `main`, each package carrying SLSA provenance — read back from
@@ -59,6 +59,57 @@ than one session out of date. Historical detail belongs in `CHANGELOG.md`; this
 file describes only the present and the immediate next step.
 
 ## Where we are
+
+### 0.5.0: the ticket history — built on `main`, nothing tagged
+
+**`main` is four features ahead of what is published.** The type scale, the wider
+side rail, the removed ball-in-court column and row controls, the site-check fix,
+and now 008 — the ticket history — are all committed and CI-green, and **none of
+it is on the registry**. Package versions read `0.5.0`; the tag has not been cut.
+
+**What 008 is.** One curated line per ticket, written by an agent when work
+finishes and read back months later. It is the answer to "what did we do about
+that", which nothing else in the product answers: notes are many per subject and
+typed, agent updates are a per-session stream pruned at fifty and about *now*,
+and the ticket lane holds only what is currently assigned — so a closed ticket
+leaves the board and takes every trace of itself with it.
+
+**The design decision the operator was asked about and did not have to make
+twice**: a new authored entity rather than a view over `decision` notes. The
+entity is what "one line per ticket, never pruned, still readable after the
+ticket is gone" actually needs; a view could not have had any of the three.
+
+Three properties that are unusual enough to be worth stating here:
+
+- **It is the only authored table in the product with no retention bound**, and
+  the absence is asserted rather than commented — the next person to add a table
+  will start from `prompts.ts` and bring its prune with it, and nothing else
+  would fail.
+- **The line is one line, enforced at the write**, and the refusal names the
+  field the paragraph belongs in. A model handed two free-text fields fills both
+  with summary unless it is told.
+- **`revise` and `delete` are the interface's alone.** Recording is additive;
+  rewriting is not, and an agent that could rewrite an entry could restate what
+  it did on the one record kept to ask about it later.
+
+**One defect was found by looking at the running board, not by the suite**: every
+paragraph in the new region carried the browser's default margin, adding 30px of
+space nobody asked for. All 884 unit tests and 110 end-to-end tests passed over
+it, because the text was present, ordered and correctly broken, and nothing
+counts pixels. That is the fourth time on this project that running the app has
+found what a green suite could not.
+
+**Verified before commit:** 884 unit, 110 end-to-end, lint clean, typecheck
+clean, client audit PASS on the tree. Six deliberate probes were run against the
+new gates — append-becomes-replace, the site check unwired, the summary snapshot
+assigned rather than coalesced, a prune copied in, the derived issue key removed,
+and the revision check dropped — and every one was caught.
+
+**The tree audit was failing before this change, and not because of a leak.** A
+test written the day before used an invented `*.atlassian.net` host, and the
+shape scan cannot tell an invented site from a real one. Fixed by using a
+recognised placeholder; the placeholder list was **not** widened, which is the
+direction that would have made the audit mean less.
 
 ### 0.4.0: one provider, one lane, and no drift
 
@@ -819,13 +870,14 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Nothing is in flight.** 006 and 007 are both complete and 0.4.0 is published
-from the tag `v0.4.0`. `main` carries everything; the branch
-`006-remove-code-host-and-local-git` is merged and can be deleted whenever, and
-the local `pre-scrub-006` is already gone.
+**The release is the next action, and it is the operator's.** `main` carries
+0.5.0 — the ticket history plus the four unreleased changes before it — with CI
+green and **nothing tagged**. Publishing means `git tag v0.5.0` and pushing it;
+`release.yml` does the rest through trusted publishing. Package versions already
+read `0.5.0`, so the tag is the only remaining step and it is deliberately not
+taken without being asked.
 
-**The next piece of work has not been chosen.** What is known to be outstanding,
-none of it urgent:
+**What is known to be outstanding after that**, none of it urgent:
 
 - **The "no longer mine" lane**, if a Jira ever becomes reachable to probe. It is
   out of scope rather than pending — see below — and picking it up means
@@ -834,9 +886,11 @@ none of it urgent:
   durability and the claim protocol are all still tested and agents can still
   list, claim and complete; the operator's half has had no route since drift
   left. This is now the largest gap in the product.
-- **Three of the four new regions are empty until an agent is told to call the
-  tools.** `docs/agents.md` carries the `CLAUDE.md` block that does it, and
-  pasting it is a manual step nothing can automate away.
+- **Four regions are empty until an agent is told to call the tools** — the
+  three from 007 and now the ticket history. `docs/agents.md` carries the
+  `CLAUDE.md` block that does it, and pasting it is a manual step nothing can
+  automate away. The docs gate now requires `grndctrl_record_ticket_history` in
+  that block for the same reason it requires the other four.
 
 **007 was complete because M2 was dropped, not because it was finished.** On
 2026-08-20 the operator was asked whether to ship without the "no longer mine"

@@ -1,6 +1,6 @@
 {
   "name": "@grndctrl/core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The service layer: the Jira provider, correlation, the two stores, and the operation registry. No Electron. No UI. No display.",
   "license": "MIT",
   "type": "module",

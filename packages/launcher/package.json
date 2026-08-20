@@ -1,6 +1,6 @@
 {
   "name": "grndctrl",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Ground Control: a local-first console for your Jira tickets and the AI agents working them. Run it with `npx grndctrl`. This package resolves the Electron runtime, verifies it, and spawns the app.",
   "license": "MIT",
   "type": "module",
@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@grndctrl/desktop": "0.4.0"
+    "@grndctrl/desktop": "0.5.0"
   },
   "files": [
     "bin",
