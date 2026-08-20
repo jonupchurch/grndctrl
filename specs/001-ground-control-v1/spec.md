@@ -286,6 +286,24 @@ One provider being unreachable, rate-limited, or unauthorized degrades only what
 - **FR-072**: The Attention region MUST show drift findings and question-for-human nudges, each with its age and its action.
 - **FR-073**: Headline counts MUST cover: items in the operator's court, items drifting, items stalled past the threshold, and live agent sessions. The operator's-court count MUST act as a filter toggle.
 - **FR-074**: Status MUST be conveyed by shape and text label in addition to colour, so that it survives greyscale and colour-vision deficiency.
+
+  > **⚠ Departed from on the ticket lane, 2026-08-20, by the operator's
+  > decision.** The severity mark was removed from the ticket row to give the
+  > summary column more width. `data-severity` on the row is now the only carrier
+  > and it is a colour, which is what this requirement forbids. It was raised
+  > before the change was made, and asked for again after.
+  >
+  > **The scope is the ticket row only.** `StatusMark` is unchanged and still
+  > drawn by the stat tiles and the session lane, and the correlation badges are
+  > a separate alphabet that still obeys this rule.
+  >
+  > Three end-to-end tests went with it. They could not be repointed at another
+  > surface, and that was checked rather than assumed: the tiles can only produce
+  > `good` or `serious`, and a session's state maps only to `good`, `serious` or
+  > `critical`, so **nothing on the board can produce a `warning` mark any more**
+  > — and "all four shapes differ" has no way to put four shapes on a screen.
+  > `greyscale.spec.ts` carries the note and the instruction to restore them from
+  > history if the mark ever returns.
 - **FR-075**: Every row representing a provider object MUST open that object at its provider in the default browser: tickets to the ticket page, PRs to the PR page, CI results to the run, branches to the code host's branch view, repositories to the repository, documentation to its stored URL.
 - **FR-076**: A branch with no page at the code host MUST fall back to the repository page.
 - **FR-077**: The system MUST open external links only over `https`, and MUST refuse any other scheme regardless of what a provider returned.

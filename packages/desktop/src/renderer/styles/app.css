@@ -222,20 +222,16 @@ body {
 }
 
 /*
- * The ticket lane carries a second control, so its trailing track is wider.
+ * The ticket lane widened this track to 62px for a second control — the
+ * active-ticket toggle — and **that control was removed on 2026-08-20**, so the
+ * override went with it. The lane default of 40px fits `· 999`, which is all the
+ * slot holds again.
  *
- * `40px` fits `─ 999`; this fits that plus a 16px focus toggle and the 6px gap
- * the slot already had between them. Keyed on `data-metrics` rather than given
- * its own attribute because the two are the same claim in this board: metrics
- * are the ticket-only columns, and the active ticket is a ticket-only control.
- * If a second lane ever takes one without the other, this needs its own flag
- * rather than a wider default — a default that widened every lane would leave
- * a 22px hole on the lanes with nothing to put in it, and the headings would
- * still line up, so nothing would notice.
+ * Left as a comment rather than deleted because the shape of the mistake is
+ * worth keeping: a widened default across every lane would have left a 22px hole
+ * on the lanes with nothing to put in it, and the headings would still have
+ * lined up, so nothing would have noticed.
  */
-.lane[data-metrics='true'] {
-  --trailing-w: 62px;
-}
 
 .row {
   display: grid;

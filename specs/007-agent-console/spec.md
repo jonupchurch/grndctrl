@@ -85,6 +85,18 @@ The operator hands a ticket to an agent. The board shows, in one column: **which
 4. **Given** an agent posts an update, **When** the board is open, **Then** the update panel shows it with the agent's name and how long ago, and nothing else.
 5. **Given** several updates in sequence, **When** the operator reads the panel, **Then** the most recent is unmissable and the earlier ones are reachable without leaving the board.
 6. **Given** no agent has set an active ticket, **When** the board renders, **Then** the panel says so plainly and offers the operator a way to set one from a ticket row — an empty panel with no way to fill it is a dead region.
+
+   > **⚠ The second clause was departed from on 2026-08-20**, by the operator's
+   > decision, to free width on the row. The ring that set and cleared the active
+   > ticket from a ticket row is gone, so **there is no way to set it by hand**;
+   > an agent setting it over MCP is the only route, and the panel can still
+   > clear it. The lane also no longer marks which row is active — that was the
+   > same control's filled state.
+   >
+   > The first clause still holds: the panel says plainly that nothing is active.
+   > What it no longer offers is the way to fill it, which is precisely the "dead
+   > region" this scenario was written against. Raised before the change and
+   > asked for again after.
 7. **Given** an open `question-for-human` note, **When** the board renders, **Then** it appears in the update panel. *(This is where 006's Attention removal sends it; the requirement that it be visible somewhere is met here.)*
 
 ---

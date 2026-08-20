@@ -165,28 +165,7 @@ interface LaneProps {
   freshness: FreshnessView | null
   /** Absent while the counts are still loading; badges simply do not appear. */
   notes?: NotesAccess | undefined
-  /** Absent means the row draws no focus control at all. */
-  focus?: FocusAccess | undefined
   now?: Date
-}
-
-/**
- * Setting the active ticket from the lane (FR-127, US1 scenario 6).
- *
- * The panel is populated by MCP in the normal case, and an empty panel with no
- * way to fill it by hand is a dead region — so the row is the operator's half
- * of the same pointer.
- *
- * `activeKey` is here so the control can render as a *state* rather than only as
- * an action: one row in the lane is the active one, and a control that looked
- * identical on all of them would make the operator read the panel to find out
- * which. It is the natural key, matching what `focus.get` returns, because that
- * is the field the two sides agree on.
- */
-export interface FocusAccess {
-  activeKey: string | null
-  set(ticketKey: string): void
-  clear(): void
 }
 
 /**
@@ -245,30 +224,20 @@ const slot = (
  * primary action spans the whole row, and without this the operator would set
  * the active ticket *and* get a browser tab on Jira.
  */
-function focusControl(focus: FocusAccess, ticketKey: string, label: string): ReactElement {
-  const active = focus.activeKey === ticketKey
+/*
+ * **Removed on 2026-08-20**, on the operator's instruction, twice given and with
+ * its cost stated: the active ticket can no longer be set by hand. An agent sets
+ * it over MCP, which is the caller it was built for (FR-127), and the panel can
+ * still clear it — but US1 scenario 6 asked for a way to set it from a ticket
+ * row and there is not one now. The decision is recorded in
+ * `specs/007-agent-console/spec.md` beside that scenario.
+ *
+ * The lane also no longer marks *which* row is active: that was this control's
+ * filled state and nothing else drew it. The active ticket panel is where the
+ * answer lives now.
+ */
 
-  return (
-    <button
-      type="button"
-      className="row__focus"
-      data-active={active ? 'true' : 'false'}
-      onClick={(event) => {
-        event.stopPropagation()
-        if (active) focus.clear()
-        else focus.set(ticketKey)
-      }}
-      aria-pressed={active}
-      aria-label={active ? `Stop working ${label}` : `Work ${label}`}
-    >
-      {/* Geometric primitives only, per the design system. Filled is the one
-          being worked; the ring is every other row. */}
-      <span aria-hidden="true">{active ? '◉' : '◎'}</span>
-    </button>
-  )
-}
-
-export function Tickets({ items, projects, freshness, notes, focus, now }: LaneProps): ReactElement {
+export function Tickets({ items, projects, freshness, notes, now }: LaneProps): ReactElement {
   // No `withTickets` filter, and no `?.` below. Every work item has a ticket
   // (FR-106), so both were guarding against a state the type no longer permits
   // — and a filter whose predicate is always true is a filter a future reader
@@ -328,9 +297,6 @@ export function Tickets({ items, projects, freshness, notes, focus, now }: LaneP
           }}
           {...slot(item.projectId, projects)}
           {...noteSlot(notes, item.ticket.key, item.ticket.issueKey)}
-          {...(focus === undefined
-            ? {}
-            : { trailing: focusControl(focus, item.ticket.key, item.ticket.issueKey) })}
           {...(now === undefined ? {} : { now })}
           onOpen={() => void launch(item.key, 'ticket')}
         />

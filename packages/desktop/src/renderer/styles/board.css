@@ -617,54 +617,6 @@
   background: var(--sunken);
 }
 
-/*
- * The row's half of the pointer (FR-127, US1 scenario 6).
- *
- * Same shape as the note badge beside it — a 16px control in the trailing slot
- * — and the same rule about staying in the DOM: this is how the operator sets
- * the active ticket by hand, so hiding it until something is active would mean
- * it appeared only once it was no longer needed.
- *
- * The **active** one does not fade. It is a state rather than an affordance, and
- * a board whose one active row was legible only on hover would make the panel
- * the only way to find out which row it is.
- */
-.row__focus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  font-size: var(--t-meta);
-  color: var(--ink-2);
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 0;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--dur-hover) var(--ease);
-}
-
-.row:hover .row__focus,
-.row:focus-within .row__focus {
-  opacity: 0.65;
-  border-color: var(--line);
-}
-
-.row__focus:hover {
-  opacity: 1;
-  color: var(--ink);
-  border-color: var(--line-strong);
-  background: var(--sunken);
-}
-
-.row__focus[data-active='true'] {
-  opacity: 1;
-  color: var(--accent);
-  border-color: var(--line);
-}
-
 /* ── A ticket description ────────────────────────────────────────── */
 
 /*

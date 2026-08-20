@@ -36,8 +36,6 @@ const SCENARIO = join(
   'every-severity.json',
 )
 
-const SEVERITIES = ['good', 'warning', 'serious', 'critical'] as const
-
 let it: LaunchedApp
 
 test.beforeAll(async () => {
@@ -48,81 +46,37 @@ test.afterAll(async () => {
   await it.close()
 })
 
-/** The severities currently drawn on a row, deduplicated and sorted. */
-const severitiesOnScreen = (): Promise<(string | undefined)[]> =>
-  it.window.evaluate(() =>
-    [
-      ...new Set(
-        [...document.querySelectorAll('.row .status-mark')].map(
-          (m) => (m as HTMLElement).dataset['severity'],
-        ),
-      ),
-    ].sort(),
-  )
-
-test('all four severities are on the board, so this is testing something', async () => {
-  // The guard that makes every assertion below mean anything. A scenario that
-  // silently stopped producing one severity would leave this file passing while
-  // checking three shapes, and "all distinct" is trivially true of fewer.
-  //
-  // Polled rather than sampled once. `evaluate` does not wait for anything, so
-  // the first version read the DOM at whatever moment it happened to run and
-  // passed alone while failing under the load of the full suite — React had
-  // committed some rows and not others. Every other assertion here is inside a
-  // Playwright matcher, which retries; this one had opted out of that.
-  await expect.poll(severitiesOnScreen).toEqual(['critical', 'good', 'serious', 'warning'])
-
-  // And nothing is folded away (T106). A folded region renders no children, so
-  // a collapsed ticket lane would leave this file checking the shapes of an
-  // empty set — which "all distinct" is trivially true of.
-  await expect(it.window.locator('[data-collapsed="true"]')).toHaveCount(0)
-})
-
-test('every severity says its name, even when the word is not drawn', async () => {
-  // Inside a dense row the label is visually hidden — there is no room for it,
-  // and the shape plus the row colour carry it. It stays in the accessibility
-  // tree regardless, because a screen reader otherwise gets a coloured `<span>`
-  // and no status at all.
-  await expect.poll(severitiesOnScreen).toHaveLength(4)
-
-  for (const severity of SEVERITIES) {
-    const label = await it.window.evaluate((s) => {
-      const mark = document.querySelector(`.row .status-mark[data-severity="${s}"]`)
-      return mark?.textContent?.trim() ?? null
-    }, severity)
-
-    expect(label?.toLowerCase()).toBe(severity)
-  }
-})
-
-test('with colour removed entirely, the four marks are still four different shapes', async () => {
-  // Every mark forced to one identical ink. Not `grayscale(1)`: that maps four
-  // hues to four *different* greys, and a test that passed on those would be
-  // asserting the luminance distinction this exists to replace.
-  await it.window.addStyleTag({
-    content: `
-      .status-mark__shape { background: #000 !important; }
-      .row, .row[data-severity] { background: #fff !important; }
-    `,
-  })
-
-  const shots = new Map<string, string>()
-  for (const severity of SEVERITIES) {
-    const shape = it.window.locator(`.row .status-mark[data-severity="${severity}"] .status-mark__shape`).first()
-    await expect(shape).toBeVisible()
-    shots.set(severity, (await shape.screenshot()).toString('base64'))
-  }
-
-  // Every pair, not just neighbours. The failure this catches is one shape
-  // being changed to match another — or `clip-path` being dropped, which makes
-  // all four the same square and is invisible in colour.
-  for (const a of SEVERITIES) {
-    for (const b of SEVERITIES) {
-      if (a === b) continue
-      expect(shots.get(a), `${a} and ${b} render identically without colour`).not.toBe(shots.get(b))
-    }
-  }
-})
+/*
+ * Three tests stood here and are gone, and this note is longer than a deletion
+ * deserves because what went with them is a guarantee rather than a detail.
+ *
+ * They were: all four severities present on the board; each mark carrying its
+ * own name in the accessibility tree; and, with colour removed entirely, the
+ * four marks rendering as four different shapes. Together they were FR-074 --
+ * severity is never carried by colour alone -- checked against a real window.
+ *
+ * **The ticket row's severity mark was removed on 2026-08-20, on the operator's
+ * instruction, with this cost stated before it was taken.** `data-severity` on
+ * the row is now the only carrier and it is a colour. That is the thing FR-074
+ * forbids, so the requirement is departed from rather than merely untested; the
+ * decision is recorded in `specs/001-ground-control-v1/spec.md` beside it.
+ *
+ * **These could not be repointed at another surface, and that was checked
+ * rather than assumed.** `StatusMark` is still drawn by the stat tiles and the
+ * session lane, so three severities still reach a mark somewhere -- but the
+ * tiles can only ever produce `good` or `serious`, and a session's state maps
+ * only to `good`, `serious` or `critical`. **Nothing on the board can produce a
+ * `warning` mark any more**, so "all four shapes differ" has no way to put four
+ * shapes on a screen.
+ *
+ * The two tests below survive because they do not depend on the row: the
+ * correlation badges are their own alphabet, and the desaturated-page check
+ * reads the whole board rather than a mark.
+ *
+ * If the row mark ever comes back, restore all three from git history rather
+ * than rewriting them -- the third in particular took some care to get right,
+ * and its comment explains why `grayscale(1)` was the wrong instrument.
+ */
 
 test('the correlation badges are a second alphabet, and it is consistent', async () => {
   /**

@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { ProjectChip } from './ProjectChip.js'
 import { StaleBar } from './StaleBar.js'
 import type { StalenessBand } from './StaleBar.js'
-import { CorrelationBadge, StatusMark, type CorrelationKind, type Severity } from './StatusMark.js'
+import { CorrelationBadge, type CorrelationKind, type Severity } from './StatusMark.js'
 import type { SortColumn, SortState } from '../lanes/sort.js'
 
 /**
@@ -268,9 +268,8 @@ export function RowHeadings({
         Agent
       </span>
 
-      {/* The trailing slot holds the note control, and the severity mark closes
-          the row. Both are their own labels; neither takes a heading. */}
-      <span aria-hidden="true" />
+      {/* The trailing slot holds the note control. It is its own label and
+          takes no heading. */}
       <span aria-hidden="true" />
     </div>
   )
@@ -434,10 +433,20 @@ export function Row({
         {trailing}
       </span>
 
-      {/* The severity shape travels with the row for greyscale legibility, but
-          the row's own colour already carries it visually — so it sits at the
-          end, small, rather than competing with the identifier. */}
-      <StatusMark severity={severity} />
+      {/*
+        The severity mark stood here until 2026-08-20 and was removed on the
+        operator's instruction, twice given and with its cost stated.
+
+        **`data-severity` on the row above is now the only carrier**, and it is a
+        colour. That is a departure from FR-074, which is why the mark existed:
+        `StatusMark` draws a *shape* per band so the board survives greyscale and
+        colour blindness. The decision is recorded in
+        `specs/001-ground-control-v1/spec.md` beside the requirement rather than
+        left as an unexplained gap here.
+
+        The mark is unchanged and still drawn by the two places that kept it:
+        the stat tiles and the session lane.
+      */}
     </div>
   )
 }

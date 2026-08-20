@@ -193,10 +193,6 @@ export function App(): ReactElement {
    * observable symptom is a control that does not take, which is at least not a
    * lie about what is active.
    */
-  const setActive = useCallback((ticketKey: string) => {
-    void call('focus.set', { ticketKey }).catch(() => undefined)
-  }, [])
-
   const clearActive = useCallback(() => {
     void call('focus.clear', {}).catch(() => undefined)
   }, [])
@@ -342,11 +338,6 @@ export function App(): ReactElement {
                     projects={known}
                     freshness={ticketFreshness}
                     notes={notes}
-                    focus={{
-                      activeKey: active.data?.ticketKey ?? null,
-                      set: setActive,
-                      clear: clearActive,
-                    }}
                   />
                 </LaneBoundary>
 

@@ -145,14 +145,21 @@ test('an agent setting the ticket fills the panel, with no reload', async () => 
   await expect(panel()).toContainText(/set by e2e/i)
 })
 
-test('the ticket lane shows which row it is', async () => {
-  // The panel says *what* is active; the lane says *which row*. Without this the
-  // operator has to read one to interpret the other, and the control on every
-  // other row would look identical to the one on the active row.
-  const pressed = tickets().locator('.row__focus[data-active="true"]')
-  await expect(pressed).toHaveCount(1)
-  await expect(pressed).toHaveAccessibleName(/stop working MERC-1184/i)
-})
+/*
+ * "The ticket lane shows which row it is" was here.
+ *
+ * The row's active-ticket control was removed on 2026-08-20, on the operator's
+ * instruction and with the cost stated: the lane no longer marks which row is
+ * active, and the operator can no longer set the active ticket by hand at all.
+ * The filled ring was the only thing that drew either.
+ *
+ * **US1 scenario 6 asked for exactly this** -- "offers the operator a way to set
+ * one from a ticket row" -- so the scenario is departed from rather than merely
+ * untested, and it is annotated as such in `specs/007-agent-console/spec.md`.
+ *
+ * What survives is the half an agent drives: `focus.set` over MCP still fills
+ * the panel, and everything below still tests it.
+ */
 
 test('a ticket the mirror does not hold shows what is known and names what is not', async () => {
   const before = await tickets().locator('.row').count()
