@@ -316,7 +316,6 @@ export function Tickets({ items, projects, freshness, notes, focus, now }: LaneP
           severity={item.severity}
           staleness={item.staleness}
           lastRealActivityAt={item.lastRealActivityAt}
-          ballInCourt={item.ballInCourt}
           correlations={{ agent: item.sessions.length > 0 }}
           status={item.ticket.statusName}
           // Always passed on this lane, because the lane is what declares the

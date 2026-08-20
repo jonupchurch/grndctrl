@@ -172,9 +172,13 @@ body {
  */
 .lane {
   /* Fixed slots, in the design's order: staleness, project, id, title, status,
-     correlation, ball in court, trailing, severity. Only the title is flexible
-     — everything else holds its column down the whole lane. */
-  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 44px 62px
+     correlation, trailing, severity. Only the title is flexible — everything
+     else holds its column down the whole lane.
+
+     **The 62px ball-in-court track went on 2026-08-20** and the width returned
+     to the title, which is the only flexible track and so the only one that can
+     receive it. */
+  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 44px
     var(--trailing-w) var(--mark-w);
 }
 
@@ -182,14 +186,14 @@ body {
  * Sprint, priority and points, inserted after status: all three are facts about
  * the ticket, so they belong beside the one the tracker already reports. The
  * sequence is stale, project, id, title, status, sprint, priority, points,
- * correlation, court, trailing, severity.
+ * correlation, trailing, severity — court left on 2026-08-20.
  */
 .lane[data-metrics='true'] {
   /* Priority and points are wider here than the values in them need, and that
      is the sort caret's doing: it sits inside the heading's own track, so a
      column sized to `POINTS` renders `POI…▼` the moment it becomes the sorted
      one — the heading going unreadable exactly when it is the one being read. */
-  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 92px 88px 80px 58px 44px 62px
+  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 92px 88px 80px 58px 44px
     var(--trailing-w) var(--mark-w);
 }
 
@@ -456,27 +460,6 @@ body {
 .row__correlation {
   display: flex;
   gap: 3px;
-}
-
-.row__court {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--t-meta);
-  color: var(--ink-3);
-}
-
-/* "Ball in court" is the one badge whose label earns its width at rest for the
-   operator's own rows — those are the ones being counted. */
-.row__court[data-court='you'] {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.row__court-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .row__trailing {

@@ -50,12 +50,12 @@ import type { SortColumn, SortState } from '../lanes/sort.js'
 
 export type BallInCourt = 'you' | 'them' | 'agent'
 
-const COURT: Record<BallInCourt, { glyph: string; label: string }> = {
-  // Geometric primitives only, per the design system: no pictograms, no emoji.
-  you: { glyph: '●', label: 'You' },
-  them: { glyph: '○', label: 'Them' },
-  agent: { glyph: '◆', label: 'Agent' },
-}
+/*
+ * The row's own glyph map went with the court column on 2026-08-20.
+ * `components/BallInCourt.tsx` keeps its own, which is the one the panel draws.
+ * The **type** stays exported from here: the panel, the filter and the work item
+ * all name it.
+ */
 
 /**
  * What can be correlated with a ticket, which is now one thing.
@@ -76,7 +76,6 @@ export interface RowProps {
   severity: Severity
   staleness: StalenessBand
   lastRealActivityAt: string | null
-  ballInCourt: BallInCourt
   /** Which correlations exist. Absent kinds render as placeholders, not gaps. */
   correlations: Partial<Record<CorrelationKind, boolean>>
   project?: { id: string; code: string; paletteIndex: number; name?: string } | undefined
@@ -256,16 +255,17 @@ export function RowHeadings({
       )}
 
       {/* "Links" when it named four systems; the column holds one presence mark
-          now and is named for what that mark is about. The court column beside
-          it can also read "Agent", and the two are different questions: this one
-          is *has an agent been on this ticket*, that one is *who is it stopped
-          on right now* — a ticket with an agent on it and an unanswered question
-          is a diamond here and `● You` there. */}
+          now and is named for what that mark is about: *has an agent been on
+          this ticket*.
+
+          **The court column sat beside it until 2026-08-20 and is gone**, to
+          give the summary back the width the wider side rail took. What it
+          showed is not gone with it: ball-in-court still sorts the lane, still
+          drives the "Your court" tile and its filter, and still has a panel of
+          its own in the rail. This was the third place the same fact appeared,
+          and the only one that cost a column on every row. */}
       <span className="row__correlation" aria-hidden="true">
         Agent
-      </span>
-      <span className="row__court" aria-hidden="true">
-        Court
       </span>
 
       {/* The trailing slot holds the note control, and the severity mark closes
@@ -282,7 +282,6 @@ export function Row({
   severity,
   staleness,
   lastRealActivityAt,
-  ballInCourt,
   correlations,
   project,
   status,
@@ -294,7 +293,6 @@ export function Row({
   onOpen,
   now,
 }: RowProps): ReactElement {
-  const court = COURT[ballInCourt]
   const notes = noteCount ?? 0
 
   return (
@@ -382,11 +380,6 @@ export function Row({
         {CORRELATION_ORDER.map((kind) => (
           <CorrelationBadge key={kind} kind={kind} present={correlations[kind] === true} />
         ))}
-      </span>
-
-      <span className="row__court" data-court={ballInCourt} title={`Ball in court: ${court.label}`}>
-        <span aria-hidden="true">{court.glyph}</span>
-        <span className="row__court-label">{court.label}</span>
       </span>
 
       {/*

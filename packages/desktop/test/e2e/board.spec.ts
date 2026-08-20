@@ -333,13 +333,12 @@ test('the column headings line up with the cells beneath them', async () => {
       '.row__priority',
       '.row__points',
       '.row__correlation',
-      '.row__court',
     ].map((slot) => ({ slot, head: left(head, slot), row: left(row, slot) }))
   })
 
   // The heading row is drawn only over rows, so an empty result here means the
   // lane rendered nothing and the loop below would pass by checking nothing.
-  expect(offsets).toHaveLength(8)
+  expect(offsets).toHaveLength(7)
 
   for (const { slot, head, row } of offsets) {
     expect(head, `no heading cell for ${slot}`).not.toBeNull()

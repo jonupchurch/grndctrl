@@ -196,7 +196,16 @@ test('4b · the row that gained a note still lines up with the one that did not'
       )
 
       const out: Record<string, number> = {}
-      for (const slot of ['.row__status', '.row__sprint', '.row__priority', '.row__court']) {
+      // `.row__court` was here until 2026-08-20, when the column was removed to
+      // give the summary back its width. Replaced by the two tracks that now sit
+      // furthest right, where a misalignment would show first and worst.
+      for (const slot of [
+        '.row__status',
+        '.row__sprint',
+        '.row__priority',
+        '.row__points',
+        '.row__correlation',
+      ]) {
         const cell = row?.querySelector(slot) ?? null
         if (cell !== null) out[slot] = Math.round(cell.getBoundingClientRect().left)
       }
@@ -207,8 +216,8 @@ test('4b · the row that gained a note still lines up with the one that did not'
   })
 
   // Both rows have to have been found, or the loop compares nothing and passes.
-  expect(Object.keys(columns.withNote)).toHaveLength(4)
-  expect(Object.keys(columns.without)).toHaveLength(4)
+  expect(Object.keys(columns.withNote)).toHaveLength(5)
+  expect(Object.keys(columns.without)).toHaveLength(5)
 
   for (const slot of Object.keys(columns.withNote)) {
     expect(
