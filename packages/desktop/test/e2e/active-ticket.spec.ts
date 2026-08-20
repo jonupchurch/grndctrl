@@ -350,17 +350,42 @@ test.describe('the description', () => {
     // US1 scenario 2. A description can be any length at all, and a panel that
     // grew to fit one would push the sessions and ball-in-court panels off a
     // board whose whole claim is that everything is visible at once.
+    /*
+     * The overflow is **forced**, and the cap is read rather than named.
+     *
+     * This asserted `clientHeight <= 320`, and 320 was the cap until the type
+     * scale went up a step on 2026-08-20 and it became 400 -- so the test failed
+     * on a number that was never the guarantee. The guarantee is that the panel
+     * has a cap, honours it, and scrolls rather than growing.
+     *
+     * And the overflow itself used to be borrowed from the fixture's
+     * description happening to be long enough, which is not this test's to
+     * control: a shorter one, or a taller cap, would leave the panel fitting and
+     * the "is actually being constrained" line quietly proving nothing. A block
+     * that cannot fit under any cap removes the coincidence.
+     */
+    await panel().locator('.active').evaluate((el) => {
+      const filler = document.createElement('div')
+      filler.style.height = '2000px'
+      filler.dataset['testFiller'] = 'true'
+      el.appendChild(filler)
+    })
+
     const box = await panel().locator('.active').evaluate((el) => ({
       client: el.clientHeight,
       scroll: el.scrollHeight,
       overflow: getComputedStyle(el).overflowY,
+      cap: parseFloat(getComputedStyle(el).maxHeight),
     }))
 
     expect(box.overflow).toBe('auto')
-    expect(box.client).toBeLessThanOrEqual(320)
-    // And it really does overflow, so the assertion above is about a panel that
-    // is actually being constrained rather than one that happens to fit.
+    expect(box.cap).toBeGreaterThan(0)
+    expect(box.client).toBeLessThanOrEqual(box.cap)
     expect(box.scroll).toBeGreaterThan(box.client)
+
+    await panel()
+      .locator('.active')
+      .evaluate((el) => el.querySelector('[data-test-filler]')?.remove())
   })
 
   test('says nothing about a description it has not been told about', async () => {

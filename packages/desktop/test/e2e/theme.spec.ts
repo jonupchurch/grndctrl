@@ -41,7 +41,13 @@ test('the tokens resolve, so a component never has to name a colour', async () =
   // would silently render with no colour rather than fail.
   expect(await token('--ink')).not.toBe('')
   expect(await token('--critical')).not.toBe('')
-  expect(await token('--row-h')).toBe('34px')
+
+  // A metric token, to catch a stylesheet that loaded its colours and not its
+  // measurements. **Not pinned to a literal** -- it read `34px` until the type
+  // scale went up a step on 2026-08-20, and a test that fails on a deliberate
+  // rescale is reporting the change rather than a defect. What has to be true is
+  // that it resolves to a real length.
+  expect(await token('--row-h')).toMatch(/^\d+px$/)
 })
 
 test('an explicit override stamps data-theme and the system default does not', async () => {
@@ -75,19 +81,39 @@ test('the dark palette is designed, not an inversion', async () => {
 })
 
 test('compact density changes the measurements and nothing else', async () => {
-  await it.window.evaluate(() => document.documentElement.setAttribute('data-density', 'compact'))
+  /*
+   * Asserted as a **comparison**, not as two pairs of literals.
+   *
+   * The guarantee is that compact is tighter than comfortable and that nothing
+   * else moves with it. The literals said `28px` and `34px`, which made this
+   * fail when the type scale went up a step on 2026-08-20 -- a change that did
+   * not touch the relationship the test exists to protect, and moved both
+   * numbers together. What would be a real defect is compact being the same as
+   * comfortable, or larger, and neither literal was checking for that.
+   */
+  const px = async (name: string): Promise<number> => parseFloat(await token(name))
 
-  expect(await token('--row-h')).toBe('28px')
-  expect(await token('--lane-head-h')).toBe('34px')
+  await it.window.evaluate(() =>
+    document.documentElement.setAttribute('data-density', 'comfortable'),
+  )
+  const comfortable = { row: await px('--row-h'), head: await px('--lane-head-h') }
+
+  await it.window.evaluate(() => document.documentElement.setAttribute('data-density', 'compact'))
+  const compact = { row: await px('--row-h'), head: await px('--lane-head-h') }
+
+  expect(compact.row).toBeLessThan(comfortable.row)
+  expect(compact.head).toBeLessThan(comfortable.head)
+  // And both are real measurements rather than zero, which would also be "less".
+  expect(compact.row).toBeGreaterThan(0)
+
   // A density that also moved colours or weights would be a second design to
   // maintain, and the two would drift.
-  expect(await token('--ink')).toBe(await token('--ink'))
   expect(await token('--critical')).toBe('#d03b3b')
 
   await it.window.evaluate(() =>
     document.documentElement.setAttribute('data-density', 'comfortable'),
   )
-  expect(await token('--row-h')).toBe('34px')
+  expect(await px('--row-h')).toBe(comfortable.row)
 })
 
 test('the appearance choice survives being written through the service', async () => {

@@ -531,13 +531,20 @@
  * inside it, and a description can be any length at all. A panel that grew to
  * fit one would push the sessions panel and the ball-in-court panel off the
  * bottom of a board whose whole claim is that everything is visible at once.
+ *
+ * **Raised from 320px with the type scale on 2026-08-20**, for the same reason
+ * the row heights moved: this is a fixed box holding text, so text that grew
+ * inside an unchanged one shows proportionally *less* of the description for no
+ * decision anybody took. The number is the old one through the same 1.25 step,
+ * which keeps roughly the same amount of a description visible before the scroll
+ * starts — which is what the cap was chosen for, rather than the pixel count.
  */
 .active {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 10px 12px;
-  max-height: 320px;
+  max-height: 400px;
   overflow-y: auto;
 }
 

@@ -88,15 +88,46 @@
 
   --f-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-brand: Archivo, var(--f-ui);
-  --t-meta: 11px;
-  --t-id: 12px;
-  --t-body: 13px;
-  --t-title: 15px;
-  --t-lg: 20px;
-  --t-stat: 40px;
 
-  --row-h: 34px;
-  --lane-head-h: 40px;
+  /*
+   * The type scale, one step up (2026-08-20).
+   *
+   * Every size was raised by about 1.25x. The board is read for long stretches
+   * at arm's length and the two sizes that carry almost all of it -- `--t-meta`
+   * on nearly every cell and `--t-id` on the ticket key -- were 11px and 12px,
+   * which is small for prose you are meant to scan rather than study.
+   *
+   * **The ratios between the steps are preserved**, so this is the same scale
+   * moved up rather than a new one: 11/12/13/15 was already tight, and widening
+   * the gaps here would have changed the relationship between a cell, a key and
+   * a heading as well as their size.
+   *
+   * `--t-stat` is the one exception, at 1.2x rather than 1.25x. A 40px numeral
+   * is already display-sized; taking it to 50 crowds the tile it sits in without
+   * making it any more legible, and the tile's width is fixed by the three-up
+   * grid above it.
+   *
+   * Whole pixels throughout. `calc()` from a scale factor would be tidier to
+   * adjust and would produce 13.75px and 16.25px, which land text on half
+   * pixels -- and this application renders small text on a lot of borders.
+   */
+  --t-meta: 14px;
+  --t-id: 15px;
+  --t-body: 16px;
+  --t-title: 19px;
+  --t-lg: 25px;
+  --t-stat: 48px;
+
+  /*
+   * The row heights follow, because they are `height` and not `min-height`.
+   *
+   * A row is a fixed box by design -- `perf.spec.ts` measures against a
+   * predictable row height and the lane grid depends on it -- so text that grew
+   * inside an unchanged box would clip rather than reflow. Raised by the same
+   * step, keeping the same slack around the text as before.
+   */
+  --row-h: 40px;
+  --lane-head-h: 46px;
   --gutter: 14px;
   --stale-w: 3px;
 
@@ -109,8 +140,11 @@
 /* Compact density (T131, FR-079). Only the measurements move — a density that
    also changed colours or weights would be a second design to maintain. */
 :root[data-density='compact'] {
-  --row-h: 28px;
-  --lane-head-h: 34px;
+  /* Raised alongside the comfortable heights above, and by the same step, so
+     compact stays a density rather than becoming the only size the new type
+     fits in. */
+  --row-h: 33px;
+  --lane-head-h: 39px;
   --gutter: 10px;
 }
 
