@@ -11,7 +11,7 @@ accumulated working record of that build. **0.4.0 carries its own detail**
 instead: it is a removal, and what an upgrader needs is the list of what is gone,
 not a sentence saying a lot is.
 
-## [0.4.0] — 2026-08-19
+## [0.4.0] — 2026-08-20
 
 **Ground Control is a Jira board and an agent board.** The GitHub provider, the
 local git reader and drift detection are removed — all of them, not a subset.

@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-19
 
-**Status**: Draft — planning complete, implementation not started
+**Status**: Complete — shipped in 0.4.0, less M2, which was dropped (see below)
 
 **Input**: A marked-up screenshot of the operator's own board, 2026-08-19, adding four regions and one cross-cutting behaviour: *"Recent Tickets not assigned"*, *"Currently active ticket. Populated by MCP, scrollable and collapsible, the ticket should have a link to open it in a browser"*, *"Current important info/task update from the Agent. Should be terse and to the point without a lot of extra words or frills"*, *"List of recent prompts. Clicking copies to clipboard."*, and — separately — *"make each section collapsible"*.
 

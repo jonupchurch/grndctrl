@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-19
 
-**Status**: Draft — planning complete, implementation not started
+**Status**: Complete — shipped in 0.4.0
 
 **Input**: GitHub pull-request tracking is a nonstarter against the operator's company GitHub. Remove it entirely, remove local repository checking with it, and remove the Attention region — confirmed by the operator against a marked-up screenshot of their own board on 2026-08-19, which struck through three regions: the pull request lane, the open branches lane, and Attention in full.
 
