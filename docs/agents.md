@@ -142,6 +142,11 @@ and no ADF anywhere on this surface.
 there is none. They are different facts and are worth telling apart before
 concluding a ticket has no acceptance criteria.
 
+Links inside a description arrive as an `href` on a text node's marks. They are
+the provider's own strings and are not resolved or checked on this surface —
+use `grndctrl_resolve_link` for anything you intend to open, exactly as with
+every other URL here.
+
 **Clear it when the work ends.** A stale active ticket is worse than an empty
 panel: the operator reads that panel as "this is happening now".
 

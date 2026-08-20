@@ -12,10 +12,15 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { appDataDir, type Connection, type Settings, type SyncReport } from '@grndctrl/core'
 import { scheduler } from '@grndctrl/core/scheduler'
-import { CREDENTIAL_CHANNEL, OPEN_CHANNEL } from '../shared/channels.js'
+import { CREDENTIAL_CHANNEL, OPEN_CHANNEL, OPEN_URL_CHANNEL } from '../shared/channels.js'
 import { credentialHandler, type CredentialResult } from './credential.js'
 import { registerIpcAdapter, type IpcResult, type IpcSender } from './ipc.js'
-import { linkOpener, type OpenRequest } from './links.js'
+import {
+  descriptionLinkOpener,
+  linkOpener,
+  type OpenDescriptionLinkRequest,
+  type OpenRequest,
+} from './links.js'
 import {
   placement,
   trackWindowState,
@@ -216,6 +221,36 @@ async function main(): Promise<void> {
       }
     }
   })
+
+  // The third non-operation channel. It takes a URL, which the launcher above
+  // deliberately does not — and gives away much less than that sounds, because
+  // main refuses any URL the named ticket's own description does not contain.
+  // See `shared/channels.ts` for why it is separate rather than a field on the
+  // launcher.
+  const openDescriptionLink = descriptionLinkOpener({
+    dispatch,
+    openExternal: (url) => shell.openExternal(url),
+  })
+
+  ipcMain.handle(
+    OPEN_URL_CHANNEL,
+    async (event, request: OpenDescriptionLinkRequest): Promise<IpcResult> => {
+      if (!trusted(senderOf(event))) {
+        return { ok: false, error: { code: 'invalid', message: 'Unrecognised sender.' } }
+      }
+      try {
+        return { ok: true, data: await openDescriptionLink(request) }
+      } catch (e) {
+        return {
+          ok: false,
+          error: {
+            code: 'invalid',
+            message: e instanceof Error ? e.message : 'Could not open that link.',
+          },
+        }
+      }
+    },
+  )
 
   // The second non-operation channel, for the reason set out in
   // `shared/channels.ts`: a secret that never enters the registry cannot be put

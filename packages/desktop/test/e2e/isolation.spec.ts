@@ -112,16 +112,27 @@ test('the bridge exposes exactly the enumerated operations', async () => {
 
   expect(surface.operations).toEqual([...OPERATIONS].sort())
   // `open` is the launcher, `credential` is the write-only path to the keychain,
-  // and `on` is the three push subscriptions. Nothing else has any business
-  // being on the bridge, and a fourth member arriving here is the thing this
-  // assertion exists to notice.
+  // `openLink` opens a link inside a ticket description, and `on` is the push
+  // subscriptions. Nothing else has any business being on the bridge, and a
+  // fifth member arriving here is the thing this assertion exists to notice.
   //
   // `credential` is not an operation on purpose: the registry is served on the
   // loopback API and MCP too, so a secret in it would be kept off those surfaces
   // only by an `exposure` field staying correct forever. It is write-only —
   // asserted below, because "no way to read it back" is the property that makes
   // putting it here defensible.
-  expect(surface.other).toEqual(['credential', 'on', 'open'])
+  //
+  // `openLink` is the only member that takes a URL from this side, and it is
+  // defensible for the mirror-image reason: it also takes the ticket the URL is
+  // supposed to be on, and main refuses any URL that ticket's own description
+  // does not contain — checked against core's copy, not the page's. So the
+  // capability being added here is "open a link the operator can already see",
+  // not "open a URL".
+  //
+  // **Named exhaustively.** The obvious fix when this fails is `toContain`, and
+  // it would then wave through every future addition as well, which is the
+  // entire failure this file exists to catch.
+  expect(surface.other).toEqual(['credential', 'on', 'open', 'openLink'])
 })
 
 test('the credential path is write-only', async () => {

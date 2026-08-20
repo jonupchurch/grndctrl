@@ -18,6 +18,8 @@
  * string becomes an OS-level action, and this one is three lines.
  */
 
+import { linksIn, type DocNode } from '@grndctrl/core'
+
 export interface OpenRequest {
   subjectKey: string
   target?: string | undefined
@@ -51,6 +53,57 @@ export function linkOpener(options: LinkOpenerOptions) {
 
     await options.openExternal(resolved.url)
     return resolved
+  }
+}
+
+export interface OpenDescriptionLinkRequest {
+  /** The ticket whose description is supposed to contain the URL. */
+  subjectKey: string
+  url: string
+}
+
+/**
+ * The narrow second capability: open a link a ticket description contains.
+ *
+ * Everything above rests on the renderer having nowhere to put a URL. A ticket
+ * description breaks that cleanly — its links are arbitrary provider URLs and
+ * are not subjects of anything — so rather than adding a URL argument to the
+ * launcher and hoping the scheme check holds, this asks core what that ticket's
+ * description actually says and **refuses anything not in it**.
+ *
+ * What the renderer gains is the ability to point at a link the operator can
+ * already see on their own board. What it does not gain is the ability to name a
+ * destination: an injected script can send any string it likes and every string
+ * that is not in that description is refused, on main's side, against core's
+ * copy rather than the page's.
+ *
+ * The scheme check still runs afterwards. A provider that put a `javascript:`
+ * URL in a description would otherwise have written the membership test's answer
+ * for it, and two checks either side of the boundary is the right number for the
+ * line where a string becomes an OS-level action.
+ */
+export function descriptionLinkOpener(options: LinkOpenerOptions) {
+  return async function openDescriptionLink(
+    request: OpenDescriptionLinkRequest,
+  ): Promise<OpenResult> {
+    const envelope = (await options.dispatch('work.get', { key: request.subjectKey })) as {
+      data?: { ticket?: { description?: DocNode[] | null } }
+    }
+
+    const description = envelope.data?.ticket?.description ?? []
+    if (!linksIn(description).includes(request.url)) {
+      // Deliberately says the rule rather than the URL. This message can reach a
+      // log, and the string being refused is the one thing here that came from
+      // outside.
+      throw new Error(`That link is not in ${request.subjectKey}'s description.`)
+    }
+
+    if (!isHttps(request.url)) {
+      throw new Error('Refusing to open a non-https link.')
+    }
+
+    await options.openExternal(request.url)
+    return { url: request.url, fellBack: false }
   }
 }
 

@@ -159,21 +159,23 @@ changes ship as one release.
   second would bring a large React tree into an application with four production
   dependencies.
 
-  Links inside a description are **shown and are not clickable** — see Known
-  gaps.
+  **Links inside a description open**, and the renderer still cannot choose a
+  destination. A click sends the URL *and the ticket it is on*, and main refuses
+  any URL that ticket's own description does not contain, checked against core's
+  copy rather than the page's. So an injected script may send any string it
+  likes and every string that is not already on the operator's board is refused.
+  The link is a `<button>` with no `href`: there is no live destination in the
+  DOM to read, drag or middle-click.
+
+  This adds a third non-operation IPC channel, `grndctrl:open-url`. It is
+  separate from the launcher channel rather than a field on it, so that "the
+  launcher path has no URL argument" stays exactly true and the narrower
+  capability can be audited on its own.
 
 ### Known gaps
 
 Named rather than left to be discovered.
 
-- **A link inside a ticket description does not open.** It is rendered as text,
-  marked as a link, with its URL in the tooltip where it can be read and copied.
-  The renderer deliberately has no way to name a destination: it passes a
-  subject key, main resolves it through `links.resolve`, and only what core
-  returned reaches the OS — so a page with a script in it cannot ask for a URL
-  of its own. A description link is an arbitrary provider URL and is not a
-  subject, so making it clickable means adding that argument back. The ticket
-  opens at the tracker from the same panel, where the link works.
 - **Two of the new panels are empty until an agent uses them.** The active
   ticket is populated by MCP in the normal case; nothing in this application can
   make an agent call a tool.

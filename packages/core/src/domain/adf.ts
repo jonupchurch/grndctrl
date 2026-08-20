@@ -113,6 +113,52 @@ export function fromAdf(value: unknown): DocNode[] | null {
   return blocks(content, 0)
 }
 
+/**
+ * Every URL a converted description carries, in document order.
+ *
+ * This is what makes a description link openable without giving the renderer the
+ * ability to name a destination. The renderer says "the link on this ticket,
+ * this URL"; main asks core for the ticket, builds this set, and opens the URL
+ * only if it is in it. So the renderer can still only reach somewhere a provider
+ * already put in a ticket the operator can see — which is the property
+ * `main/links.ts` is protecting, kept rather than traded away.
+ *
+ * Duplicates are not removed. The caller wants membership, and a set built from
+ * this answers that; stripping them here would cost a pass for nothing.
+ */
+export function linksIn(nodes: readonly DocNode[]): string[] {
+  const found: string[] = []
+  collect(nodes, found)
+  return found
+}
+
+function collect(nodes: readonly DocNode[], into: string[]): void {
+  for (const node of nodes) {
+    switch (node.kind) {
+      case 'paragraph':
+      case 'heading':
+        for (const child of node.content) {
+          if (child.kind === 'text' && child.marks.href !== null) into.push(child.marks.href)
+        }
+        break
+      case 'list':
+        for (const item of node.items) collect(item, into)
+        break
+      case 'quote':
+        collect(node.content, into)
+        break
+      case 'table':
+        // A link inside a table cell is a link. Missing these would make
+        // exactly the links in the most structured part of a description the
+        // ones that do not work, which reads as a bug in the table.
+        for (const row of node.rows) for (const cell of row) collect(cell.content, into)
+        break
+      default:
+        break
+    }
+  }
+}
+
 interface AdfNode {
   type?: unknown
   content?: unknown

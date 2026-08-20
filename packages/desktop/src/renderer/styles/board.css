@@ -743,21 +743,29 @@
 }
 
 /*
- * A link that is shown and is not clickable.
+ * A link, which is a `<button>` carrying no `href`.
  *
- * `main/links.ts` is the one place a URL becomes an action, and the renderer
- * passes it a subject key rather than a URL precisely so that a compromised page
- * cannot name a destination. A description link is an arbitrary provider URL and
- * is not a subject, so making it clickable means adding that argument back.
- *
- * Underlined so it reads as a link and **not** given the accent colour or a
- * pointer cursor, so it does not read as a *button*. The URL is in its `title`.
+ * Styled as a link because that is what it is to the reader, and reset out of
+ * its button defaults so it sits inline in a sentence without a box, a
+ * background, or a font of its own. The `inherit`s are what make bold-inside-a-
+ * link and code-inside-a-link keep their own rendering.
  */
 .doc__link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-align: left;
   text-decoration: underline;
-  text-decoration-style: dotted;
   text-underline-offset: 2px;
-  cursor: help;
+  cursor: pointer;
+}
+
+.doc__link:hover {
+  text-decoration-thickness: 2px;
 }
 
 /*

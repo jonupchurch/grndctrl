@@ -28,6 +28,10 @@ export interface Bridge {
     accountLabel: string
     secret: string
   }): Promise<{ ok: true; connection: unknown } | { ok: false; error: { code: string; message: string } }>
+  openLink(request: {
+    subjectKey: string
+    url: string
+  }): Promise<{ ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }>
   on: {
     syncProgress(listener: (payload: unknown) => void): () => void
     freshnessTick(listener: (payload: unknown) => void): () => void
@@ -133,6 +137,25 @@ export async function storeCredential(request: {
   }
 
   const result = await bridge.credential(request)
+  if (!result.ok) throw new BridgeError(result.error.code, result.error.message)
+}
+
+/**
+ * Open a link inside a ticket description.
+ *
+ * Separate from `openSubject` because the two are different capabilities, not
+ * two spellings of one: that names a subject and this names a URL. Main only
+ * opens the URL if the named subject's description actually contains it, which
+ * is what keeps "the renderer cannot choose a destination" true even though
+ * there is now a string here.
+ */
+export async function openDescriptionLink(subjectKey: string, url: string): Promise<void> {
+  const bridge = window.grndctrl
+  if (bridge === undefined) {
+    throw new BridgeError('invalid', 'The application bridge is not available.')
+  }
+
+  const result = await bridge.openLink({ subjectKey, url })
   if (!result.ok) throw new BridgeError(result.error.code, result.error.message)
 }
 

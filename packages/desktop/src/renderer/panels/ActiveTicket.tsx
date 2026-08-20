@@ -129,7 +129,7 @@ export function ActiveTicket({ active, items, onClear, now }: ActiveTicketProps)
               {item.ticket.description === null ? null : item.ticket.description.length === 0 ? (
                 <p className="active__summary muted">No description.</p>
               ) : (
-                <Document nodes={item.ticket.description} />
+                <Document nodes={item.ticket.description} subjectKey={item.ticket.key} />
               )}
             </>
           )}

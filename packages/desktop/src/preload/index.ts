@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { channelFor, CREDENTIAL_CHANNEL, OPEN_CHANNEL, PUSH_CHANNELS } from '../shared/channels.js'
+import {
+  channelFor,
+  CREDENTIAL_CHANNEL,
+  OPEN_CHANNEL,
+  OPEN_URL_CHANNEL,
+  PUSH_CHANNELS,
+} from '../shared/channels.js'
 import { OPERATIONS } from './operations.js'
 
 /**
@@ -90,6 +96,17 @@ contextBridge.exposeInMainWorld('grndctrl', {
     accountLabel: string
     secret: string
   }) => ipcRenderer.invoke(CREDENTIAL_CHANNEL, request),
+
+  /**
+   * Open a link a ticket description contains.
+   *
+   * The one place the renderer passes a URL, and it passes the subject with it:
+   * main refuses any URL that ticket's own description does not contain, so this
+   * is "open the link the operator can see on that row" rather than "open a URL
+   * of my choosing". See `shared/channels.ts`.
+   */
+  openLink: (request: { subjectKey: string; url: string }) =>
+    ipcRenderer.invoke(OPEN_URL_CHANNEL, request),
 
   on: {
     syncProgress: subscribe(PUSH_CHANNELS.syncProgress),

@@ -85,7 +85,7 @@ describe('what the preload does not expose', () => {
     expect(invocations.length).toBeGreaterThan(0)
     for (const [, , argument] of invocations) {
       expect(
-        ['channel', 'OPEN_CHANNEL', 'CREDENTIAL_CHANNEL'],
+        ['channel', 'OPEN_CHANNEL', 'CREDENTIAL_CHANNEL', 'OPEN_URL_CHANNEL'],
         `channel argument was '${argument}'`,
       ).toContain(argument?.trim())
     }
@@ -118,19 +118,33 @@ describe('what the preload does not expose', () => {
 })
 
 describe('the non-operation channels', () => {
-  // Neither is an operation, so the conformance gate cannot see either, and
-  // pinning the set here is what stops a third, fourth and fifth accumulating —
+  // None is an operation, so the conformance gate cannot see any of them, and
+  // pinning the set here is what stops a fourth, fifth and sixth accumulating —
   // each individually reasonable, and collectively a second service layer.
   //
-  // Two, and each is here for its own reason. Opening a browser is a host
+  // Three, and each is here for its own reason. Opening a browser is a host
   // affordance like the window itself. Storing a credential is the opposite
   // case: it *could* be an operation, and must not be, because the registry is
   // served on the loopback API and MCP as well as IPC — so a secret in it would
   // be kept off those surfaces only by an `exposure` field staying correct
   // forever. A secret that never enters the registry cannot be exposed by
   // getting an exposure wrong.
-  it('is exactly two: the launcher and the credential path', () => {
-    expect(SHELL_CHANNELS).toEqual(['grndctrl:open', 'grndctrl:credential'])
+  //
+  // The third is the newest and the one with the most to answer for: it is the
+  // only channel that takes a URL from the renderer. It also takes the ticket
+  // the URL is supposed to be on, and main refuses any URL that ticket's own
+  // description does not contain — so the renderer still cannot name a
+  // destination, it can only point at one already on the operator's board.
+  //
+  // **Named exhaustively, deliberately.** Relaxing this to `toContain` would
+  // read as a perfectly reasonable diff and would then permit every future
+  // addition too, which is the entire failure this assertion exists to prevent.
+  it('is exactly three: the launcher, the credential path, and description links', () => {
+    expect(SHELL_CHANNELS).toEqual([
+      'grndctrl:open',
+      'grndctrl:credential',
+      'grndctrl:open-url',
+    ])
   })
 
   it('has no operation that accepts a provider credential', () => {

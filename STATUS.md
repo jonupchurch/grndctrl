@@ -870,18 +870,21 @@ without any of the others.
 779 unit tests and 88 end-to-end tests green, nothing skipped, nothing known
 failing.
 
-**A decision inside M3b that is worth revisiting, and was not the operator's.**
-A link inside a ticket description is **shown and is not clickable**. Making it
-clickable means giving the renderer a way to name a destination, and
-`main/links.ts` withholds that on purpose: the renderer passes a subject key,
-main resolves it through `links.resolve`, and only what core returned reaches the
-OS, so a page with a script in it cannot ask for a URL of its own. A description
-link is an arbitrary provider URL and is not a subject. Guarded by an https check
-it would not be catastrophic — but it converts "the renderer cannot name a
-destination" into "the renderer can name any https destination", spent on a
-convenience, and the ticket opens at the tracker from the same panel where the
-link does work. If that trade is wanted the way in is an `openUrl` channel with
-the scheme check in main.
+**Description links open, and were the operator's call.** The first version
+rendered them inert, because `main/links.ts` withholds from the renderer any
+ability to name a destination and a description link is an arbitrary provider URL
+rather than a subject. Asked, the operator wanted them clickable — so rather
+than the obvious "open any https URL" channel, which would have traded that
+property for a convenience, the click sends **the URL and the ticket it is on**
+and main refuses any URL that ticket's own description does not contain, checked
+against core's copy. An injected script can send anything; everything not already
+on the operator's board is refused.
+
+That adds a **third** non-operation IPC channel, `grndctrl:open-url`, kept
+separate from the launcher so "the launcher path has no URL argument" stays
+exactly true. `preload-surface.test.ts` names all three exhaustively; it was
+updated by naming the new one, never by relaxing it to a subset check, which is
+the fix that reads as reasonable and then permits every future addition too.
 
 **What M3a and M3b leave open.** Two of 007's four new panels are empty until an
 agent is configured to call the new tools, and nothing in this application can

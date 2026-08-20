@@ -43,6 +43,29 @@ export const OPEN_CHANNEL = 'grndctrl:open'
  */
 export const CREDENTIAL_CHANNEL = 'grndctrl:credential'
 
+/**
+ * Opening a link that a ticket description contains.
+ *
+ * A **third** non-operation channel, and the bar for one is high, so here is the
+ * argument. `OPEN_CHANNEL` takes a subject key and no URL, deliberately: the
+ * renderer cannot name a destination, so a page with a script in it has nowhere
+ * to put one. A link inside a ticket description is an arbitrary provider URL
+ * and is not a subject of anything, so the subject-key path cannot carry it.
+ *
+ * This channel takes a URL — and gives away much less than that sounds, because
+ * it also takes the subject whose description is supposed to contain it, and
+ * main **refuses any URL that is not actually in that description**. The
+ * renderer still cannot name a destination of its own; it can only point at one
+ * a provider already put in a ticket the operator can see, and the check happens
+ * on main's side of the boundary against core's own copy.
+ *
+ * Kept separate from `OPEN_CHANNEL` rather than folded into it as an optional
+ * field, so that the property "the launcher path has no URL argument" stays
+ * exactly true and this narrower capability is a named thing that can be audited
+ * on its own.
+ */
+export const OPEN_URL_CHANNEL = 'grndctrl:open-url'
+
 /** Main to renderer, unprompted. See `main/push.ts`. */
 export const PUSH_CHANNELS = {
   syncProgress: 'grndctrl:push:sync-progress',
@@ -59,4 +82,4 @@ export const PUSH_CHANNELS = {
  * non-operation surface, and a fourth entry has to be added here deliberately
  * rather than appearing next to a new `ipcMain.handle` call somewhere.
  */
-export const SHELL_CHANNELS = [OPEN_CHANNEL, CREDENTIAL_CHANNEL] as const
+export const SHELL_CHANNELS = [OPEN_CHANNEL, CREDENTIAL_CHANNEL, OPEN_URL_CHANNEL] as const

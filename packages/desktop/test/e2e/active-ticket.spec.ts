@@ -248,7 +248,7 @@ test.describe('the description', () => {
     await expect(placeholder).toContainText(/open the ticket at the tracker/i)
   })
 
-  test('puts no markup and no anchor on the page', async () => {
+  test('puts no markup and no href on the page', async () => {
     /*
      * FR-129, two ways.
      *
@@ -257,19 +257,93 @@ test.describe('the description', () => {
      * assertion is against the page's own HTML rather than its text — a
      * `<script>` in a ticket would be invisible to any text assertion.
      *
-     * **No anchor**: the renderer does not name destinations (`main/links.ts`).
-     * A link in a description is an arbitrary provider URL and is not a
-     * subject, so it is shown, marked, and inert. If that ever changes it must
-     * change deliberately, and this line is what makes it deliberate.
+     * **No `href`, even though the link now opens.** It is a `<button>`: the
+     * URL lives in the closure and in the tooltip, and the only thing that can
+     * act on it is the click, which main refuses unless this ticket's own
+     * description contains it. An `<a href>` would put a live destination in
+     * the DOM for anything on the page to read, drag or middle-click, and would
+     * need its default prevented anyway because this window must not navigate.
      */
     const doc = panel().locator('.doc')
 
     await expect(doc.locator('a')).toHaveCount(0)
     await expect(doc.locator('script')).toHaveCount(0)
+    await expect(doc.locator('[href]')).toHaveCount(0)
 
     const link = doc.locator('.doc__link')
     await expect(link).toHaveText('the RFC')
     await expect(link).toHaveAttribute('title', 'https://example.com/rfc/worktrees')
+    // A real control, not a styled span: reachable by keyboard, announced as a
+    // button, and the thing the click handler is on.
+    await expect(link).toHaveRole('button')
+  })
+
+  test('a description link opens, and only because the description contains it', async () => {
+    /*
+     * The click, end to end, without opening a browser on the machine running
+     * this.
+     *
+     * `shell.openExternal` is stubbed in the main process for the duration of
+     * this test, which is the only way to assert *what would have been opened*
+     * rather than that a handler returned without throwing. The second half is
+     * the one that matters: the same channel, called with a URL that is not in
+     * this description, is refused — and that is the property the whole design
+     * rests on, because an injected script can call it with anything.
+     */
+    const opened: string[] = await it.app.evaluate(async ({ shell }) => {
+      const seen: string[] = []
+      const globals = globalThis as unknown as { __openedUrls?: string[] }
+      globals.__openedUrls = seen
+      // Replaced rather than spied on, so nothing reaches a real browser.
+      shell.openExternal = (url: string): Promise<void> => {
+        seen.push(url)
+        return Promise.resolve()
+      }
+      return seen
+    })
+    expect(opened).toEqual([])
+
+    await panel().locator('.doc__link').click()
+
+    await expect
+      .poll(() =>
+        it.app.evaluate(
+          () => (globalThis as unknown as { __openedUrls: string[] }).__openedUrls.length,
+        ),
+      )
+      .toBe(1)
+
+    expect(
+      await it.app.evaluate(
+        () => (globalThis as unknown as { __openedUrls: string[] }).__openedUrls[0],
+      ),
+    ).toBe('https://example.com/rfc/worktrees')
+
+    // And the refusal, through the same bridge the click uses. A URL that is
+    // not in this ticket's description is rejected on main's side, against
+    // core's copy of the description rather than the page's.
+    const refused = await it.window.evaluate(async () => {
+      const bridge = (globalThis as unknown as {
+        grndctrl: {
+          openLink(r: { subjectKey: string; url: string }): Promise<{ ok: boolean; error?: { message: string } }>
+        }
+      }).grndctrl
+      return bridge.openLink({
+        subjectKey: 'jira:acme.atlassian.net/MERC-1184',
+        url: 'https://evil.example/steal',
+      })
+    })
+
+    expect(refused.ok).toBe(false)
+    expect(refused.error?.message).toMatch(/not in .* description/)
+
+    // Nothing further reached the OS. Asserting the rejection alone would pass
+    // on a handler that refused *after* opening it.
+    expect(
+      await it.app.evaluate(
+        () => (globalThis as unknown as { __openedUrls: string[] }).__openedUrls.length,
+      ),
+    ).toBe(1)
   })
 
   test('scrolls inside its own bounds rather than growing the column', async () => {

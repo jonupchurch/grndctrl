@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
+import { openDescriptionLink } from '../bridge.js'
 import type { DocNode, InlineNode } from '../types.js'
 
 /**
@@ -17,45 +18,53 @@ import type { DocNode, InlineNode } from '../types.js'
  * is nothing on the screen to suggest otherwise. The placeholder is ugly and is
  * meant to be.
  *
- * ## Links are shown and are not clickable, and that is a decision
+ * ## Links open, and the renderer still cannot choose a destination
  *
  * `main/links.ts` is emphatic that the renderer never passes a URL: it passes a
- * subject key, main resolves it through `links.resolve`, and only what core
- * returned is handed to the OS. Its own words are that a renderer with a script
- * in it "cannot ask for a URL of its own; there is no argument to put one in."
+ * subject key, main resolves it, and only what core returned reaches the OS —
+ * so a page with a script in it "cannot ask for a URL of its own; there is no
+ * argument to put one in."
  *
- * A link inside a description is an arbitrary provider URL and is not a subject,
- * so making it clickable means adding that argument. Guarded by an https check
- * it is not catastrophic — but it converts "the renderer cannot name a
- * destination" into "the renderer can name any https destination", which is the
- * capability the whole arrangement exists to withhold, spent on a convenience.
+ * A description link is an arbitrary provider URL and is not a subject, so it
+ * cannot go down that path. The obvious fix — a channel that opens any https
+ * URL — would trade that property for a convenience. What is done instead is
+ * narrower: the click sends **the URL and the ticket it is on**, and main
+ * refuses any URL that ticket's own description does not contain, checked
+ * against core's copy rather than the page's. An injected script may send any
+ * string it likes and every string that is not already on the operator's board
+ * is refused.
  *
- * So the link is rendered as text, marked as a link, carrying its URL where it
- * can be read and copied. The operator is one click from the real thing: the
- * panel's own header opens the ticket at the tracker, where the link works.
- *
- * **This is worth revisiting and is deliberately not decided here.** If clicking
- * them matters, the way in is an `openUrl` channel with the scheme check in
- * main, and it costs the property above — which is the operator's call, not a
- * renderer component's.
+ * So this is a `<button>` and not an `<a href>`. There is no URL in the markup
+ * at all, which also means nothing here can be middle-clicked, dragged, or
+ * copied into a page that had no business having it.
  */
 
 export interface DocumentProps {
   nodes: readonly DocNode[]
+  /**
+   * The ticket this description belongs to.
+   *
+   * Required, and it is not decoration: it is half of what a link click sends,
+   * and main uses it to decide whether the URL is one this description actually
+   * contains. A `Document` with no subject could not have working links, so the
+   * prop is not optional — the alternative is a component that silently
+   * renders inert links in whichever place forgot to pass it.
+   */
+  subjectKey: string
 }
 
-export function Document({ nodes }: DocumentProps): ReactElement {
-  return <div className="doc">{blocks(nodes)}</div>
+export function Document({ nodes, subjectKey }: DocumentProps): ReactElement {
+  return <div className="doc">{blocks(nodes, subjectKey)}</div>
 }
 
-function blocks(nodes: readonly DocNode[]): ReactNode {
-  return nodes.map((node, i) => <Block key={i} node={node} />)
+function blocks(nodes: readonly DocNode[], subject: string): ReactNode {
+  return nodes.map((node, i) => <Block key={i} node={node} subject={subject} />)
 }
 
-function Block({ node }: { node: DocNode }): ReactElement {
+function Block({ node, subject }: { node: DocNode; subject: string }): ReactElement {
   switch (node.kind) {
     case 'paragraph':
-      return <p className="doc__p">{inlines(node.content)}</p>
+      return <p className="doc__p">{inlines(node.content, subject)}</p>
 
     case 'heading': {
       /*
@@ -67,7 +76,7 @@ function Block({ node }: { node: DocNode }): ReactElement {
        * peer of the board itself.
        */
       const Tag = `h${Math.min(6, node.level + 2)}` as 'h3'
-      return <Tag className="doc__h">{inlines(node.content)}</Tag>
+      return <Tag className="doc__h">{inlines(node.content, subject)}</Tag>
     }
 
     case 'list': {
@@ -78,7 +87,7 @@ function Block({ node }: { node: DocNode }): ReactElement {
             // An item holds blocks, not a string. Two paragraphs in one bullet
             // is ordinary in a ticket, and flattening them would run the two
             // together into a sentence neither of them is.
-            <li key={i}>{blocks(item)}</li>
+            <li key={i}>{blocks(item, subject)}</li>
           ))}
         </Tag>
       )
@@ -92,7 +101,7 @@ function Block({ node }: { node: DocNode }): ReactElement {
       )
 
     case 'quote':
-      return <blockquote className="doc__quote">{blocks(node.content)}</blockquote>
+      return <blockquote className="doc__quote">{blocks(node.content, subject)}</blockquote>
 
     case 'rule':
       return <hr className="doc__rule" />
@@ -110,10 +119,10 @@ function Block({ node }: { node: DocNode }): ReactElement {
                   {row.map((cell, c) =>
                     cell.header ? (
                       <th key={c} scope="col">
-                        {blocks(cell.content)}
+                        {blocks(cell.content, subject)}
                       </th>
                     ) : (
-                      <td key={c}>{blocks(cell.content)}</td>
+                      <td key={c}>{blocks(cell.content, subject)}</td>
                     ),
                   )}
                 </tr>
@@ -138,11 +147,11 @@ function Block({ node }: { node: DocNode }): ReactElement {
   }
 }
 
-function inlines(nodes: readonly InlineNode[]): ReactNode {
-  return nodes.map((node, i) => <Inline key={i} node={node} />)
+function inlines(nodes: readonly InlineNode[], subject: string): ReactNode {
+  return nodes.map((node, i) => <Inline key={i} node={node} subject={subject} />)
 }
 
-function Inline({ node }: { node: InlineNode }): ReactElement {
+function Inline({ node, subject }: { node: InlineNode; subject: string }): ReactElement {
   if (node.kind === 'break') return <br />
 
   if (node.kind === 'unsupported') {
@@ -162,13 +171,26 @@ function Inline({ node }: { node: InlineNode }): ReactElement {
   if (node.marks.strong) content = <strong>{content}</strong>
 
   if (node.marks.href !== null) {
-    // Not an anchor. See the note at the top: the renderer does not name
-    // destinations. `title` puts the URL where it can be read and copied, and
-    // the text stays selectable.
+    /*
+     * A button, not an anchor, and the difference is the point.
+     *
+     * There is no `href` anywhere in the markup: the URL lives in the closure
+     * and in the `title`, and the only thing that can act on it is this click,
+     * which main will refuse unless the URL is in this ticket's description.
+     * An `<a href>` would put a live destination in the DOM for anything on the
+     * page to read, drag or middle-click, and would need its default prevented
+     * anyway — since the renderer must not navigate (FR-075).
+     */
+    const href = node.marks.href
     content = (
-      <span className="doc__link" title={node.marks.href}>
+      <button
+        type="button"
+        className="doc__link"
+        title={href}
+        onClick={() => void openDescriptionLink(subject, href).catch(() => undefined)}
+      >
         {content}
-      </span>
+      </button>
     )
   }
 
