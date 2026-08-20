@@ -1,16 +1,30 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-20 (0.4.0 ready to tag; 006 and 007 both complete) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-20 (0.4.0 published from a tag) · **Stage:** released · **On npm:** 0.4.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
-**0.4.0 is not on the registry.** It is cut on
-`006-remove-code-host-and-local-git`, which is **pushed to `origin` and not
-tagged** — CI is green on it and `release.yml` fires on `v*` tags only, so
-nothing from it is on the registry. It removes
-the GitHub provider, the local git reader and drift detection, so it is the first
-release where an upgrade takes capability away — read the breaking list in
-`CHANGELOG.md` before tagging it.
+**0.4.0 is on the registry**, published 2026-08-20 by the tag `v0.4.0` on
+`main`, each package carrying SLSA provenance — read back from
+`registry.npmjs.org` directly rather than through `npm view`, which caches. Fifth
+release cut from a tag.
 
-**0.3.0 is on the registry**, published 2026-08-19 by the tag `v0.3.0`, each
+**It is the first release where an upgrade takes capability away**: the GitHub
+provider, the local git reader and drift detection all go, along with two lanes,
+the Attention region and the DRIFTING tile. The breaking list is at the top of
+`CHANGELOG.md`.
+
+**The published artifact was tested, not assumed.** `npx grndctrl@0.4.0` under
+`GRNDCTRL_SMOKE=1`, over a scratch data directory, on a cleared npx cache:
+`{"version":"0.4.0","dbVersions":{"mirror":5,"authored":5},"runtimeAbi":{"modules":"130","electron":"33.4.11","isElectron":true}}`.
+Both new migrations ran on a fresh install — mirror 5 is the ticket description,
+authored 5 is the prompts table — which is the half a green CI cannot show.
+
+**Four stale `_npx` cache entries were removed first, and they were worse than
+stale.** They were pinned `^0.1.1`, `^0.1.2`, `^0.1.3` and `^0.2.0`; caret on a
+`0.x` version does not cross the minor, so not one of them could ever have
+resolved to 0.4.0. A machine carrying those would keep serving 0.1.x forever
+while reporting success.
+
+**0.3.0 was on the registry**, published 2026-08-19 by the tag `v0.3.0`, each
 package carrying SLSA provenance — read back from `registry.npmjs.org` directly
 rather than through `npm view`, which caches. Fourth release cut from a tag, and
 the second that was routine.
@@ -805,11 +819,26 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Cut 0.4.0 and tag it.** 006 and 007 are both complete. The branch is **pushed**
-to `origin` with CI green, and nothing is tagged — so nothing is published;
-`release.yml` fires on `v*` tags only.
+**Nothing is in flight.** 006 and 007 are both complete and 0.4.0 is published
+from the tag `v0.4.0`. `main` carries everything; the branch
+`006-remove-code-host-and-local-git` is merged and can be deleted whenever, and
+the local `pre-scrub-006` is already gone.
 
-**007 is complete because M2 was dropped, not because it was finished.** On
+**The next piece of work has not been chosen.** What is known to be outstanding,
+none of it urgent:
+
+- **The "no longer mine" lane**, if a Jira ever becomes reachable to probe. It is
+  out of scope rather than pending — see below — and picking it up means
+  re-opening a decision rather than resuming a task.
+- **Nothing in the interface can put an action in the outbox.** The queue, its
+  durability and the claim protocol are all still tested and agents can still
+  list, claim and complete; the operator's half has had no route since drift
+  left. This is now the largest gap in the product.
+- **Three of the four new regions are empty until an agent is told to call the
+  tools.** `docs/agents.md` carries the `CLAUDE.md` block that does it, and
+  pasting it is a manual step nothing can automate away.
+
+**007 was complete because M2 was dropped, not because it was finished.** On
 2026-08-20 the operator was asked whether to ship without the "no longer mine"
 lane, wait for a Jira to probe, or remove it. They removed it: *"we can remove
 that feature if it's going to create crazy issues. Drop it and mark it as out of
@@ -819,9 +848,18 @@ the research and the changelog all record the decision rather than deleting the
 feature, because the reasoning in them is the reason not to reach for the wider
 "everything not assigned to me" later.
 
-So the standing decision from 2026-08-19 — one 0.4.0 for 006 and 007, nothing
-tagged until 007 is done — is now satisfied. **Tagging is publishing and is not
-reversible**, so it is the operator's to trigger.
+The standing decision from 2026-08-19 — one 0.4.0 for 006 and 007, nothing tagged
+until 007 is done — was satisfied by that, and the tag followed on the operator's
+instruction.
+
+**The local `--scope all` client audit still fails on this machine, and it is
+still not a leak.** The remaining hits are in `001-ground-control-v1`, which
+exists here and on the *private* `grndctrl-archive` remote and has never been on
+the public one. Verified rather than remembered this time: the archive repo reads
+`private: true`, and the audit was run with `--rev` against every ref that
+actually exists on `origin` — `main` and 002 through 006 — and all six pass. That
+per-ref sweep is the check worth repeating; `--scope all` on a developer's
+machine answers a question about the machine.
 
 ### The decisions taken on 2026-08-19, all by the operator
 
