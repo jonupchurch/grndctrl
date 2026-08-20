@@ -2,7 +2,7 @@
   "name": "grndctrl-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Ground Control \u2014 a local-first command station correlating Jira tickets with the agent sessions running against them",
+  "description": "Ground Control \u2014 a local-first console for your Jira tickets and the AI agents working them",
   "license": "MIT",
   "type": "module",
   "engines": {

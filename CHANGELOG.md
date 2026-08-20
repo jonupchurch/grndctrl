@@ -230,6 +230,30 @@ changes ship as one release.
   in the operator's own local store, there is no automated redaction, and the
   delete control is why deleting exists at all.
 
+- **The board is arranged around the work.** The main column carries the ticket
+  lane, the active ticket and the agent update stream; the side rail carries
+  sessions, ball-in-court and the prompt shelf. The active ticket is in the wide
+  column because it renders a description — paragraphs, lists, tables, code — and
+  320px is not a width you can read a table in. Which column each region is in is
+  asserted, because nothing else would notice a later edit moving one.
+
+- **A `CLAUDE.md` block ships with the release**, in
+  [docs/agents.md](docs/agents.md). Connecting the MCP server puts the tools in
+  an agent's list and does nothing else, so three of the four new regions stay
+  empty on a correctly configured installation until an agent is *told* to use
+  them. That block is the thing that tells it. A test now checks every
+  `grndctrl_*` name the document mentions against the real tool list — the first
+  draft named `grndctrl_create_note`, which does not exist, and the symptom would
+  have been an agent that "does not write notes".
+
+- **A second scenario fixture, `agent-console.json`**, with the console
+  populated: an active ticket, an update stream and a prompt shelf, every
+  timestamp resolved at load. It is a separate file rather than an addition to
+  the canonical board because three end-to-end tests assert the *empty* states —
+  which is the state a fresh install is in, and worth keeping a fixture for. The
+  seeder writes all three through the real services, so an update still takes its
+  author from its session and its ticket from whatever focus held at that moment.
+
 - **Open questions from agents have a home again.** A `question-for-human` note
   appears at the top of the update panel, visually distinct from the stream, and
   opens the note so the answer is written where the question was asked. 006
@@ -254,18 +278,36 @@ changes ship as one release.
 
 Named rather than left to be discovered.
 
-- **Two of the new panels are empty until an agent uses them.** The active
-  ticket is populated by MCP in the normal case; nothing in this application can
-  make an agent call a tool.
-- **Nothing in the interface can put an action in the outbox.** The queue, its
-  durability and the claim protocol are all still here and still tested; the only
-  route to it from a screen ran through a drift finding, and that route left with
-  drift. Agents can still list, claim and complete. The operator's half comes
-  back with the agent console.
-- **Open questions have nowhere dedicated to be shown.** A `question-for-human`
-  note still moves its work item's ball-in-court to the operator and still puts
-  the session into `needs-you`, so the signal reaches the row. The *list* of them
-  was in the Attention region. Also the agent console.
+- **The "no longer assigned to me" lane is not in this release.** It was
+  specified — tickets that were yours and changed hands in the last seven days —
+  and it is the one part of the agent console that is not built. It needs a JQL
+  query (`assignee CHANGED FROM currentUser() AFTER -7d`) verified against a real
+  Jira before anything is written against it, because this endpoint has already
+  produced two restrictions its documentation does not mention. There is **no
+  client-side fallback**: the changelog endpoint takes issue keys, and the keys
+  of tickets reassigned away are exactly the ones the assignee-scoped query
+  stopped returning. Rather than approximate it with the wider "everything not
+  assigned to me" — a different question, and the one the scope was narrowed
+  away *from* — the lane is absent and this entry says so.
+
+- **Three of the four new regions are empty until an agent uses them.** The
+  active ticket, the update stream and the prompt shelf are all populated over
+  MCP in the normal case, and nothing in this application can make an agent call
+  a tool. Each says what fills it rather than rendering blank, and
+  [docs/agents.md](docs/agents.md) carries a `CLAUDE.md` block that tells an
+  agent to — but pasting that block is a thing somebody has to do.
+
+- **Nothing in the interface can put an action in the outbox.** Unchanged from
+  what 006 left: the queue, its durability and the claim protocol are all still
+  here and still tested, and agents can list, claim and complete. The only route
+  to it from a screen ran through a drift finding, and that route left with
+  drift. This release did not bring it back — the agent console turned out to be
+  about what an agent *says*, not about what the operator asks it to do.
+
+- **A recorded prompt is not redacted.** An agent records whatever it was handed,
+  which may include a token somebody pasted at it. It lives in the operator's own
+  local authored store, on their machine, and they can delete it; there is no
+  automated scrubbing and no warning at the point of recording.
 
 ### Fixed
 

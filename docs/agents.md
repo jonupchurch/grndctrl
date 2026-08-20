@@ -28,6 +28,52 @@ If the app is not running, every tool fails saying so. That is the intended
 answer; there is no headless mode that quietly opens the databases behind a
 running app's back.
 
+## Telling the agent to use it (T147)
+
+**The panels above are empty until something calls the tools, and connecting the
+server is not that something.** An MCP server appears in an agent's tool list;
+it does not make the agent reach for it. Three of the four regions 007 adds —
+the active ticket, the update stream, the prompt shelf — stay blank on a
+correctly configured, correctly connected, perfectly healthy installation until
+an agent is *told* to use them.
+
+That is why this section is part of the feature rather than documentation of it.
+Put this in the `CLAUDE.md` of any repository you want on the board, or in the
+equivalent standing instruction for whatever agent you run:
+
+```markdown
+## Ground Control
+
+This project is tracked on Ground Control. Use the `grndctrl` MCP tools:
+
+- **Start a session** when you begin work (`grndctrl_start_session`), heartbeat
+  on the interval you declared, and end it when you stop. A session that stops
+  heartbeating is reported as gone, not as quiet.
+- **Set the active ticket** when you pick work up (`grndctrl_set_active_ticket`)
+  and clear it when you put it down. This is what the operator's board reads to
+  answer "what is being worked right now".
+- **Post an update** when there is news (`grndctrl_post_update`) — a decision
+  made, a surprise found, a direction changed. Not on a timer, and not for
+  "still working": that is what the heartbeat is for.
+- **Ask with a question note** (`grndctrl_add_note`, type
+  `question-for-human`) rather than guessing. It reaches the operator; a guess
+  written as a `decision` becomes a record of something nobody decided.
+- **Record a prompt worth reusing** (`grndctrl_record_prompt`) — one that
+  worked, or one worth giving again on similar work. Not every message.
+- **Read the board before asking the operator** (`grndctrl_list_updates`,
+  `grndctrl_list_notes`): another agent may have already tried it.
+
+Never enqueue an action; the operator confirms those. Never write to Jira
+through Ground Control — it is read-only against the provider by construction.
+```
+
+**Nothing in this application can make an agent cooperate**, and nothing in it
+pretends to. An empty panel here is "not wired up yet", and each one says so in
+its own words rather than looking broken — which is the honest state, not a
+placeholder.
+
+---
+
 ---
 
 ## The shape of the surface

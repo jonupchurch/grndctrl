@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-20 (0.4.0 cut on a branch, not published) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-20 (0.4.0 cut on a branch, not published; 007 complete but for its blocked lane) · **Stage:** released, with a breaking change staged · **On npm:** 0.3.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.4.0 is not on the registry.** It is cut on
 `006-remove-code-host-and-local-git`, which is **pushed to `origin` and not
@@ -805,15 +805,21 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Build 007 M6, the final layout and the release checks.** 006 is complete; 007
-M1, M3a, M3b, M4 and M5 are built. The branch is **pushed** to `origin` and CI is
-green on it. Nothing is tagged, so nothing is published — `release.yml` fires on
-`v*` tags only.
+**Decide whether 0.4.0 ships without the handed-off lane.** Everything else in
+006 and 007 is built: M1, M3a, M3b, M4, M5 and M6 are done, the branch is
+**pushed** to `origin` with CI green, and nothing is tagged — so nothing is
+published. `release.yml` fires on `v*` tags only.
 
-**M6 opens with T145, and T146 is the one task that needs the operator**: look at
-the board running and decide about the three changes made without them — the
-"Summary" header above the tiles, the second control in the ticket row's trailing
-slot, and now the shape of the prompt panel.
+**This is a question rather than a task.** The standing decision from 2026-08-19
+was that 006 and 007 release together as one 0.4.0 and **nothing is tagged until
+007 is done**. 007 is done except M2, the "no longer assigned to me" lane, which
+is blocked on a JQL probe against a real Jira that the operator cannot reach from
+where they are working. So either 0.4.0 ships with that lane named as a known gap
+— it is written up as one in `CHANGELOG.md` — or the release waits for a machine
+that can reach a Jira. Both are defensible and the choice is not mine.
+
+T152's remaining half, the version cut and the tag, follows whichever way that
+goes.
 
 ### The decisions taken on 2026-08-19, all by the operator
 
@@ -874,9 +880,9 @@ without any of the others.
 | M3b — The ticket description | ✅ Complete — T121—T127 |
 | M4 — Agent updates | ✅ Complete — T128—T134 |
 | M5 — Prompts and the clipboard | ✅ Complete — T135—T144 |
-| M6 — Layout, docs, audits | ⬜ Next |
+| M6 — Layout, docs, audits | ✅ Complete — T145—T151; T152 needs a decision |
 
-820 unit tests and 100 end-to-end tests green, nothing skipped, nothing known
+827 unit tests and 105 end-to-end tests green, nothing skipped, nothing known
 failing.
 
 **M4 found a defect older than 007, and it is worth reading before M5.** There
@@ -957,6 +963,57 @@ file is wrong both times.** `prompts` is migration **5**, not the 3 the file
 names — M3a took 3 and M4 took 4, because the plan had M2 before them. A
 duplicate `version` is not an error SQLite reports: the second entry silently
 never runs on a database that already applied the first.
+
+**M6 put the board in front of the operator, and the layout stands as built.**
+T145 moved the active ticket and the update stream into the main column: the
+active ticket renders a description — paragraphs, lists, tables, code — and 320px
+is not a width you can read a table in. Asked at T146 whether to change anything,
+including the prompt rows that run to four or five lines in the side rail, the
+operator said keep it exactly as is. Which column each region sits in is now
+asserted in `agent-console.spec.ts`, because nothing else in the suite would
+notice an edit moving one.
+
+**Looking at it also produced a non-finding worth recording.** The description
+appeared to cut off mid-line with no scrollbar, which reads as broken text.
+Measuring the live DOM instead of trusting the capture: `clientHeight 320,
+scrollHeight 436, scrollbarWidth 17` — a real scrollbar taking real layout space,
+which Playwright's full-page capture does not stitch in. Nothing to fix. **Check
+before fixing what a screenshot suggests.**
+
+**T147's `CLAUDE.md` snippet is part of the feature and is now tested like one.**
+Three of the four new regions are empty until an agent is *told* to call the
+tools — connecting the server only puts them in a list. The first draft of that
+snippet named `grndctrl_create_note`; the tool is `grndctrl_add_note`. Nothing
+would have caught it and the symptom would have been "the agent does not write
+notes". `packages/mcp/test/docs.test.ts` now checks every `grndctrl_*` name in
+the document against the real tool list, with a short exemption list for the ones
+named *because they are gone* — and asserts those are still absent, so the
+exemption cannot quietly start covering something real.
+
+**The egress audit needed two attempts and the first one lied.** Driving it
+through Playwright produced an empty log that looked like a clean capture:
+`_electron.launch` **strips `NODE_OPTIONS`**, so the recorder never loaded. Worse,
+the first path passed to it was a Windows path — `NODE_OPTIONS` is tokenised
+shell-style, so the backslashes are eaten and `--require` silently does nothing.
+Two independent ways to get a green "nothing was contacted" from a session nobody
+was watching. The capture that counts was taken the documented way (`electron .`
+under the recorder), with the two IPC-only paths — the clipboard copy and the
+prompt delete — driven over CDP because they need a window. Sixteen processes
+loaded the recorder and no outbound request was made. The audit's own note is the
+honest reading: over a session with no credential, zero hosts means the session
+did nothing rather than that nothing leaked.
+
+**T150 is done except the part M2 owns.** `agent-console.json` is a second
+scenario carrying an active ticket, an update stream and a prompt shelf, seeded
+through the real services so an update still takes its author from its session
+and its ticket from whatever focus held at that moment. It is a separate file
+because populating the canonical board turned three empty-state tests red — and
+those assert the state a fresh install is actually in, which is worth a fixture
+of its own. The handed-off tickets T150 also asks for are **not** there: the shape
+those rows need is M2's to decide, and a fixture guessing at it would be rewritten
+by the milestone that defines it. The scenario-reader test now enumerates the
+directory rather than naming two files, so the third one could not have been
+skipped in silence.
 
 **What M3a and M3b leave open.** Two of 007's four new panels are empty until an
 agent is configured to call the new tools, and nothing in this application can

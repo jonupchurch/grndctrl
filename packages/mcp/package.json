@@ -1,7 +1,7 @@
 {
   "name": "grndctrl-mcp",
   "version": "0.4.0",
-  "description": "MCP stdio server for Ground Control. A thin adapter over the core operation registry.",
+  "description": "MCP stdio server for Ground Control. Lets a coding agent read the board, set the ticket it is working, post updates, ask the operator questions, and record prompts. A thin adapter over the core operation registry.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/server.js",

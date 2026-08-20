@@ -1,7 +1,7 @@
 {
   "name": "@grndctrl/desktop",
   "version": "0.4.0",
-  "description": "The Electron application: main, preload, and the React renderer.",
+  "description": "The Electron application: the ticket lane, the agent console, main, preload, and the React renderer.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/main/index.cjs",

@@ -323,6 +323,18 @@ export function App(): ReactElement {
             </LaneBoundary>
 
             <div className="board__columns">
+              {/*
+                The main column is **the work**: what is on your plate, what is
+                being worked right now, and what is being said about it. US1
+                asks for the active ticket and the agent's last word "in one
+                column", and this is that column (T145).
+
+                The active ticket moved here from the side rail for a reason
+                the side rail made obvious: it carries a rendered description —
+                paragraphs, lists, tables, code — and 320px is not a width you
+                can read a table in. A panel whose whole content is prose does
+                not belong in the narrow track.
+              */}
               <div className="board__main">
                 <LaneBoundary lane="Tickets">
                   <Tickets
@@ -337,14 +349,17 @@ export function App(): ReactElement {
                     }}
                   />
                 </LaneBoundary>
-              </div>
 
-              <aside className="board__side">
                 {/*
-                  First in the column, because it is the answer to "what is
-                  happening right now" and US1 is the reason this release
-                  exists. Everything below it is context for this.
+                  T145 puts the handed-off lane here, between the tickets and
+                  the active ticket. **It does not exist**: M2 is blocked on a
+                  JQL probe against a real Jira that has not been run, and
+                  FR-123b says report that lane unbuildable rather than
+                  approximate it. The gap is left in the arrangement rather than
+                  closed over, so the column does not have to be re-reasoned
+                  when it arrives.
                 */}
+
                 <LaneBoundary lane="Active ticket">
                   <ActiveTicket
                     active={active.data}
@@ -357,8 +372,10 @@ export function App(): ReactElement {
                 </LaneBoundary>
 
                 {/*
-                  Below the active ticket, because it is commentary on it: what
-                  is being worked, then what is being said about it.
+                  Directly below it, because it is commentary on it: what is
+                  being worked, then what is being said about it. The two are
+                  read together and separating them across columns would put a
+                  scroll between a question and the ticket it is about.
                 */}
                 <LaneBoundary lane="Agent updates">
                   <AgentUpdates
@@ -370,22 +387,31 @@ export function App(): ReactElement {
                     onOpenQuestion={(key, label) => setNotesFor({ key, label })}
                   />
                 </LaneBoundary>
+              </div>
 
-                {/*
-                  Below the updates, because it is the one panel here that is
-                  not about what is happening now - it is a shelf the operator
-                  reaches for when starting something.
-                */}
-                <LaneBoundary lane="Recent prompts">
-                  <Prompts prompts={prompts.data ?? []} onDelete={deletePrompt} />
-                </LaneBoundary>
-
+              {/*
+                The side rail is **context**: who else is working, who is
+                holding what up, and the shelf you reach for when starting
+                something. None of it is prose and none of it needs width — a
+                session is a name and a state, a court entry is a row, a prompt
+                is one truncated line.
+              */}
+              <aside className="board__side">
                 <LaneBoundary lane="Agent sessions">
                   <Sessions sessions={live} />
                 </LaneBoundary>
 
                 <LaneBoundary lane="Ball in court">
                   <BallInCourt items={items} />
+                </LaneBoundary>
+
+                {/*
+                  Last, and the only region here that is not about now. It is a
+                  shelf: the operator reaches for it when starting something
+                  rather than while watching something.
+                */}
+                <LaneBoundary lane="Recent prompts">
+                  <Prompts prompts={prompts.data ?? []} onDelete={deletePrompt} />
                 </LaneBoundary>
               </aside>
             </div>

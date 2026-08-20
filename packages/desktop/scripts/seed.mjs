@@ -69,7 +69,7 @@ const now = scenario.now ?? new Date().toISOString()
 // the same wiring the app uses, so anything seeded here is reachable by exactly
 // the path the app reads it back on.
 const services = runtime.createCoreServices({ dir })
-const { mirror, projects, sessions, notes } = services
+const { mirror, projects, sessions, notes, focus, updates, prompts } = services
 
 // Connections first: every other table is keyed by one, and the freshness rows
 // hang off them.
@@ -195,6 +195,55 @@ for (const note of scenario.notes ?? []) {
   notes.create({ subjectKey: note.subjectKey, type: note.type, body: note.body }, ctx)
 }
 
+/*
+ * 007's authored data, written the same way (T150).
+ *
+ * The active ticket, the update stream and the prompt shelf are the three
+ * regions that are **empty until an agent calls something**, which makes them
+ * the three a fixture is most needed for: without this, every scenario renders
+ * three empty states and the suite can only ever assert that the empty states
+ * are correct.
+ *
+ * All three go through the services rather than into the tables, for the reason
+ * the sessions above do: `updates.post` fills the author from the session and
+ * the ticket from whatever focus holds *at that moment*, so seeding the rows
+ * directly would produce history no agent could have produced -- and would
+ * quietly stop testing the capture that is the whole design of that field.
+ *
+ * Order matters, and it is the same order an agent works in: focus first, then
+ * updates, so each update captures the ticket the scenario means it to.
+ */
+if (scenario.activeTicket) {
+  focus.set({ ticketKey: scenario.activeTicket }, ctx)
+}
+
+for (const update of scenario.updates ?? []) {
+  updates.post(
+    { sessionKey: update.sessionKey, text: update.text },
+    // A per-update clock, so a stream seeded all at once still reads as
+    // something that happened over time. Without it every row says "now" and
+    // the panel cannot be tested for order at all.
+    { ...ctx, now: () => new Date(update.postedAt ?? now) },
+  )
+}
+
+for (const prompt of scenario.prompts ?? []) {
+  prompts.record(
+    {
+      text: prompt.text,
+      sessionKey: prompt.sessionKey ?? undefined,
+      projectId: prompt.projectId ?? undefined,
+    },
+    {
+      ...ctx,
+      // The author comes from `Ctx`, so a scenario naming an agent has to say so
+      // here rather than in the payload -- the same rule the product enforces.
+      authorId: prompt.agentId ?? ctx.authorId,
+      now: () => new Date(prompt.recordedAt ?? now),
+    },
+  )
+}
+
 services.close()
 
 console.log(
@@ -203,5 +252,8 @@ console.log(
     `  projects   ${(input.projects ?? []).length}\n` +
     `  tickets    ${(input.tickets ?? []).length}\n` +
     `  sessions   ${(input.sessions ?? []).length}\n` +
-    `  notes      ${(scenario.notes ?? []).length}`,
+    `  notes      ${(scenario.notes ?? []).length}\n` +
+    `  updates    ${(scenario.updates ?? []).length}\n` +
+    `  prompts    ${(scenario.prompts ?? []).length}\n` +
+    `  active     ${scenario.activeTicket ?? '(none)'}`,
 )

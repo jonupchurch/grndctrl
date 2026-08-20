@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -113,7 +113,30 @@ describe('the derived note fields', () => {
   })
 })
 
-describe.each(['canonical-board', 'every-severity'])('%s', (name) => {
+/**
+ * Read from the directory, not written out here.
+ *
+ * This was the literal `['canonical-board', 'every-severity']`, and 007 added a
+ * third scenario that it would silently not have covered — which is the same
+ * shape of staleness the rest of this file exists to catch, one level up. A
+ * scenario nobody checks is a scenario that throws halfway through `seed.mjs`
+ * and fails every spec reading it with a message about note subjects.
+ */
+const ALL_SCENARIOS = readdirSync(SCENARIOS)
+  .filter((f) => f.endsWith('.json'))
+  .map((f) => f.replace(/\.json$/, ''))
+  .sort()
+
+describe('the scenario directory', () => {
+  it('has scenarios in it, so the cases below are over something', () => {
+    // Without this the `describe.each` below would run zero times and report a
+    // clean pass over nothing at all.
+    expect(ALL_SCENARIOS.length).toBeGreaterThanOrEqual(2)
+    expect(ALL_SCENARIOS).toContain('canonical-board')
+  })
+})
+
+describe.each(ALL_SCENARIOS)('%s', (name) => {
   it('states notes at all, so the comparisons below are over something', () => {
     expect(notesOf(name).length).toBeGreaterThan(0)
   })

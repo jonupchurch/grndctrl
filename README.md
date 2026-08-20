@@ -1,8 +1,9 @@
 # Ground Control
 
-A local-first command station for the work you are actually holding. It
-correlates your Jira tickets with the AI agent sessions running against them,
-and tells you what is waiting on you.
+A local-first command station for the work you are actually holding. It puts
+your Jira tickets and the AI agents working them on one board — which ticket is
+being worked right now, what the agent last said about it, and what it is waiting
+on you to answer.
 
 Not a dashboard. A dashboard shows you numbers. This shows you the ticket an
 agent went quiet on four hours ago, the one that has not moved in a week, and
@@ -27,6 +28,14 @@ mark carries a shape and a word, so the board still works in greyscale.
 **Is honest about what it does not know.** The lane shows how fresh it is, and a
 provider that cannot be reached says so rather than rendering as empty. "No
 tickets assigned to you" and "could not reach Jira" are different sentences.
+
+**Is a console for your agents, not just a view of them.** An agent sets the
+ticket it has picked up, and the board shows that ticket with its description
+rendered — headings, lists, tables, code, links that open. It posts a line when
+there is news, and that line appears with no poll and no reload. When it needs a
+decision it asks a question, and the question sits above the stream because a
+question is something to do rather than something to read. Prompts worth reusing
+go on a shelf; one click puts the whole prompt on your clipboard.
 
 **Talks to your agents.** `grndctrl-mcp` gives a coding agent the same board you
 see, plus a durable action queue: you confirm an action, an agent claims it and
@@ -126,8 +135,8 @@ saved and then found to show nothing.
 ### 3. Watch it fill in
 
 It refreshes on its own, every five minutes, adjustable in Settings. Refresh in
-the titlebar forces it. It fetches the tickets assigned to you and the ones
-recently taken off you — not your whole backlog.
+the titlebar forces it. It fetches **the tickets assigned to you** — not your
+whole backlog, and not your team's.
 
 ## Connect an agent
 
@@ -147,6 +156,13 @@ Point your MCP client at the server; it finds the running app itself.
 The app must be running: the MCP server reaches it over a loopback API whose
 port and token are published in a file only your user account can read. Nothing
 listens on an external interface.
+
+**Connecting the server is not the whole job.** It puts the tools in the agent's
+list; it does not make the agent reach for them, so the active ticket, the update
+stream and the prompt shelf stay empty until an agent is *told* to use them.
+[docs/agents.md](docs/agents.md) carries a `CLAUDE.md` block to paste into any
+repository you want on the board — that block is part of the feature, not
+documentation of it.
 
 Full tool list, the polling contract, and why there is no push:
 [docs/agents.md](docs/agents.md).
