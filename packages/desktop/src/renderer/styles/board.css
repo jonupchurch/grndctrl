@@ -120,14 +120,32 @@
 
 .board__columns {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  /*
+   * The rail was 320px, chosen when `--t-meta` was 11px. **Widened with the type
+   * scale on 2026-08-20**, by the same 1.25 step, because a fixed-width column
+   * holding text fits proportionally less of it when the text grows — and the
+   * prompt shelf, whose rows are a truncated preview meant to be recognisable at
+   * a glance, was wrapping to six and seven lines.
+   *
+   * Sessions and ball-in-court did not need it. The rail is sized for the one
+   * thing in it that is prose.
+   */
+  grid-template-columns: minmax(0, 1fr) 400px;
   gap: 16px;
   align-items: start;
 }
 
-/* One column when the side panels would squeeze the lanes. The lanes are the
-   thing; the panels are context. */
-@media (max-width: 1100px) {
+/*
+ * One column when the side panels would squeeze the lanes. The lanes are the
+ * thing; the panels are context.
+ *
+ * The breakpoint moved with the rail. It was 1100px against a 320px rail, which
+ * left the main column about 750px before the lanes collapsed; holding that same
+ * 750px against a 400px rail puts the switch at 1180. Leaving it at 1100 would
+ * have meant a window between 1100 and 1180 where the ticket lane — eight
+ * columns wide — kept the two-column layout with 80px less to draw it in.
+ */
+@media (max-width: 1180px) {
   .board__columns {
     grid-template-columns: minmax(0, 1fr);
   }
