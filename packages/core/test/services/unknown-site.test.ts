@@ -94,8 +94,9 @@ describe('what must keep working', () => {
   it('is case-insensitive about the configured side too', () => {
     // A connection stored with a shouted host must not refuse a correctly
     // written key.
-    expect(() => check(['EXAMPLE.ATLASSIAN.NET']).assertKnown('jira:example.atlassian.net/ENG-1'))
-      .not.toThrow()
+    expect(() =>
+      check(['EXAMPLE.ATLASSIAN.NET']).assertKnown('jira:example.atlassian.net/ENG-1'),
+    ).not.toThrow()
   })
 
   it('reads the list per call, so adding a connection takes effect at once', () => {
@@ -106,8 +107,11 @@ describe('what must keep working', () => {
 
     // `acme`, not an invented name: the shape scan in `audit-client-refs.ts`
     // flags any `*.atlassian.net` host that is not a known placeholder, and it
-    // cannot tell an invented one from a real one. That is the correct
-    // behaviour — the fix is to use a placeholder, never to widen the list.
+    // cannot tell an invented one from a real one. This line said
+    // `other.atlassian.net` for a day, which failed the gate — and failed it
+    // again from *history* after the tree was fixed, because the audit scans
+    // both. `other` is on the placeholder list now for that reason; the fix
+    // that costs nothing is to reach for a listed name in the first place.
     sites.push('acme.atlassian.net')
     expect(() => live.assertKnown('jira:example.atlassian.net/ENG-1')).toThrow()
 

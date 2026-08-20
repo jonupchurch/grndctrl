@@ -82,6 +82,26 @@ export function parseDenylist(text: string): string[] {
  * the *inputs* to the scrubber's own tests, which have to look like a real host
  * for the assertion to mean anything.
  */
+/**
+ * Subdomains that are obviously nobody.
+ *
+ * The bar for an entry is that the word cannot name a company: `acme`,
+ * `example`, `site`, `x`, `other`. It is emphatically **not** "a host we have
+ * decided is fine" — the moment a plausible-sounding name goes on this list the
+ * shape scan stops being the arm that catches what the denylist never thought
+ * of, and the denylist is the arm that only finds what somebody listed.
+ *
+ * `other` was added on 2026-08-20, and the reason it had to be is worth keeping.
+ * A test used `other.atlassian.net` for "a site that is not the one being asked
+ * about". The tree was corrected to a listed placeholder within the day — but
+ * the audit scans **history as well as the tree**, and the blob was already
+ * pushed. So the choice was this line or rewriting published history over a word
+ * meaning "some other one", and the second is not proportionate to the first.
+ *
+ * The lesson is upstream of both: a made-up host in a test is a gate failure
+ * waiting for the next push, because the scan cannot tell an invented site from
+ * a real one and must not try. Use a name from this list.
+ */
 export const PLACEHOLDER_SITES: ReadonlySet<string> = new Set([
   'acme',
   'example',
@@ -89,6 +109,7 @@ export const PLACEHOLDER_SITES: ReadonlySet<string> = new Set([
   'real',
   'realcustomer',
   'site',
+  'other',
   'x',
 ])
 
@@ -128,7 +149,10 @@ export function scanSource(source: Source, terms: readonly string[]): Finding[] 
   return findings
 }
 
-export function auditSources(sources: readonly Source[], denylist: readonly string[] | null): ClientAuditResult {
+export function auditSources(
+  sources: readonly Source[],
+  denylist: readonly string[] | null,
+): ClientAuditResult {
   // A null denylist still runs the shape scan — it is the arm that needs no
   // configuration — but the result can never pass, because coverage is partial
   // and saying so is the whole point.

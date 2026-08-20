@@ -103,7 +103,10 @@ describe('the secret audit', () => {
     // The main scan can only find the secret it was given. A second
     // connection's token, or a colleague's pasted into a note, is exactly the
     // thing an audit run with one value would miss.
-    writeFileSync(join(dir, 'notes.db'), 'body: use ghp_abcdefghij0123456789ABCDEFGHIJ012345 for now')
+    writeFileSync(
+      join(dir, 'notes.db'),
+      'body: use ghp_abcdefghij0123456789ABCDEFGHIJ012345 for now',
+    )
 
     const result = auditDirectory(dir, 'something-else-entirely')
 
@@ -382,7 +385,10 @@ describe('the client-reference audit', () => {
 
   it('catches a real Jira site the denylist never mentioned', () => {
     // The arm that matters: nobody listed this host, and it is still caught.
-    const result = auditSources([{ path: 'notes.md', text: `see https://${UNKNOWN_SITE}/browse/AB-1` }], DENY)
+    const result = auditSources(
+      [{ path: 'notes.md', text: `see https://${UNKNOWN_SITE}/browse/AB-1` }],
+      DENY,
+    )
     expect(clientPassed(result)).toBe(false)
     expect(result.findings[0]?.kind).toBe('unrecognised Jira site')
   })
@@ -390,7 +396,7 @@ describe('the client-reference audit', () => {
   it('leaves the invented placeholder sites alone', () => {
     // The control. These are all over the fixtures and tests, and a gate that
     // fires on them would be turned off within a day.
-    const text = 'acme.atlassian.net example.atlassian.net real.atlassian.net'
+    const text = 'acme.atlassian.net example.atlassian.net real.atlassian.net other.atlassian.net'
     expect(scanSource({ path: 'keys.test.ts', text }, DENY)).toEqual([])
   })
 
@@ -496,9 +502,7 @@ describe('the subprocess audit', () => {
   })
 
   it('names exactly the two exceptions, and no more', () => {
-    expect(Object.keys(SUBPROCESS_ALLOWED)).toEqual([
-      'packages/core/src/runtime/handshake.ts',
-    ])
+    expect(Object.keys(SUBPROCESS_ALLOWED)).toEqual(['packages/core/src/runtime/handshake.ts'])
     expect(Object.keys(EXCLUDED_TREES)).toEqual(['packages/launcher'])
   })
 
@@ -539,7 +543,7 @@ describe('the subprocess audit', () => {
       ' * Nothing here imports node:child_process. The git reader did, and it is',
       ' * gone with the provider.',
       ' */',
-      "// child_process is never used below.",
+      '// child_process is never used below.',
     ].join(String.fromCharCode(10))
 
     expect(findInSource('packages/core/src/x.ts', prose)).toEqual([])
