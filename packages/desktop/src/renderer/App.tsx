@@ -13,11 +13,20 @@ import { Sessions } from './lanes/Sessions.js'
 import { ActiveTicket, type ActiveTicketView } from './panels/ActiveTicket.js'
 import { AgentUpdates } from './panels/AgentUpdates.js'
 import { Prompts } from './panels/Prompts.js'
+import { TicketHistory } from './panels/TicketHistory.js'
 import { call } from './bridge.js'
 import { useOperation, usePushInvalidation, worstFreshness, type Envelope } from './query.js'
 import { Settings } from './settings/Settings.js'
 import { Titlebar } from './Titlebar.js'
-import type { AgentSession, AgentUpdate, Note, Project, Prompt, WorkItem } from './types.js'
+import type {
+  AgentSession,
+  AgentUpdate,
+  Note,
+  Project,
+  Prompt,
+  TicketHistoryEntry,
+  WorkItem,
+} from './types.js'
 
 /**
  * One page (T137).
@@ -106,6 +115,21 @@ export function App(): ReactElement {
   const prompts = useOperation<Prompt[]>('prompts.list')
 
   /**
+   * The curated ticket history (008/FR-156).
+   *
+   * Read whole and filtered in the panel, with no `q` here. The search is the
+   * operator typing, and a dispatch per keystroke would put a round trip inside
+   * their own search — as well as generating a `history.list` per character,
+   * which is the read-announces-a-change shape that produced a push loop once
+   * already (`main/push.ts`).
+   *
+   * The limit is the operation's own ceiling rather than a page: this list has
+   * no retention bound by design, so the one thing the interface must not do is
+   * quietly show the newest few and read as complete.
+   */
+  const history = useOperation<TicketHistoryEntry[]>('history.list', { limit: 1000 })
+
+  /**
    * Every subject a row could carry a badge for, in one call (T150).
    *
    * Taken from the **unfiltered** snapshot on purpose. Keying the query on the
@@ -157,7 +181,12 @@ export function App(): ReactElement {
   const filter = useFilter(projects.data ?? [], {
     ...(settings.data === undefined
       ? {}
-      : { saved: { activeProjectId: settings.data.activeProjectId, mineOnly: settings.data.mineOnly } }),
+      : {
+          saved: {
+            activeProjectId: settings.data.activeProjectId,
+            mineOnly: settings.data.mineOnly,
+          },
+        }),
     persist: writeSettings,
   })
 
@@ -166,7 +195,7 @@ export function App(): ReactElement {
    *
    * **The ids are literals, here and in each component that names one**:
    * `summary`, `connections`, `tickets`, `active-ticket`, `updates`, `prompts`,
-   * `sessions`, `court`. They are the keys
+   * `sessions`, `court`, `ticket-history`. They are the keys
    * of a stored preference, so a generated one would change between builds and
    * quietly unfold everything the operator had put away — and would leave a dead
    * key behind each time. There is no registry of them and there deliberately is
@@ -212,6 +241,33 @@ export function App(): ReactElement {
    */
   const deletePrompt = useCallback((id: string) => {
     void call('prompts.delete', { id }).catch(() => undefined)
+  }, [])
+
+  /**
+   * Curating the history: the operator's two operations (FR-154).
+   *
+   * These return promises where `deletePrompt` above swallows, and the
+   * difference is that both of these can fail in a way the operator has to see.
+   * A revise loses a revision race — that is the whole point of carrying one —
+   * and the panel shows the refusal with their draft still in the box. Nothing
+   * is invalidated here: both mutate, so main's push wrapper announces
+   * `history:changed` and `usePushInvalidation` refetches, on the agent's path
+   * as well as this one.
+   */
+  const reviseHistory = useCallback(
+    async (request: {
+      ticketKey: string
+      revision: number
+      line: string
+      notes: string | null
+    }) => {
+      await call('history.revise', request)
+    },
+    [],
+  )
+
+  const deleteHistory = useCallback(async (request: { ticketKey: string; revision: number }) => {
+    await call('history.delete', request)
   }, [])
 
   const refresh = useCallback(() => {
@@ -274,7 +330,9 @@ export function App(): ReactElement {
       ? undefined
       : {
           counts: noteCounts.data,
-          asking: new Set((questions.data ?? []).flatMap((n) => (n.resolvedAt === null ? [n.subjectKey] : []))),
+          asking: new Set(
+            (questions.data ?? []).flatMap((n) => (n.resolvedAt === null ? [n.subjectKey] : [])),
+          ),
           open: (key, label) => setNotesFor({ key, label }),
         }
 
@@ -291,8 +349,7 @@ export function App(): ReactElement {
               alwaysOnTop: settings.data.alwaysOnTop,
               // Main applies it to the window by watching `settings.update` go
               // past — the renderer has no window handle and must not have one.
-              onToggleAlwaysOnTop: () =>
-                writeSettings({ alwaysOnTop: !settings.data.alwaysOnTop }),
+              onToggleAlwaysOnTop: () => writeSettings({ alwaysOnTop: !settings.data.alwaysOnTop }),
             })}
         onRefresh={refresh}
         onOpenSettings={() => setShowSettings(true)}
@@ -377,6 +434,25 @@ export function App(): ReactElement {
                     // current project filter is still a question owed an answer.
                     questions={(questions.data ?? []).filter((n) => n.resolvedAt === null)}
                     onOpenQuestion={(key, label) => setNotesFor({ key, label })}
+                  />
+                </LaneBoundary>
+
+                {/*
+                  Last in the column, and the only region on the board that is
+                  not about now. Everything above it answers "what is happening";
+                  this answers "what happened", which is a question asked far less
+                  often and from further away — so it goes below the fold rather
+                  than competing with the work for the top of the screen.
+
+                  In the main column rather than the rail because an expanded
+                  entry is prose, and prose in a 400px track is the mistake the
+                  active ticket panel already made once.
+                */}
+                <LaneBoundary lane="Ticket history">
+                  <TicketHistory
+                    entries={history.data ?? []}
+                    onRevise={reviseHistory}
+                    onDelete={deleteHistory}
                   />
                 </LaneBoundary>
               </div>

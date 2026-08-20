@@ -37,6 +37,13 @@ decision it asks a question, and the question sits above the stream because a
 question is something to do rather than something to read. Prompts worth reusing
 go on a shelf; one click puts the whole prompt on your clipboard.
 
+**Remembers what was done, after the ticket is gone.** When a piece of work
+finishes an agent writes one line about the ticket and whatever detail is worth
+having later. That entry is yours, it is never pruned, and it survives the ticket
+closing and dropping off the board — which is exactly when somebody asks what was
+done and why. Search it, correct it, delete one; agents can add to it and cannot
+rewrite it.
+
 **Talks to your agents.** `grndctrl-mcp` gives a coding agent the same board you
 see, plus a durable action queue: you confirm an action, an agent claims it and
 reports back. The agent cannot enqueue its own work — see
@@ -159,7 +166,8 @@ listens on an external interface.
 
 **Connecting the server is not the whole job.** It puts the tools in the agent's
 list; it does not make the agent reach for them, so the active ticket, the update
-stream and the prompt shelf stay empty until an agent is *told* to use them.
+stream, the prompt shelf and the ticket history stay empty until an agent is
+*told* to use them.
 [docs/agents.md](docs/agents.md) carries a `CLAUDE.md` block to paste into any
 repository you want on the board — that block is part of the feature, not
 documentation of it.

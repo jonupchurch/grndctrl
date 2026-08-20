@@ -104,7 +104,11 @@ describe('what must keep working', () => {
     const sites: string[] = []
     const live = siteCheck({ configuredSites: () => sites })
 
-    sites.push('other.atlassian.net')
+    // `acme`, not an invented name: the shape scan in `audit-client-refs.ts`
+    // flags any `*.atlassian.net` host that is not a known placeholder, and it
+    // cannot tell an invented one from a real one. That is the correct
+    // behaviour — the fix is to use a placeholder, never to widen the list.
+    sites.push('acme.atlassian.net')
     expect(() => live.assertKnown('jira:example.atlassian.net/ENG-1')).toThrow()
 
     sites.push('example.atlassian.net')

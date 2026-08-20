@@ -7,9 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Released versions are at the top, newest first. The v1 releases are summarised
 there and their detail is in **[Unreleased]** below them, which holds the
-accumulated working record of that build. **0.4.0 carries its own detail**
-instead: it is a removal, and what an upgrader needs is the list of what is gone,
-not a sentence saying a lot is.
+accumulated working record of that build. **0.4.0 and 0.5.0 carry their own
+detail** instead: the first is a removal, and what an upgrader needs is the list
+of what is gone rather than a sentence saying a lot is; the second is small
+enough to state in full.
+
+## [0.5.0] — 2026-08-20
+
+**A record of what was done, that outlives the ticket.** Plus the type scale the
+board is actually read at, and one write that was accepted when it could never
+have resolved.
+
+### Added
+
+- **The ticket history** — one curated line per ticket, written by an agent when
+  work finishes and read back months later (008/FR-146 to FR-159).
+
+  It exists because nothing else here answers "what did we do about that". Notes
+  are many per subject and typed; agent updates are a per-session stream pruned
+  at fifty and about *now*; the ticket lane holds only what is currently assigned
+  to the operator, so a ticket that closes leaves the board and takes every trace
+  of itself with it.
+
+  **This is the one authored table in the product with no retention bound at
+  all**, and the absence is the feature rather than an oversight: a rule that
+  pruned would delete precisely the rows worth keeping. It bounds itself — one
+  row per ticket, growing at the rate work finishes rather than the rate an agent
+  talks. `store/history-retention.test.ts` asserts the absence, because the next
+  person to add a table here will start from `prompts.ts` and bring its prune.
+
+  **The line is one line, enforced.** A line containing a break is refused, and
+  the refusal names the field the paragraph belongs in — a model handed two free
+  text fields will fill both with summary unless told, and a region of paragraphs
+  is the note list again with worse types. Refused rather than collapsed:
+  collapsing stores something the caller did not write and reports nothing.
+
+  **Recording appends and does not duplicate.** The line is replaced, because a
+  headline improves with hindsight; the notes accumulate, because detail does not
+  survive being overwritten. An append whose text the notes already end with is
+  dropped, so an agent recording at the end of every turn does not triple them.
+
+  **It keeps the ticket's own summary as a snapshot** (FR-149), refreshed on
+  every write the mirror can answer and kept when it cannot. The entry is written
+  *because* the work finished, and a finished ticket leaves the mirror on the next
+  sync — without the snapshot the region is a list of bare issue keys by the time
+  anybody reads it.
+
+  Five operations. `history.list`, `history.get` and `history.record` are on every
+  surface; **`history.revise` and `history.delete` are the interface's alone**,
+  because correcting and removing *is* the curation the operator asked for, and an
+  agent that could rewrite an entry could restate what it did on the one record
+  kept to ask about it later. Three MCP tools:
+  `grndctrl_record_ticket_history`, `grndctrl_list_ticket_history`,
+  `grndctrl_get_ticket_history`.
+
+  A new board region, last in the main column and the only one that is not about
+  now: a search box, one folded line per entry, and the notes rendered only once a
+  row is opened. Editing is inline and carries the revision it read, so an agent
+  recording mid-edit produces a visible conflict rather than a silent loss.
+  Deleting asks twice — the opposite call to a prompt's one-press delete, because
+  a history entry is the only copy of what it says.
+
+  `authored.db` migration **6**. The ticket key is the primary key, so "one line
+  per ticket" is a constraint rather than a convention.
+
+### Changed
+
+- **The type scale is one step larger** throughout — body text at 16px, headings
+  and statistics in proportion, row heights and lane headers with them. The side
+  rail widened to 400px to match, and the board's single-column breakpoint moved
+  with it.
+
+- **The ball-in-court column is gone from the ticket lane**, along with the
+  active-ticket ring and the severity mark on a row. The court region in the side
+  rail still answers the same question; the column was repeating it once per row
+  in the space the summary needed.
+
+### Fixed
+
+- **An authored write against a Jira site nothing is configured for is now
+  refused** rather than stored and flagged `orphaned: true`.
+
+  `grndctrl_add_note` with a ticket key whose site segment was the host's first
+  label — a reasonable guess, since a project's config records the URL — returned
+  `200` and a note nobody would ever see. `grndctrl_get_work_item` on the same key
+  already answered `not_found`, so **the resolver could tell and the write path
+  never asked**.
+
+  The check is on the **site**, not the ticket: an unknown *issue* under a
+  configured site stays legal, because FR-131 has an agent setting focus before
+  the sync that would fetch it. An unknown *site* can never resolve. With no
+  connections configured the check stays silent — the same three-state reasoning
+  `subjectPresence` uses. Applied to `notes.create`, `focus.set` and, now,
+  `history.record`.
+
+  The error names the configured sites: the caller is usually a model, and
+  "unknown site" alone leaves it choosing between a typo, a missing connection and
+  a misremembered key format.
+
+- **The board's paragraph text no longer carries the browser's default margins.**
+  Found by looking at the running board, not by the suite — every assertion passed
+  over 30px of unasked-for space, because the text was present, ordered and
+  correctly broken, and nothing counts pixels.
+
+- **`seed.mjs` derived the seeded connection's site from the scenario's own ticket
+  keys.** It was a literal that disagreed with every checked-in fixture, so **every
+  seeded board had been internally inconsistent since the first one** — surfaced
+  by the site check above, which refused the seeder's own notes the first time it
+  ran.
 
 ## [0.4.0] — 2026-08-20
 

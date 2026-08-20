@@ -60,8 +60,14 @@ This project is tracked on Ground Control. Use the `grndctrl` MCP tools:
   written as a `decision` becomes a record of something nobody decided.
 - **Record a prompt worth reusing** (`grndctrl_record_prompt`) — one that
   worked, or one worth giving again on similar work. Not every message.
+- **Record what was done** when a piece of work is finished
+  (`grndctrl_record_ticket_history`): one line on what happened and where the
+  ticket stands, plus any detail worth having later. This is the record the
+  operator reads back months afterwards to answer "what did we do about that" —
+  it outlives the ticket, so write it as if the reader has forgotten everything.
 - **Read the board before asking the operator** (`grndctrl_list_updates`,
-  `grndctrl_list_notes`): another agent may have already tried it.
+  `grndctrl_list_notes`, `grndctrl_list_ticket_history`): another agent may have
+  already tried it, and the history says how it went.
 
 Never enqueue an action; the operator confirms those. Never write to Jira
 through Ground Control — it is read-only against the provider by construction.
@@ -265,6 +271,39 @@ Which brings up the thing worth being plain about: **a prompt you record may
 contain a secret somebody pasted at you.** It goes into the operator's own local
 store, on their machine, and there is no automated redaction. They can delete it.
 You cannot.
+
+### The ticket history
+
+| Tool | |
+| --- | --- |
+| `grndctrl_record_ticket_history` | What was done on a ticket, one line plus detail |
+| `grndctrl_list_ticket_history` | The whole history, newest first, searchable |
+| `grndctrl_get_ticket_history` | One ticket's entry, or `not_found` |
+
+**This is the only thing in the product written to be read in a year.** Updates
+are pruned at fifty per session and prompts at two hundred; the history is never
+pruned and never ages out. It is also the only region that survives the ticket
+leaving the board — which it will, because you write the entry when the work is
+*finished*, and a finished ticket stops being assigned to the operator and drops
+off the next sync.
+
+**One line per ticket, and the line is enforced.** A line containing a line break
+is refused. That is not fussiness: the region is an index the operator scans, and
+a paragraph in the line makes it the note list with worse types. Put the
+paragraphs in `notes`, which takes as many as you need.
+
+**Recording again updates the same entry.** The line is replaced — say where the
+ticket stands *now*, not what you said last time — and the notes are **appended
+to**. So write only what is new; recording the same detail twice does not
+duplicate it, but restating the whole story does.
+
+**There is no edit and no delete on this surface**, and this one is the operator's
+curation rather than a privacy question. Correcting an entry means replacing text
+somebody may be relying on, on the one record kept specifically to answer
+questions about what happened. Recording adds; only their window rewrites.
+
+**Timing.** Record when work finishes, not while it runs — `grndctrl_post_update`
+is for "here is what is happening", and this is for "here is what happened".
 
 ### Sessions
 

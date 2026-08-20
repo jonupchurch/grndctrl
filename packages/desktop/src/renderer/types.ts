@@ -1,4 +1,8 @@
-import type { DocNode as CoreDocNode, InlineNode as CoreInlineNode } from '@grndctrl/core'
+import type {
+  DocNode as CoreDocNode,
+  InlineNode as CoreInlineNode,
+  TicketHistoryView as CoreTicketHistoryEntry,
+} from '@grndctrl/core'
 import type {
   AgentSession as CoreAgentSession,
   AgentUpdate as CoreAgentUpdate,
@@ -107,6 +111,29 @@ export type AgentUpdate = Pick<
 export type Prompt = Pick<
   CorePrompt,
   'id' | 'text' | 'agentId' | 'sessionKey' | 'projectId' | 'recordedAt'
+>
+
+/**
+ * One curated line about one ticket. Every field.
+ *
+ * `ticketSummary` is the ticket's own summary **as it was when the entry was
+ * last written**, not a live read — the region renders it because by the time
+ * anybody reads a history entry the ticket has usually left the board, and there
+ * is nothing to look it up in. A component that treated it as current would be
+ * wrong in exactly the case the field exists for.
+ */
+export type TicketHistoryEntry = Pick<
+  CoreTicketHistoryEntry,
+  | 'ticketKey'
+  | 'issueKey'
+  | 'line'
+  | 'notes'
+  | 'ticketSummary'
+  | 'authorKind'
+  | 'authorId'
+  | 'revision'
+  | 'createdAt'
+  | 'updatedAt'
 >
 
 export type AgentSession = Pick<

@@ -36,7 +36,6 @@ export interface MirrorRepository {
   replaceTickets(connectionId: string, tickets: readonly Ticket[]): void
   listTickets(): Ticket[]
 
-
   /**
    * Does the mirror currently hold this subject?
    *
@@ -45,6 +44,17 @@ export interface MirrorRepository {
    * and without `authored.db` ever holding a handle to this one (XIII).
    */
   hasSubject(key: NaturalKey | string): boolean
+
+  /**
+   * The ticket's own summary, if the mirror currently holds it.
+   *
+   * A primary-key read of one column, for the one caller that needs to *keep* a
+   * copy: the ticket history snapshots this at write time so an entry still has
+   * a label after the ticket closes and leaves the mirror (008/FR-149). Null
+   * means "not held", which the history reads as "keep the snapshot you have"
+   * rather than "clear it".
+   */
+  ticketSummary(key: NaturalKey | string): string | null
 
   /**
    * Has this resource kind ever synced successfully on any connection?
@@ -172,16 +182,16 @@ export function mirrorRepository(db: Database): MirrorRepository {
     },
 
     listConnections() {
-      return (db.prepare('SELECT * FROM connections ORDER BY id').all() as Record<string, unknown>[]).map(
-        (r) => ({
-          id: String(r['id']),
-          kind: r['kind'] as Connection['kind'],
-          siteOrHost: String(r['site_or_host']),
-          accountLabel: String(r['account_label']),
-          viewerIdentity: json<ViewerIdentity | null>(r['viewer_identity'], null),
-          credentialRef: String(r['credential_ref']),
-        }),
-      )
+      return (
+        db.prepare('SELECT * FROM connections ORDER BY id').all() as Record<string, unknown>[]
+      ).map((r) => ({
+        id: String(r['id']),
+        kind: r['kind'] as Connection['kind'],
+        siteOrHost: String(r['site_or_host']),
+        accountLabel: String(r['account_label']),
+        viewerIdentity: json<ViewerIdentity | null>(r['viewer_identity'], null),
+        credentialRef: String(r['credential_ref']),
+      }))
     },
 
     deleteConnection(connectionId) {
@@ -196,7 +206,9 @@ export function mirrorRepository(db: Database): MirrorRepository {
     replaceTickets: (connectionId, tickets) => void replaceTicketsTx(connectionId, tickets),
 
     listTickets() {
-      return (db.prepare('SELECT * FROM tickets ORDER BY key').all() as Record<string, unknown>[]).map((r) => ({
+      return (
+        db.prepare('SELECT * FROM tickets ORDER BY key').all() as Record<string, unknown>[]
+      ).map((r) => ({
         key: r['key'] as NaturalKey,
         connectionId: String(r['connection_id']),
         issueKey: String(r['issue_key']),
@@ -235,12 +247,20 @@ export function mirrorRepository(db: Database): MirrorRepository {
       return db.prepare(`SELECT 1 FROM ${table} WHERE key = ? LIMIT 1`).get(key) !== undefined
     },
 
+    ticketSummary(key) {
+      const row = db.prepare('SELECT summary FROM tickets WHERE key = ?').get(key) as
+        { summary: string } | undefined
+      return row === undefined ? null : String(row.summary)
+    },
+
     hasEverSynced(kind) {
       // Has any connection ever succeeded for this kind? With two Jira sites and
       // one never synced, the lane has real data and the question is answerable
       // — which is the reason this is asked per kind rather than per row.
       const row = db
-        .prepare('SELECT 1 FROM freshness WHERE resource_kind = ? AND last_success_at IS NOT NULL LIMIT 1')
+        .prepare(
+          'SELECT 1 FROM freshness WHERE resource_kind = ? AND last_success_at IS NOT NULL LIMIT 1',
+        )
         .get(kind)
       return row !== undefined
     },

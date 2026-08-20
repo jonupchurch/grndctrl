@@ -344,6 +344,45 @@ export interface Prompt {
   recordedAt: Timestamp
 }
 
+/**
+ * One line about one ticket, written after the work (008/FR-146).
+ *
+ * **The one authored entity in this product with no retention bound**, and the
+ * absence is the feature rather than an oversight. Updates are pruned at fifty
+ * and prompts at two hundred because both are feeds, where the newest entry is
+ * the valuable one; this is read when somebody asks about a ticket that closed
+ * fourteen months ago, so a bound would delete precisely the rows it exists to
+ * keep. It bounds itself instead: one row per ticket, growing at the rate work
+ * finishes rather than at the rate an agent talks.
+ *
+ * **`line` is one line and `notes` is everything else.** The split is what makes
+ * the region scannable — a list of paragraphs is the note list again, with worse
+ * types. `line` is replaced on each write and `notes` accumulates, because a
+ * headline improves with hindsight and detail does not survive being overwritten.
+ *
+ * **`ticketSummary` is a snapshot, not a join.** The entry outlives the mirror
+ * row (XIII), so the ticket's own summary has to be *kept* or the history reads
+ * as a list of bare issue keys the moment a ticket closes. Refreshed on every
+ * write the mirror can answer, frozen at the last value seen once it cannot.
+ */
+export interface TicketHistoryEntry {
+  /** The ticket. Also the primary key: one entry per ticket, at most (FR-146). */
+  ticketKey: NaturalKey
+  /** The one line. Never contains a line break — the write refuses one (FR-147). */
+  line: string
+  /** Accumulated detail, oldest first, or null when nothing longer was written. */
+  notes: string | null
+  /** The ticket's own summary as it stood when this was last written (FR-149). */
+  ticketSummary: string | null
+  /** Who wrote it last. From `Ctx`, never from a payload (FR-151). */
+  authorKind: AuthorKind
+  authorId: string | null
+  /** Optimistic concurrency for the operator's rewrite (FR-155). */
+  revision: number
+  createdAt: Timestamp
+  updatedAt: Timestamp
+}
+
 export type ActionKind = 'transition-ticket' | 'investigate'
 
 export type ActionState = 'pending' | 'claimed' | 'complete' | 'failed' | 'expired' | 'cancelled'

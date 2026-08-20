@@ -40,6 +40,10 @@ import { PUSH_CHANNELS } from '../shared/channels.js'
  *   always by an agent and deleted only by the operator, so the two directions
  *   of this one travel over different surfaces and neither would reach the other
  *   without it.
+ * - `history:changed` — a ticket history entry was recorded, revised or
+ *   deleted. Both directions again, and further apart than the prompts one: an
+ *   agent records after finishing a piece of work, the operator corrects the
+ *   wording afterwards, and the two surfaces would each be blind to the other.
  * - `focus:changed` — the active ticket was set or cleared. This is the event
  *   with the highest ratio of *agent* to *window* traffic on the list: the
  *   operator can set focus from a ticket row, but the caller it was built for is
@@ -112,6 +116,7 @@ export interface Push {
   updatesChanged(): void
   notesChanged(): void
   promptsChanged(): void
+  historyChanged(): void
   /**
    * Emit whatever this operation implies, having run.
    *
@@ -146,6 +151,7 @@ export function push(options: PushOptions): Push {
     updatesChanged: () => broadcast(PUSH_CHANNELS.updatesChanged, {}),
     notesChanged: () => broadcast(PUSH_CHANNELS.notesChanged, {}),
     promptsChanged: () => broadcast(PUSH_CHANNELS.promptsChanged, {}),
+    historyChanged: () => broadcast(PUSH_CHANNELS.historyChanged, {}),
 
     afterDispatch(operation) {
       // A read changes nothing, and announcing one is not merely wasteful — it
@@ -174,6 +180,11 @@ export function push(options: PushOptions): Push {
       // because it is the copy path, and the operator pressing copy must not
       // make the board refetch a list that did not change.
       if (operation.startsWith('prompts.')) self.promptsChanged()
+      // `history.list` and `history.get` are reads and are filtered out above.
+      // That matters here because the region's own search dispatches `history.list`
+      // on the operator's keystrokes — announcing those would refetch the list
+      // being typed into, once per character.
+      if (operation.startsWith('history.')) self.historyChanged()
     },
 
     start() {

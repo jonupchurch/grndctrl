@@ -71,15 +71,18 @@ describe('the tool names in docs/agents.md', () => {
   })
 
   it('cover the tools the empty panels depend on', () => {
-    // The other direction, and only for the three that matter: these are the
-    // tools without which a region added in 007 renders its empty state
-    // forever. A snippet that forgot one would be a feature that looks broken
+    // The other direction, and only for the ones that matter: these are the
+    // tools without which a region renders its empty state forever. A snippet that forgot one would be a feature that looks broken
     // on a correctly configured installation.
     for (const required of [
       'grndctrl_start_session',
       'grndctrl_set_active_ticket',
       'grndctrl_post_update',
       'grndctrl_record_prompt',
+      // 008. Same criterion as the four above: without it the ticket history
+      // region renders its empty state forever on a correctly configured
+      // installation, because nothing else in the product writes an entry.
+      'grndctrl_record_ticket_history',
     ]) {
       expect(DOCS.includes(required), `the CLAUDE.md snippet omits '${required}'`).toBe(true)
     }

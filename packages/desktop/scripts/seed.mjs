@@ -69,7 +69,7 @@ const now = scenario.now ?? new Date().toISOString()
 // the same wiring the app uses, so anything seeded here is reachable by exactly
 // the path the app reads it back on.
 const services = runtime.createCoreServices({ dir })
-const { mirror, projects, sessions, notes, focus, updates, prompts } = services
+const { mirror, projects, sessions, notes, focus, updates, prompts, history } = services
 
 // Connections first: every other table is keyed by one, and the freshness rows
 // hang off them.
@@ -269,6 +269,35 @@ for (const prompt of scenario.prompts ?? []) {
   )
 }
 
+/*
+ * The ticket history (008).
+ *
+ * Recorded rather than inserted, like everything else here, and that has one
+ * visible consequence worth stating: `history.record` snapshots the ticket's
+ * summary **from the mirror**, so an entry whose ticket the scenario does not
+ * hold gets no summary. That is not a gap in the fixture -- it is what the write
+ * path does, and a scenario declaring a summary the seeder could not produce
+ * would be describing a board this product cannot reach.
+ *
+ * Last, after the tickets are in, for the same reason the notes are.
+ */
+for (const entry of scenario.history ?? []) {
+  history.record(
+    {
+      ticketKey: entry.ticketKey,
+      line: entry.line,
+      notes: entry.notes ?? undefined,
+    },
+    {
+      ...ctx,
+      // The author comes from `Ctx`, never from the payload -- the same rule the
+      // product enforces, so a scenario naming an agent has to say so here.
+      authorId: entry.agentId ?? ctx.authorId,
+      now: () => new Date(entry.updatedAt ?? now),
+    },
+  )
+}
+
 services.close()
 
 console.log(
@@ -280,5 +309,6 @@ console.log(
     `  notes      ${(scenario.notes ?? []).length}\n` +
     `  updates    ${(scenario.updates ?? []).length}\n` +
     `  prompts    ${(scenario.prompts ?? []).length}\n` +
+    `  history    ${(scenario.history ?? []).length}\n` +
     `  active     ${scenario.activeTicket ?? '(none)'}`,
 )

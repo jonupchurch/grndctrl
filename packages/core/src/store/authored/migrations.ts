@@ -197,8 +197,7 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
     `,
     after: (db) => {
       const row = db.prepare('SELECT payload FROM settings WHERE id = 1').get() as
-        | { payload: string }
-        | undefined
+        { payload: string } | undefined
 
       // No settings row is the ordinary case for a database that has never been
       // written to. There is nothing to reshape and nothing to default: the
@@ -361,6 +360,63 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
         recorded_at TEXT NOT NULL
       );
       CREATE INDEX idx_prompts_recorded ON prompts(recorded_at DESC);
+    `,
+  },
+  {
+    version: 6,
+    name: 'ticket-history',
+    /**
+     * One curated line per ticket (008/FR-146).
+     *
+     * **`ticket_key` is the primary key, and that is the requirement rather than
+     * a convenience.** "One line per ticket" is enforceable in exactly one place
+     * that cannot be got round, and this is it: a second entry for a ticket is
+     * not a bug that produces a duplicate row, it is an INSERT that fails. The
+     * service upserts, so the constraint is never reached in normal use — which
+     * is what a constraint is for.
+     *
+     * **Nothing prunes this table and nothing ever should** (FR-150). Every
+     * other authored stream here has a bound written into its insert: updates at
+     * fifty per session, prompts at two hundred. Both are feeds. This is an
+     * index, read when somebody asks about a ticket that closed a year ago, and
+     * a retention rule would delete exactly the rows worth keeping. The next
+     * person to add a table here will copy `prompts.ts` and bring its prune with
+     * it, so `store/authored/history.test.ts` asserts the absence rather than
+     * leaving it to this comment.
+     *
+     * **No foreign key, and this one is the clearest case in the file.** The
+     * entry is written *because* the work is finished, and a finished ticket is
+     * the first thing to leave the mirror — it stops being assigned to the
+     * operator, the next sync drops it, and a constraint would take the history
+     * with it. `ticket_summary` is a snapshot for the same reason: with the
+     * mirror row gone there is nothing left to join to, and a list of bare issue
+     * keys is not something anybody can read back (FR-149).
+     *
+     * **No CHECK on `line`.** The single-line rule and the length bound live at
+     * the operation schema and the service, where a violation becomes a sentence
+     * naming the field to put the paragraph in. A CHECK would refuse the same
+     * write and say only `CHECK constraint failed`, and would name a column in a
+     * table constraint — which is what forced the full rebuild of `projects` in
+     * migration 2. `author_kind` carries one for consistency with `notes`, whose
+     * two values come from the same place.
+     *
+     * The index is on `updated_at DESC`: the region lists most-recently-written
+     * first, and there is no second reader.
+     */
+    up: `
+      CREATE TABLE ticket_history (
+        ticket_key     TEXT PRIMARY KEY,
+        line           TEXT NOT NULL,
+        notes          TEXT,
+        -- A snapshot of the ticket's summary, not a reference to it.
+        ticket_summary TEXT,
+        author_kind    TEXT NOT NULL CHECK (author_kind IN ('user','agent')),
+        author_id      TEXT,
+        revision       INTEGER NOT NULL DEFAULT 1,
+        created_at     TEXT NOT NULL,
+        updated_at     TEXT NOT NULL
+      );
+      CREATE INDEX idx_ticket_history_updated ON ticket_history(updated_at DESC);
     `,
   },
 ]

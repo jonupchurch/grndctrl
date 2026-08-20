@@ -1,5 +1,5 @@
 {
-  "description": "The agent console, populated. `canonical-board.json` with 007's three agent-written regions filled in \u2014 an active ticket, an update stream and a prompt shelf.\n\n**It is a second file rather than an addition to the canonical board, and that is the point.** Those three regions are empty until an agent calls something, and three end-to-end tests assert exactly that: they check the empty states say what fills them rather than looking broken (FR-141), which is the state a fresh install is actually in. Populating the canonical board turned all three red. The empty board and the full one are both real states worth having a fixture for, so there are two.\n\nThe active ticket is MERC-1184 while the session reports against MERC-1190, deliberately: a session's work item and the operator's focus are different pointers, and a board that conflated them would look correct against a fixture where they agreed.\n\n**Not here: the handed-off tickets T150 also asks for.** That lane was 007 M2 and it was dropped on 2026-08-20 without being built \u2014 it needed JQL history operators verified against a Jira nobody could reach. There are no rows to seed because there is no lane to seed them into.\n\nEvery timestamp is an offset resolved at load (FR-118).",
+  "description": "The agent console, populated. `canonical-board.json` with 007's three agent-written regions filled in — an active ticket, an update stream and a prompt shelf.\n\n**It is a second file rather than an addition to the canonical board, and that is the point.** Those three regions are empty until an agent calls something, and three end-to-end tests assert exactly that: they check the empty states say what fills them rather than looking broken (FR-141), which is the state a fresh install is actually in. Populating the canonical board turned all three red. The empty board and the full one are both real states worth having a fixture for, so there are two.\n\nThe active ticket is MERC-1184 while the session reports against MERC-1190, deliberately: a session's work item and the operator's focus are different pointers, and a board that conflated them would look correct against a fixture where they agreed.\n\n**Not here: the handed-off tickets T150 also asks for.** That lane was 007 M2 and it was dropped on 2026-08-20 without being built — it needed JQL history operators verified against a Jira nobody could reach. There are no rows to seed because there is no lane to seed them into.\n\n**Also here: the ticket history 008 adds.** Three entries, one of them against MERC-1150 — a ticket no lane holds and the mirror has never seen. That is the case the feature exists for and the one nothing else on this board can represent: it has **no** `ticketSummary`, because the seeder records it the way an agent would and the mirror has nothing to snapshot. Live tickets get one; this one shows what an entry looks like when the snapshot was never taken. The retention rule itself — a snapshot kept after the ticket goes — is asserted in `test/services/history.test.ts`, where the ticket can be made to leave.\n\nEvery timestamp is an offset resolved at load (FR-118).",
   "now": "now",
   "freshness": [
     {
@@ -386,9 +386,7 @@
         "heartbeatIntervalSec": 60
       }
     ],
-    "operatorAccountIds": [
-      "me"
-    ]
+    "operatorAccountIds": ["me"]
   },
   "activeTicket": "jira:acme.atlassian.net/MERC-1184",
   "updates": [
@@ -422,6 +420,29 @@
       "projectId": "p-merc",
       "agentId": "claude-code",
       "recordedAt": "now-45m"
+    }
+  ],
+  "history": [
+    {
+      "ticketKey": "jira:acme.atlassian.net/MERC-1184",
+      "line": "Fixed the reconcile path skipping a worktree that was already gone.",
+      "notes": "The guard went in the callee rather than the four callers, which were all correct. Anything that reads a deleted upstream branch gets null now instead of an empty comparison.\n\nWorth knowing before touching it again: the callers each have their own retry, so moving the guard back up would give four different behaviours.",
+      "agentId": "claude-code",
+      "updatedAt": "now-40m"
+    },
+    {
+      "ticketKey": "jira:acme.atlassian.net/MERC-1201",
+      "line": "Left the old settings key readable for one release rather than migrating it.",
+      "notes": "Anyone still on 0.2 would have lost their window position. Remove the fallback once 0.5 has been out a month.",
+      "agentId": "claude-code",
+      "updatedAt": "now-2d"
+    },
+    {
+      "ticketKey": "jira:acme.atlassian.net/MERC-1150",
+      "line": "Rate limiting: backed off per connection rather than globally.",
+      "notes": "A global backoff stopped every project because one Jira site was throttling. Closed a month ago; kept here because the reasoning comes up every time somebody proposes a single shared limiter.",
+      "agentId": "claude-code",
+      "updatedAt": "now-30d"
     }
   ]
 }

@@ -1,9 +1,4 @@
-import {
-  QueryClient,
-  useQuery,
-  useQueryClient,
-  type UseQueryResult,
-} from '@tanstack/react-query'
+import { QueryClient, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { call, type BridgeError } from './bridge.js'
 
@@ -64,7 +59,10 @@ export function createQueryClient(): QueryClient {
 }
 
 /** Read an operation. The key is the operation name plus its input, nothing else. */
-export function useOperation<T>(operation: string, input?: unknown): UseQueryResult<T, BridgeError> {
+export function useOperation<T>(
+  operation: string,
+  input?: unknown,
+): UseQueryResult<T, BridgeError> {
   return useQuery<T, BridgeError>({
     queryKey: [operation, input ?? {}],
     queryFn: () => call(operation, input) as Promise<T>,
@@ -102,7 +100,9 @@ export function usePushInvalidation(): void {
       // alive. The panel's own empty state promises a session "appears here the
       // moment one starts", which was untrue for an open window until this
       // existed — the board only caught up when an unrelated sync finished.
-      bridge.on.sessionsChanged(() => void client.invalidateQueries({ queryKey: ['sessions.list'] })),
+      bridge.on.sessionsChanged(
+        () => void client.invalidateQueries({ queryKey: ['sessions.list'] }),
+      ),
       // An agent picked a ticket up or put it down. This is the event with the
       // highest ratio of agent to window traffic of any of them — the panel
       // exists to be populated by MCP — so without it the panel is a snapshot
@@ -147,6 +147,19 @@ export function usePushInvalidation(): void {
        * argument above does not apply — so the whole list refreshes.
        */
       bridge.on.promptsChanged(() => void client.invalidateQueries({ queryKey: ['prompts.list'] })),
+      /*
+       * A ticket history entry was recorded, revised or deleted.
+       *
+       * `history.list` **is** invalidated, unlike `notes.list` above, and the
+       * difference is where the editor lives. The note modal edits against a
+       * snapshot it took when it opened, so refreshing the list under it would
+       * hand it a newer revision and turn a detected conflict into a silent
+       * clobber. The history editor is inside a row and holds the revision it
+       * read in its own state, so a refreshed list changes what is drawn behind
+       * it and not what it will send — the conflict still happens, and is still
+       * shown.
+       */
+      bridge.on.historyChanged(() => void client.invalidateQueries({ queryKey: ['history.list'] })),
       // Nothing changed; the numbers aged. Re-render without refetching — the
       // data is identical and only the "4 minutes ago" beside it is not.
       bridge.on.freshnessTick(() => void client.invalidateQueries({ queryKey: ['__tick'] })),

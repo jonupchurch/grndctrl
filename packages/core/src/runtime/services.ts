@@ -9,6 +9,7 @@ import { runSync, type SyncReport } from '../services/sync.js'
 import { buildSyncTargets, type BuiltTargets } from './providers.js'
 import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
 import { focusService, type FocusService } from '../services/focus.js'
+import { historyService, type HistoryService } from '../services/history.js'
 import { siteCheck } from '../services/sites.js'
 import { updatesService, type UpdatesService } from '../services/updates.js'
 import { promptsService, type PromptsService } from '../services/prompts.js'
@@ -19,6 +20,7 @@ import { sessionsService, type SessionsService } from '../services/sessions.js'
 import { settingsStore, type SettingsStore } from '../services/settings.js'
 import { projectsRepository, type ProjectsRepository } from '../store/authored/config.js'
 import { focusRepository } from '../store/authored/focus.js'
+import { historyRepository } from '../store/authored/history.js'
 import { updatesRepository } from '../store/authored/updates.js'
 import { promptsRepository } from '../store/authored/prompts.js'
 import { notesRepository } from '../store/authored/notes.js'
@@ -54,6 +56,8 @@ export interface CoreServices {
   updates: UpdatesService
   /** Prompts kept so they can be sent again. The one authored thing with a delete (FR-136). */
   prompts: PromptsService
+  /** One curated line per ticket, kept for good. The only unbounded stream (008/FR-150). */
+  history: HistoryService
   sessions: SessionsService
   outbox: OutboxService
   settings: SettingsStore
@@ -128,7 +132,10 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   // be constructed first.
   const notes = notesService({
     notes: notesRepo,
-    subjectPresence: subjectPresenceResolver({ mirror, hasSession: (key) => sessionsRepo.has(key) }),
+    subjectPresence: subjectPresenceResolver({
+      mirror,
+      hasSession: (key) => sessionsRepo.has(key),
+    }),
     assertKnownSite: (key) => sites.assertKnown(key),
   })
 
@@ -151,6 +158,22 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   // it stores rather than references it resolves — so there is no second store
   // for this one to reach.
   const prompts = promptsService({ prompts: promptsRepository(authoredDb) })
+
+  /*
+   * The ticket history, and the one cross-store read in it.
+   *
+   * `ticketSummary` is the join XIII will not let the store make for itself: the
+   * entry lives in `authored.db` and the summary it snapshots lives in
+   * `mirror.db`, so the two meet here, in code, the same way the board and the
+   * presence resolver do. It is read per call and the answer is *stored*, not
+   * rendered — which is the whole point, since the ticket is usually gone by the
+   * time anybody reads the entry back.
+   */
+  const history = historyService({
+    history: historyRepository(authoredDb),
+    ticketSummary: (ticketKey) => mirror.ticketSummary(ticketKey),
+    assertKnownSite: (key) => sites.assertKnown(key),
+  })
 
   const sessions = sessionsService({
     sessions: sessionsRepo,
@@ -220,6 +243,7 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     focus,
     updates,
     prompts,
+    history,
     sessions,
     outbox,
     settings,

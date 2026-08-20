@@ -2,6 +2,7 @@ import type { CoreServices } from '../runtime/services.js'
 import { Registry } from './index.js'
 import { configOperations } from './ops/config.js'
 import { focusOperations } from './ops/focus.js'
+import { historyOperations } from './ops/history.js'
 import { linksOperations } from './ops/links.js'
 import { notesOperations } from './ops/notes.js'
 import { outboxOperations } from './ops/outbox.js'
@@ -43,6 +44,7 @@ export function buildRegistry(services: CoreServices): Registry {
     ...focusOperations(services.focus),
     ...updatesOperations(services.updates),
     ...promptsOperations(services.prompts),
+    ...historyOperations(services.history),
     ...sessionsOperations(services.sessions),
     ...outboxOperations(services.outbox),
     ...syncOperations(services),

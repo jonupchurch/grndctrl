@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld('grndctrl', {
     updatesChanged: subscribe(PUSH_CHANNELS.updatesChanged),
     notesChanged: subscribe(PUSH_CHANNELS.notesChanged),
     promptsChanged: subscribe(PUSH_CHANNELS.promptsChanged),
+    historyChanged: subscribe(PUSH_CHANNELS.historyChanged),
   },
 })
 

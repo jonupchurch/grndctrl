@@ -27,7 +27,9 @@ export interface Bridge {
     siteOrHost: string
     accountLabel: string
     secret: string
-  }): Promise<{ ok: true; connection: unknown } | { ok: false; error: { code: string; message: string } }>
+  }): Promise<
+    { ok: true; connection: unknown } | { ok: false; error: { code: string; message: string } }
+  >
   openLink(request: {
     subjectKey: string
     url: string
@@ -52,6 +54,7 @@ export interface Bridge {
     updatesChanged(listener: (payload: unknown) => void): () => void
     notesChanged(listener: (payload: unknown) => void): () => void
     promptsChanged(listener: (payload: unknown) => void): () => void
+    historyChanged(listener: (payload: unknown) => void): () => void
   }
 }
 
@@ -99,6 +102,32 @@ export function conflictingNote(error: unknown): { body: string; revision: numbe
   if (typeof body !== 'string' || typeof revision !== 'number') return null
 
   return { body, revision }
+}
+
+/**
+ * The history entry somebody else wrote while this one was being edited.
+ *
+ * The same narrowing as `conflictingNote` above and deliberately a second
+ * function rather than a generic one: the two conflicts carry different rows,
+ * and a shared helper returning `unknown` would push the shape check into the
+ * component, which is where it stopped being done last time.
+ */
+export function conflictingEntry(
+  error: unknown,
+): { line: string; notes: string | null; revision: number } | null {
+  if (!(error instanceof BridgeError) || error.code !== 'conflict') return null
+
+  const current = (error.details as { current?: unknown } | undefined)?.current
+  if (typeof current !== 'object' || current === null) return null
+
+  const { line, notes, revision } = current as {
+    line?: unknown
+    notes?: unknown
+    revision?: unknown
+  }
+  if (typeof line !== 'string' || typeof revision !== 'number') return null
+
+  return { line, notes: typeof notes === 'string' ? notes : null, revision }
 }
 
 /**

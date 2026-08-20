@@ -51,12 +51,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-.titlebar__freshness[data-state="failed"] {
+.titlebar__freshness[data-state='failed'] {
   color: var(--critical);
 }
 
-.titlebar__freshness[data-state="stale"],
-.titlebar__freshness[data-state="never"] {
+.titlebar__freshness[data-state='stale'],
+.titlebar__freshness[data-state='never'] {
   color: var(--warning);
 }
 
@@ -88,9 +88,9 @@
    showed it only as a one-character glyph difference at 11px. Colour is not the
    whole signal either — the glyph carries it in greyscale, per FR-074 — but a
    toggle whose two states look alike is a toggle nobody can read. */
-.chip-button[aria-pressed="true"],
-.ghost[aria-pressed="true"],
-.segmented button[aria-pressed="true"] {
+.chip-button[aria-pressed='true'],
+.ghost[aria-pressed='true'],
+.segmented button[aria-pressed='true'] {
   background: var(--accent-wash);
   border-color: var(--accent);
   color: var(--ink);
@@ -281,7 +281,7 @@
   border-color: var(--line-strong);
 }
 
-.tile--toggle[aria-pressed="true"] {
+.tile--toggle[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-wash);
 }
@@ -304,7 +304,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.tile[data-accent="true"] .tile__value {
+.tile[data-accent='true'] .tile__value {
   color: var(--accent);
 }
 
@@ -342,22 +342,22 @@
   background: var(--ink-3);
 }
 
-.lane-status[data-state="stale"] .lane-status__dot {
+.lane-status[data-state='stale'] .lane-status__dot {
   background: var(--warning);
 }
 
 /* Never-synced is an outline, not a fill: there is no value, and a filled dot
    would read as a reading (XIV). */
-.lane-status[data-state="never"] .lane-status__dot {
+.lane-status[data-state='never'] .lane-status__dot {
   background: transparent;
   border: 1px solid var(--line-strong);
 }
 
-.lane-status[data-state="failed"] {
+.lane-status[data-state='failed'] {
   color: var(--critical);
 }
 
-.lane-status[data-state="failed"] .lane-status__dot {
+.lane-status[data-state='failed'] .lane-status__dot {
   background: var(--critical);
 }
 
@@ -482,12 +482,12 @@
   color: var(--ink-2);
 }
 
-.session[data-state="needs-you"] .session__state {
+.session[data-state='needs-you'] .session__state {
   color: var(--critical);
   font-weight: 600;
 }
 
-.session[data-state="silent"] .session__state {
+.session[data-state='silent'] .session__state {
   color: var(--serious);
 }
 
@@ -521,7 +521,7 @@
   color: var(--ink-3);
 }
 
-.court__row[data-court="you"] .court__glyph {
+.court__row[data-court='you'] .court__glyph {
   color: var(--accent);
 }
 
@@ -940,5 +940,233 @@
 }
 
 .prompt__failed {
+  color: var(--critical);
+}
+
+/*
+ * The ticket history (008/FR-158).
+ *
+ * Not a `.row` and not a `.prompt`, for the reason both of those give: the perf
+ * and greyscale suites count `.row`, and a year of history in that number would
+ * be measuring the wrong thing entirely.
+ *
+ * The head is one line and stays one line — `text-overflow: ellipsis` here is
+ * correct where it was wrong for a prompt, because nothing reads this element to
+ * recover the text. The whole line is in the DOM and the notes are not, which is
+ * the opposite arrangement and the deliberate one: the line is short by
+ * construction (the write refuses a long one) and the notes are what would make
+ * the region unusable if they were always drawn.
+ */
+.history {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.history:last-child {
+  border-bottom: 0;
+}
+
+.history[data-expanded='true'] {
+  background: var(--sunken);
+}
+
+.history__head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--t-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history__head:hover .history__line {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.history__key {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--t-id);
+  font-variant-numeric: tabular-nums;
+}
+
+.history__line {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.history__age {
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.history__body {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+
+/*
+ * The paragraphs in here carry no margin of their own.
+ *
+ * There is no global `p { margin: 0 }` in this stylesheet, so the browser's
+ * default `1em 0` applies — and it did, adding 14px above the summary and 16px
+ * above the notes on top of the flex gap. Every assertion in the suite passed
+ * over it: the text was present, in order, with its line breaks intact, and
+ * nothing counts pixels. It was visible the moment the board was looked at.
+ *
+ * Zeroed here rather than globally: a rule on bare `p` would reach the empty
+ * states, the connection notice and the note modal, none of which asked for it.
+ */
+.history__body p,
+.history__none {
+  margin: 0;
+}
+
+/*
+ * The ticket's summary as it was when the entry was last written, not as it is
+ * now (FR-149). Set apart from the notes so it does not read as something
+ * somebody wrote — it is a label, and by the time this is read the ticket it
+ * labels is usually gone.
+ */
+.history__summary {
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+  font-style: italic;
+}
+
+/*
+ * `pre-wrap`, and it is load-bearing.
+ *
+ * The notes accumulate as paragraphs separated by blank lines, one per record.
+ * Collapsing whitespace would run a year of separate entries into one block of
+ * prose, which is the failure the append rule exists to avoid in the first place.
+ */
+.history__notes {
+  color: var(--ink-2);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.history__empty-notes {
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+}
+
+.history__controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.history__author {
+  margin-right: auto;
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+}
+
+.history__save {
+  border-color: var(--line);
+}
+
+/*
+ * The second press, and the only visual difference between the two states.
+ *
+ * Colour alone would fail FR-074, so the label changes as well — "Delete"
+ * becomes "Really delete". This is the confirmation rather than a dialog: a
+ * history entry is the only copy of what it says (XI), which is the opposite of
+ * a prompt, and the opposite call.
+ */
+.history__delete[data-confirming='true'] {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+.history__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+}
+
+.history__field input,
+.history__field textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-body);
+}
+
+.history__field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.history__search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.history__search-label {
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+}
+
+.history__search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-meta);
+}
+
+.history__none,
+.history__failed {
+  padding: 8px 12px;
+  font-size: var(--t-meta);
+}
+
+.history__none {
+  color: var(--ink-3);
+}
+
+.history__failed {
+  padding: 0;
   color: var(--critical);
 }

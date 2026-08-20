@@ -158,7 +158,10 @@ export function repositoryKey(owner: string, repo: string): NaturalKey {
  * the concern.
  */
 export function parseRepositoryRef(input: string): { owner: string; name: string } | null {
-  const trimmed = input.trim().replace(/\.git$/, '').replace(/\/+$/, '')
+  const trimmed = input
+    .trim()
+    .replace(/\.git$/, '')
+    .replace(/\/+$/, '')
   if (trimmed === '') return null
 
   // Strip a scheme and host, an `git@host:` prefix, or neither. What remains is
@@ -252,6 +255,31 @@ export function siteOfTicketKey(key: NaturalKey | string): string | null {
   if (slash <= 0) return null
 
   return rest.slice(0, slash).toLowerCase()
+}
+
+/**
+ * The issue key back out of a `jira:` key, or `null` if it is not one.
+ *
+ * The second reader of a key's contents, and it earns it for a different reason
+ * than `siteOfTicketKey` above. Every surface that shows a ticket already has a
+ * mirrored row with `issueKey` on it — except the ticket history, which is
+ * written precisely because the work is finished, and read long after the
+ * mirrored row is gone (008/FR-149). `MERC-1184` is how the operator refers to
+ * a ticket; `jira:acme.atlassian.net/MERC-1184` is how the database does.
+ *
+ * **Derived at the service and never stored.** It is the same string the key
+ * already contains, so a stored copy would be a second place for it to be wrong,
+ * and nothing ever sends it back — the key travels whole in both directions,
+ * which is what keeps rule 1 at the top of this file true where it matters.
+ */
+export function issueKeyOfTicketKey(key: NaturalKey | string): string | null {
+  if (!key.startsWith('jira:')) return null
+
+  const rest = key.slice('jira:'.length)
+  const slash = rest.indexOf('/')
+  if (slash <= 0 || slash === rest.length - 1) return null
+
+  return rest.slice(slash + 1)
 }
 
 /** `project:<id>` — the subject key for a configured project. */

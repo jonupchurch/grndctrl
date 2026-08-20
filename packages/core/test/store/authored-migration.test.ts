@@ -85,9 +85,11 @@ const CASES: MigrationCase[] = [
     seed: seedAuthored030,
     verify: (db) => {
       const ids = (table: string, column: string): string[] =>
-        (db.prepare(`SELECT "${column}" k FROM "${table}" ORDER BY "${column}"`).all() as {
-          k: string
-        }[]).map((r) => r.k)
+        (
+          db.prepare(`SELECT "${column}" k FROM "${table}" ORDER BY "${column}"`).all() as {
+            k: string
+          }[]
+        ).map((r) => r.k)
 
       // ── Every row, by name and not merely by count ───────────────────────
       //
@@ -120,7 +122,9 @@ const CASES: MigrationCase[] = [
       // And the table permits it, rather than happening to contain it. A CHECK
       // added here would refuse the next such row instead of this one.
       const sql = (
-        db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'`).get() as {
+        db
+          .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'`)
+          .get() as {
           sql: string
         }
       ).sql
@@ -133,8 +137,16 @@ const CASES: MigrationCase[] = [
       for (const gone of ['github_connection_id', 'repo_owner', 'repo_name', 'checkout_paths']) {
         expect(columns('projects'), `${gone} is still on projects`).not.toContain(gone)
       }
-      for (const kept of ['id', 'code', 'name', 'color_index', 'jira_connection_id',
-                          'jira_project_key', 'documentation_url', 'status_overrides']) {
+      for (const kept of [
+        'id',
+        'code',
+        'name',
+        'color_index',
+        'jira_connection_id',
+        'jira_project_key',
+        'documentation_url',
+        'status_overrides',
+      ]) {
         expect(columns('projects'), `${kept} was dropped from projects`).toContain(kept)
       }
 
@@ -164,7 +176,9 @@ const CASES: MigrationCase[] = [
       // Content, not just presence: a rebuild that copied the columns in the
       // wrong order would keep every row and put the name in the code.
       const both = db
-        .prepare('SELECT code, name, jira_project_key, documentation_url FROM projects WHERE id = ?')
+        .prepare(
+          'SELECT code, name, jira_project_key, documentation_url FROM projects WHERE id = ?',
+        )
         .get('proj-both') as Record<string, unknown>
       expect(both['code']).toBe('WEB')
       expect(both['name']).toBe('Web platform')
@@ -201,9 +215,9 @@ const CASES: MigrationCase[] = [
       expect(actions.map((a) => a.kind)).toContain('assign')
       // The append-only history came across whole, not truncated to its last
       // entry, which is the audit trail XVI rests on.
-      expect(JSON.parse(actions.find((a) => a.id === 'act-complete')?.history ?? '[]')).toHaveLength(
-        2,
-      )
+      expect(
+        JSON.parse(actions.find((a) => a.id === 'act-complete')?.history ?? '[]'),
+      ).toHaveLength(2)
 
       // ── Dismissals, untouched (FR-122) ───────────────────────────────────
       const dismissal = db
@@ -273,8 +287,7 @@ const CASES: MigrationCase[] = [
       // Nothing this migration does not name is touched. The row-count harness
       // above catches a table emptied; this catches a row replaced.
       const note = db.prepare('SELECT body, revision FROM notes WHERE id = ?').get('note-1') as
-        | { body: string; revision: number }
-        | undefined
+        { body: string; revision: number } | undefined
       expect(note?.body).toBe('Chose the boring option')
       expect(note?.revision).toBe(2)
       expect(
@@ -296,9 +309,7 @@ const CASES: MigrationCase[] = [
       // than a coincidence of a fresh database. A migration that helpfully
       // inserted a placeholder row would give the panel a null ticket key to
       // render on every existing install.
-      expect(
-        (db.prepare('SELECT COUNT(*) n FROM active_ticket').get() as { n: number }).n,
-      ).toBe(0)
+      expect((db.prepare('SELECT COUNT(*) n FROM active_ticket').get() as { n: number }).n).toBe(0)
 
       // The singleton CHECK does its job. Without it two rows are legal, `get`
       // reads whichever SQLite hands back first, and the board's focus changes
@@ -363,9 +374,11 @@ const CASES: MigrationCase[] = [
       // by CHECK, so a migration that recreated it would be silently destructive
       // in a way no row count catches.
       expect(
-        (db.prepare('SELECT ticket_key FROM active_ticket WHERE id = 1').get() as {
-          ticket_key: string
-        }).ticket_key,
+        (
+          db.prepare('SELECT ticket_key FROM active_ticket WHERE id = 1').get() as {
+            ticket_key: string
+          }
+        ).ticket_key,
       ).toBe('jira:acme.atlassian.net/ENG-1')
 
       /*
@@ -385,9 +398,9 @@ const CASES: MigrationCase[] = [
 
       db.prepare(`DELETE FROM agent_sessions WHERE key = 'session:claude/a'`).run()
 
-      const survived = db.prepare('SELECT agent_id, text FROM agent_updates WHERE id = ?').get('u1') as
-        | { agent_id: string; text: string }
-        | undefined
+      const survived = db
+        .prepare('SELECT agent_id, text FROM agent_updates WHERE id = ?')
+        .get('u1') as { agent_id: string; text: string } | undefined
       expect(survived?.text).toBe('Found the cause.')
       // And it can still name its author, which is why `agent_id` is stored
       // here rather than joined.
@@ -463,11 +476,88 @@ const CASES: MigrationCase[] = [
       db.prepare(`DELETE FROM agent_sessions WHERE key = 'session:claude/b'`).run()
       db.prepare(`DELETE FROM projects WHERE id = 'proj-1'`).run()
 
-      const kept = db.prepare('SELECT session_key, project_id FROM prompts WHERE id = ?').get('p1') as
-        | { session_key: string | null; project_id: string | null }
-        | undefined
+      const kept = db
+        .prepare('SELECT session_key, project_id FROM prompts WHERE id = ?')
+        .get('p1') as { session_key: string | null; project_id: string | null } | undefined
       expect(kept?.session_key).toBe('session:claude/b')
       expect(kept?.project_id).toBe('proj-1')
+    },
+  },
+  {
+    version: 6,
+    name: 'ticket-history',
+    /**
+     * Additive, and the case carries three properties beyond survival.
+     *
+     * **One row per ticket, enforced by the schema.** The primary key is the
+     * ticket, so a second entry is a constraint failure rather than a duplicate
+     * row somebody notices months later. Asserted by inserting the same key
+     * twice and requiring the second to throw.
+     *
+     * **No foreign key**, asserted the way migrations 4 and 5 assert theirs: by
+     * deleting the thing a reference would point at. There is nothing in
+     * `authored.db` to point at here -- the ticket lives in the other file
+     * entirely (XIII) -- so what is really pinned is that `projects` cannot
+     * cascade into it either.
+     *
+     * **Nothing prunes it** (FR-150). The behavioural half of that lives in
+     * `store/history-retention.test.ts`; what belongs here is the absence of a
+     * trigger, because a schema-level prune would survive every test written
+     * against the repository.
+     */
+    seed: (db) => {
+      db.prepare(
+        `INSERT INTO prompts (id, text, agent_id, session_key, project_id, recorded_at)
+         VALUES ('p9', 'Kept.', 'claude', NULL, NULL, '2026-08-01T11:00:00Z')`,
+      ).run()
+    },
+    verify: (db) => {
+      const columns = (
+        db.prepare(`PRAGMA table_info("ticket_history")`).all() as { name: string }[]
+      ).map((c) => c.name)
+      expect(columns).toEqual([
+        'ticket_key',
+        'line',
+        'notes',
+        'ticket_summary',
+        'author_kind',
+        'author_id',
+        'revision',
+        'created_at',
+        'updated_at',
+      ])
+
+      // Migration 5's rows are untouched. A rebuild of a neighbouring table
+      // would pass a column check and lose these.
+      expect(
+        (db.prepare('SELECT text FROM prompts WHERE id = ?').get('p9') as { text: string }).text,
+      ).toBe('Kept.')
+
+      const insert = db.prepare(
+        `INSERT INTO ticket_history
+           (ticket_key, line, notes, ticket_summary, author_kind, author_id, revision,
+            created_at, updated_at)
+         VALUES (?, ?, NULL, NULL, 'agent', 'claude', 1,
+                 '2026-08-01T12:00:00Z', '2026-08-01T12:00:00Z')`,
+      )
+      insert.run('jira:acme.atlassian.net/MERC-1', 'Done.')
+
+      // One row per ticket, at the schema rather than by care.
+      expect(() => insert.run('jira:acme.atlassian.net/MERC-1', 'Done again.')).toThrow(
+        /UNIQUE constraint failed/,
+      )
+
+      // No cascade reaches it. `projects` is the only table in this file with
+      // dependants, and a history entry is not one of them.
+      db.prepare(`DELETE FROM projects`).run()
+      expect(db.prepare('SELECT COUNT(*) AS n FROM ticket_history').get()).toEqual({ n: 1 })
+
+      // And no trigger prunes it. A schema-level retention rule would be
+      // invisible to every test written against the repository.
+      const triggers = db
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?`)
+        .all('ticket_history') as { name: string }[]
+      expect(triggers).toEqual([])
     },
   },
 ]
@@ -491,9 +581,10 @@ describe('authored migrations', () => {
       const after = rowCounts(db)
 
       for (const [table, count] of Object.entries(before)) {
-        expect(after[table], `${table} lost rows during migration ${c.version}`).toBeGreaterThanOrEqual(
-          count,
-        )
+        expect(
+          after[table],
+          `${table} lost rows during migration ${c.version}`,
+        ).toBeGreaterThanOrEqual(count)
       }
 
       c.verify(db)
@@ -519,11 +610,25 @@ describe('authored migrations', () => {
     const db = new Database(join(dir, 'broken.db'))
 
     expect(() =>
-      migrate(db, [{ version: 1, name: 'a', up: 'CREATE TABLE a (x)' }, { version: 3, name: 'c', up: 'CREATE TABLE c (x)' }], now),
+      migrate(
+        db,
+        [
+          { version: 1, name: 'a', up: 'CREATE TABLE a (x)' },
+          { version: 3, name: 'c', up: 'CREATE TABLE c (x)' },
+        ],
+        now,
+      ),
     ).toThrow(/sequence is broken/)
 
     expect(() =>
-      migrate(db, [{ version: 1, name: 'a', up: 'CREATE TABLE a2 (x)' }, { version: 1, name: 'b', up: 'CREATE TABLE b (x)' }], now),
+      migrate(
+        db,
+        [
+          { version: 1, name: 'a', up: 'CREATE TABLE a2 (x)' },
+          { version: 1, name: 'b', up: 'CREATE TABLE b (x)' },
+        ],
+        now,
+      ),
     ).toThrow(/sequence is broken/)
 
     db.close()

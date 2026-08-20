@@ -103,6 +103,7 @@ export const PUSH_CHANNELS = {
   updatesChanged: 'grndctrl:push:updates-changed',
   notesChanged: 'grndctrl:push:notes-changed',
   promptsChanged: 'grndctrl:push:prompts-changed',
+  historyChanged: 'grndctrl:push:history-changed',
 } as const
 
 /**

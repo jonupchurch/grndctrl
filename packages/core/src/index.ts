@@ -25,4 +25,8 @@ export * from './providers/index.js'
 export * from './services/sync.js'
 export * from './services/board.js'
 export * from './services/links.js'
+// The read shape only. `NoteView` sets the precedent for a service-derived view;
+// this one is exported because the interface renders `issueKey`, which the entry
+// carries and the domain type does not.
+export type { TicketHistoryView } from './services/history.js'
 export * from './services/connections.js'
