@@ -802,17 +802,36 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Build 007 M3b, the ticket description.** 006 is complete and deliberately
-unreleased; 007 M1 and M3a are built. The branch is still **local and unpushed**,
-and nothing is tagged.
+**Build 007 M4, the agent update panel.** 006 is complete; 007 M1, M3a and M3b
+are built. The branch is **pushed** to `origin` and CI is green on it. Nothing is
+tagged, so nothing is published — `release.yml` fires on `v*` tags only.
 
-### Two decisions taken on 2026-08-19, both by the operator
+### The decisions taken on 2026-08-19, all by the operator
 
-**T063 is held, not forgotten.** Asked whether to push the branch and dry-run the
-release, hold entirely and start 007, or ship 006 alone, they chose to hold. 006
-and 007 release together as one 0.4.0, which is what the plan always said. Do not
-push, do not tag, do not dry-run. Shipping 006 alone would have shipped the thin
-board — honest, and worse to use than either end of the change.
+**T063 was held and then released.** Asked whether to push and dry-run, hold
+entirely, or ship 006 alone, they chose to hold and start 007; later the same day
+they asked for the branch to be pushed. Both are recorded because the *first* one
+still governs the part that has not happened: 006 and 007 release together as one
+0.4.0, and **nothing is tagged until 007 is done**. Pushing a branch is not
+publishing; tagging is.
+
+**The branch history had to be rewritten before it could be pushed.** The
+client-reference audit was failing, and scoped to what a push would actually
+carry (`run-audits.ts client --rev HEAD`) it named three blobs in three commits:
+a Jira site invented for a test that the shape scan cannot know is invented, and
+two versions of a sentence in 007's research carrying counts taken off a real
+board. Fixing the working tree was not enough — the old blobs were still
+reachable. `git filter-branch` over `main..HEAD` scrubbed every denylist term and
+every unrecognised Atlassian host from all twelve commits; the tip's tree hash is
+byte-identical before and after, so only history moved. The pre-rewrite tip is
+kept locally as `pre-scrub-006` and can be deleted once this is merged.
+
+**Read the audit's output carefully: those SHAs are blobs, not commits.** They
+come from `git rev-list --objects`, so checking them with `git merge-base
+--is-ancestor` or `git for-each-ref --contains` silently reports "not reachable"
+for every one of them — which is how this was nearly waved through. The
+question "would a push carry this?" has exactly one reliable form, and it is
+`--rev HEAD`.
 
 **M2 is blocked, and the block is a fact rather than a preference.** The
 handed-off lane needs `assignee CHANGED FROM currentUser() AFTER -7d` on Jira's
@@ -843,20 +862,31 @@ without any of the others.
 | M1 — Collapsible regions | ✅ Complete — T101—T106 |
 | M2 — The handed-off lane | ⛔ Blocked on T106a, moved to last |
 | M3a — The active ticket | ✅ Complete — T114—T120 |
-| M3b — The ticket description | ⬜ Next |
-| M4 — Agent updates | ⬜ |
+| M3b — The ticket description | ✅ Complete — T121—T127 |
+| M4 — Agent updates | ⬜ Next |
 | M5 — Prompts | ⬜ |
 | M6 — Layout, docs, audits | ⬜ |
 
-755 unit tests and 83 end-to-end tests green, nothing skipped, nothing known
+779 unit tests and 88 end-to-end tests green, nothing skipped, nothing known
 failing.
 
-**What M3a leaves open.** The active-ticket panel renders the key, the summary,
-the status and a link; the description is M3b and the panel has room reserved for
-it. Two of 007's four new panels are empty until an agent is configured to call
-the new tools, and nothing in this application can make an agent cooperate —
-that is a property of the feature, not a gap in it, but any completion report has
-to say so before it says "four new panels".
+**A decision inside M3b that is worth revisiting, and was not the operator's.**
+A link inside a ticket description is **shown and is not clickable**. Making it
+clickable means giving the renderer a way to name a destination, and
+`main/links.ts` withholds that on purpose: the renderer passes a subject key,
+main resolves it through `links.resolve`, and only what core returned reaches the
+OS, so a page with a script in it cannot ask for a URL of its own. A description
+link is an arbitrary provider URL and is not a subject. Guarded by an https check
+it would not be catastrophic — but it converts "the renderer cannot name a
+destination" into "the renderer can name any https destination", spent on a
+convenience, and the ticket opens at the tracker from the same panel where the
+link does work. If that trade is wanted the way in is an `openUrl` channel with
+the scheme check in main.
+
+**What M3a and M3b leave open.** Two of 007's four new panels are empty until an
+agent is configured to call the new tools, and nothing in this application can
+make an agent cooperate — that is a property of the feature, not a gap in it,
+but any completion report has to say so before it says "four new panels".
 
 **A design change made without the operator, still cheap to undo**: the ticket
 lane's rows gained a second control in the trailing slot, a ring that fills when

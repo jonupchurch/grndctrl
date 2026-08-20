@@ -1,5 +1,5 @@
 {
-  "description": "The board the rest of the end-to-end suite reads: three tickets in one project, an agent on one of them, notes on another, and a third with neither — so a row with each correlation and a row without both appear at once, which is what makes the placeholder assertions mean anything. It was `merged-pr-open-ticket.json`, named for a ticket in review whose pull request had already merged; that is a disagreement this application can no longer see, so it is named for its role now instead. Every timestamp is an offset from the moment it is loaded (FR-118) — a scenario whose meaning depends on the date it was written stops meaning it.",
+  "description": "The board the rest of the end-to-end suite reads: three tickets in one project, an agent on one of them, notes on another, and a third with neither \u2014 so a row with each correlation and a row without both appear at once, which is what makes the placeholder assertions mean anything. It was `merged-pr-open-ticket.json`, named for a ticket in review whose pull request had already merged; that is a disagreement this application can no longer see, so it is named for its role now instead. Every timestamp is an offset from the moment it is loaded (FR-118) \u2014 a scenario whose meaning depends on the date it was written stops meaning it.",
   "now": "now",
   "freshness": [
     {
@@ -42,14 +42,268 @@
         "connectionId": "jira-1",
         "issueKey": "MERC-1184",
         "summary": "Reconcile worktree state when a branch is deleted upstream",
-        "assignee": { "accountId": "me", "displayName": "Jon", "email": null },
-        "reporter": { "accountId": "them", "displayName": "Sam", "email": null },
+        "assignee": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "reporter": {
+          "accountId": "them",
+          "displayName": "Sam",
+          "email": null
+        },
         "statusName": "In Review",
         "statusCategory": "indeterminate",
         "isBlocked": false,
         "priority": "High",
         "storyPoints": 5,
         "sprint": "Sprint 12",
+        "description": [
+          {
+            "kind": "paragraph",
+            "content": [
+              {
+                "kind": "text",
+                "text": "A worktree whose upstream branch has gone needs to be ",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              },
+              {
+                "kind": "text",
+                "text": "reconciled",
+                "marks": {
+                  "strong": true,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              },
+              {
+                "kind": "text",
+                "text": ", not deleted. See ",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              },
+              {
+                "kind": "text",
+                "text": "the RFC",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": "https://example.com/rfc/worktrees"
+                }
+              },
+              {
+                "kind": "text",
+                "text": ".",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              }
+            ]
+          },
+          {
+            "kind": "heading",
+            "level": 2,
+            "content": [
+              {
+                "kind": "text",
+                "text": "Acceptance criteria",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              }
+            ]
+          },
+          {
+            "kind": "list",
+            "ordered": false,
+            "items": [
+              [
+                {
+                  "kind": "paragraph",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "text": "The row shows the branch as gone.",
+                      "marks": {
+                        "strong": false,
+                        "em": false,
+                        "code": false,
+                        "href": null
+                      }
+                    }
+                  ]
+                }
+              ],
+              [
+                {
+                  "kind": "paragraph",
+                  "content": [
+                    {
+                      "kind": "text",
+                      "text": "Nothing on disk is touched.",
+                      "marks": {
+                        "strong": false,
+                        "em": false,
+                        "code": false,
+                        "href": null
+                      }
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "kind": "table",
+            "rows": [
+              [
+                {
+                  "header": true,
+                  "content": [
+                    {
+                      "kind": "paragraph",
+                      "content": [
+                        {
+                          "kind": "text",
+                          "text": "State",
+                          "marks": {
+                            "strong": false,
+                            "em": false,
+                            "code": false,
+                            "href": null
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "header": true,
+                  "content": [
+                    {
+                      "kind": "paragraph",
+                      "content": [
+                        {
+                          "kind": "text",
+                          "text": "Expected",
+                          "marks": {
+                            "strong": false,
+                            "em": false,
+                            "code": false,
+                            "href": null
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              [
+                {
+                  "header": false,
+                  "content": [
+                    {
+                      "kind": "paragraph",
+                      "content": [
+                        {
+                          "kind": "text",
+                          "text": "upstream gone",
+                          "marks": {
+                            "strong": false,
+                            "em": false,
+                            "code": false,
+                            "href": null
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "header": false,
+                  "content": [
+                    {
+                      "kind": "paragraph",
+                      "content": [
+                        {
+                          "kind": "text",
+                          "text": "reconcile",
+                          "marks": {
+                            "strong": false,
+                            "em": false,
+                            "code": false,
+                            "href": null
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "kind": "code",
+            "language": "bash",
+            "text": "git worktree prune --dry-run"
+          },
+          {
+            "kind": "paragraph",
+            "content": [
+              {
+                "kind": "text",
+                "text": "Asked ",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              },
+              {
+                "kind": "text",
+                "text": "@Sam Ellery",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              },
+              {
+                "kind": "text",
+                "text": " to confirm the wording.",
+                "marks": {
+                  "strong": false,
+                  "em": false,
+                  "code": false,
+                  "href": null
+                }
+              }
+            ]
+          },
+          {
+            "kind": "unsupported",
+            "nodeType": "panel"
+          }
+        ],
         "createdAt": "now-13d",
         "updatedAt": "now-3h",
         "lastRealActivityAt": "now-3d",
@@ -62,8 +316,16 @@
         "connectionId": "jira-1",
         "issueKey": "MERC-1190",
         "summary": "Session picker should remember the last provider",
-        "assignee": { "accountId": "me", "displayName": "Jon", "email": null },
-        "reporter": { "accountId": "me", "displayName": "Jon", "email": null },
+        "assignee": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
+        "reporter": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
         "statusName": "In Progress",
         "statusCategory": "indeterminate",
         "isBlocked": false,
@@ -75,15 +337,24 @@
         "lastRealActivityAt": "now-6h",
         "lastStatusChangeAt": "now-1d",
         "url": "https://acme.atlassian.net/browse/MERC-1190",
-        "fetchedAt": "now-3m"
+        "fetchedAt": "now-3m",
+        "description": null
       },
       {
         "key": "jira:acme.atlassian.net/MERC-1201",
         "connectionId": "jira-1",
         "issueKey": "MERC-1201",
         "summary": "Retire the old settings key on upgrade",
-        "assignee": { "accountId": "them", "displayName": "Sam", "email": null },
-        "reporter": { "accountId": "me", "displayName": "Jon", "email": null },
+        "assignee": {
+          "accountId": "them",
+          "displayName": "Sam",
+          "email": null
+        },
+        "reporter": {
+          "accountId": "me",
+          "displayName": "Jon",
+          "email": null
+        },
         "statusName": "In Progress",
         "statusCategory": "indeterminate",
         "isBlocked": false,
@@ -95,7 +366,8 @@
         "lastRealActivityAt": "now-8h",
         "lastStatusChangeAt": "now-2d",
         "url": "https://acme.atlassian.net/browse/MERC-1201",
-        "fetchedAt": "now-3m"
+        "fetchedAt": "now-3m",
+        "description": null
       }
     ],
     "sessions": [
@@ -114,6 +386,8 @@
         "heartbeatIntervalSec": 60
       }
     ],
-    "operatorAccountIds": ["me"]
+    "operatorAccountIds": [
+      "me"
+    ]
   }
 }

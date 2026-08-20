@@ -278,4 +278,33 @@ export const MIRROR_MIGRATIONS: readonly Migration[] = [
       DELETE FROM freshness WHERE resource_kind <> 'tickets';
     `,
   },
+  {
+    version: 5,
+    name: 'ticket-description',
+    /**
+     * The ticket description, converted (007/T122, FR-129).
+     *
+     * **What is stored is the converted document, not the ADF.** The conversion
+     * happens at ingest, in the provider, and this column holds its JSON. Doing
+     * it at render instead would mean a malformed description became a blank
+     * panel with a stack trace in a renderer nobody is watching, rather than one
+     * line in a sync — and it would re-run the whole walk on every keystroke of
+     * a filter.
+     *
+     * Its own migration, for the reason versions 2 and 3 each got one: an
+     * installed 0.3.0 has a `mirror.db` at version 4 on disk, and widening an
+     * earlier migration in place would leave that file claiming a schema it does
+     * not have, with every ticket write failing on an unknown column.
+     *
+     * Nullable, no default. `NULL` is "this ticket has no description", which is
+     * a different fact from `[]`, "the description is empty" — a default of
+     * `'[]'` would tell every ticket written before this migration that it has
+     * an empty description, when the truth is that nobody has looked yet. The
+     * next sync fills it in either way, and until then the panel says the right
+     * thing.
+     */
+    up: `
+      ALTER TABLE tickets ADD COLUMN description TEXT;
+    `,
+  },
 ]

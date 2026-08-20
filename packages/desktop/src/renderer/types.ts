@@ -1,3 +1,4 @@
+import type { DocNode as CoreDocNode, InlineNode as CoreInlineNode } from '@grndctrl/core'
 import type {
   AgentSession as CoreAgentSession,
   Note as CoreNote,
@@ -62,8 +63,23 @@ export type Ticket = Pick<
   // the several a carried-over ticket carries. Null is "no sprint" or "this site
   // has no sprint field", and the lane draws a placeholder for either.
   | 'sprint'
+  // Already converted, at ingest, in the provider. The renderer never sees
+  // Atlassian Document Format and never sees markup — see `domain/adf.ts` and
+  // `components/Document.tsx`.
+  | 'description'
   | 'lastRealActivityAt'
 >
+
+/**
+ * The description's node types, re-exported rather than restated.
+ *
+ * `Document.tsx` switches exhaustively over these, so a node kind added in core
+ * and not handled here is a compile error rather than a branch that silently
+ * renders nothing. Restating them would turn that into a runtime surprise, which
+ * is the whole argument at the top of this file.
+ */
+export type DocNode = CoreDocNode
+export type InlineNode = CoreInlineNode
 
 export type AgentSession = Pick<
   CoreAgentSession,

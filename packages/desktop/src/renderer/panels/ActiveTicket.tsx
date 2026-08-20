@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { Document } from '../components/Document.js'
 import { EmptyState } from '../components/EmptyState.js'
 import { Section } from '../components/Section.js'
 import { formatAge } from '../components/StaleBar.js'
@@ -111,6 +112,25 @@ export function ActiveTicket({ active, items, onClear, now }: ActiveTicketProps)
             <>
               <p className="active__summary">{item.ticket.summary}</p>
               <p className="active__status">{item.ticket.statusName}</p>
+              {/*
+                Three states again, and the same rule as above: say nothing you
+                were not told.
+
+                `null` is "no description has reached this mirror" — which is
+                true of a ticket written before the column existed, and of every
+                ticket on a connection that has never successfully synced. Saying
+                "no description" there would be a claim about the ticket made
+                from an absence of data about the ticket.
+
+                `[]` is "the tracker says there is none", which *is* a fact and
+                is worth stating, because a description section that is simply
+                missing reads as a panel that failed to render.
+              */}
+              {item.ticket.description === null ? null : item.ticket.description.length === 0 ? (
+                <p className="active__summary muted">No description.</p>
+              ) : (
+                <Document nodes={item.ticket.description} />
+              )}
             </>
           )}
 

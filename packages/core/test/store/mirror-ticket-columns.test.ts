@@ -9,6 +9,7 @@ import { MIRROR_MIGRATIONS } from '../../src/store/mirror/migrations.js'
 import { mirrorRepository } from '../../src/store/mirror/repository.js'
 import { openMirror } from '../../src/store/open.js'
 import { mirrorDbPath } from '../../src/store/paths.js'
+import type { DocNode, Marks } from '../../src/domain/adf.js'
 import type { Ticket } from '../../src/domain/types.js'
 
 /**
@@ -33,6 +34,8 @@ let dir: string
 
 const SITE = 'acme.atlassian.net'
 
+const MARKS: Marks = { strong: false, em: false, code: false, href: null }
+
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'grndctrl-ticket-columns-'))
 })
@@ -53,6 +56,7 @@ const ticket = (over: Partial<Ticket> & { issueKey: string }): Ticket => ({
   priority: null,
   storyPoints: null,
   sprint: null,
+  description: null,
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-08-10T00:00:00Z',
   lastRealActivityAt: null,
@@ -150,6 +154,7 @@ describe('upgrading a mirror that predates the columns', () => {
       '2_ticket-priority-and-points',
       '3_ticket-sprint',
       '4_remove-code-host-and-local-git',
+      '5_ticket-description',
     ])
     opened.db.close()
   })
@@ -177,6 +182,72 @@ describe('upgrading a mirror that predates the columns', () => {
     expect(row?.priority).toBeNull()
     expect(row?.storyPoints).toBeNull()
     expect(row?.sprint).toBeNull()
+    // And the same argument for the description: `null` is "nobody has looked
+    // yet", which is the truth about a ticket synced before the column existed.
+    // A `DEFAULT '[]'` would have the migration tell the operator that every
+    // ticket they have ever synced has an empty description.
+    expect(row?.description).toBeNull()
+    opened.db.close()
+  })
+})
+
+describe('storing the description', () => {
+  const roundTrip = (tickets: readonly Ticket[]): Ticket[] => {
+    const opened = openMirror({ dir })
+    connect(opened.db)
+    const repo = mirrorRepository(opened.db)
+    repo.replaceTickets('c1', tickets)
+    const read = repo.listTickets()
+    opened.db.close()
+    return read
+  }
+
+  it('round-trips a converted document', () => {
+    const description: DocNode[] = [
+      { kind: 'heading', level: 2, content: [{ kind: 'text', text: 'Acceptance criteria', marks: MARKS }] },
+      { kind: 'unsupported', nodeType: 'panel' },
+    ]
+
+    const [row] = roundTrip([ticket({ issueKey: 'MERC-1', description })])
+
+    // Structurally equal, including the placeholder. A store that kept the text
+    // and dropped the node kinds would satisfy any assertion about the words.
+    expect(row?.description).toEqual(description)
+  })
+
+  /**
+   * The one that matters here, and it is the same shape as the zero-point case
+   * above.
+   *
+   * `null` is "this ticket has no description"; `[]` is "its description is
+   * empty". They render identically, so nothing on screen would ever show the
+   * difference — and a store that collapsed them would make it impossible for
+   * the panel to say which. Any `x ? JSON.stringify(x) : null` does exactly
+   * that, because an empty array is truthy but `[]` is not what comes back.
+   */
+  it('tells an absent description from an empty one', () => {
+    const [absent, empty] = roundTrip([
+      ticket({ issueKey: 'MERC-1', description: null }),
+      ticket({ issueKey: 'MERC-2', description: [] }),
+    ])
+
+    expect(absent?.description).toBeNull()
+    expect(empty?.description).toEqual([])
+  })
+
+  it('reads a malformed stored document as absent rather than throwing', () => {
+    // The mirror is a cache and its rows are not sacred, but a description that
+    // cannot be parsed must not be able to take the whole ticket lane down on
+    // the read path. Written directly, because nothing in the app can produce
+    // this -- which is exactly why the read has to survive it.
+    const opened = openMirror({ dir })
+    connect(opened.db)
+    const repo = mirrorRepository(opened.db)
+    repo.replaceTickets('c1', [ticket({ issueKey: 'MERC-1', description: [] })])
+    opened.db.prepare('UPDATE tickets SET description = ?').run('{ not json')
+
+    expect(() => repo.listTickets()).not.toThrow()
+    expect(repo.listTickets()[0]?.description).toBeNull()
     opened.db.close()
   })
 })

@@ -12,6 +12,7 @@
  * because no mirrored type exposes an id that an authored type could hold.
  */
 
+import type { DocNode } from './adf.js'
 import type { NaturalKey } from './keys.js'
 
 /** ISO-8601 with an offset. Stored and transmitted as a string, always absolute. */
@@ -131,6 +132,21 @@ export interface Ticket {
    * resolved reports null on every row. Neither is rendered as a sprint name.
    */
   sprint: string | null
+  /**
+   * The description, already converted out of Atlassian Document Format.
+   *
+   * **Converted at ingest and stored converted** (007/T124). Jira returns this
+   * field as a JSON node tree, not a string; the conversion is a whitelist with
+   * a labelled fallback in `domain/adf.ts`. Doing it here rather than at render
+   * means a description this application cannot make sense of is one line in a
+   * sync rather than a blank panel in a renderer nobody is watching.
+   *
+   * `null` is "no description" and `[]` is "an empty description". They render
+   * identically and they are different facts, so both survive to the panel —
+   * and a ticket written before migration 5 is `null`, which is honest: nobody
+   * has looked yet.
+   */
+  description: DocNode[] | null
   createdAt: Timestamp
   /** Displayed, never used for staleness — automation moves it (FR-027). */
   updatedAt: Timestamp

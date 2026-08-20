@@ -201,3 +201,104 @@ test('clearing it from the panel returns the empty state', async () => {
   const read = (await (await agent('focus.get', {})).json()) as { data: unknown }
   expect(read.data).toBeNull()
 })
+
+/*
+ * SC-016 — the description (T127).
+ *
+ * Four things at once, because the requirement is that they are all legible
+ * *together*: a table, a code block, a mention, and a node this application
+ * cannot render. Any one of them alone would pass against a converter that
+ * handled that one and dropped the rest.
+ *
+ * These re-set the focus themselves rather than relying on the tests above,
+ * which leave it cleared.
+ */
+test.describe('the description', () => {
+  test.beforeAll(async () => {
+    const response = await agent('focus.set', { ticketKey: ON_BOARD })
+    expect(response.ok).toBe(true)
+    await expect(panel().locator('.doc')).toBeVisible(PUSHED)
+  })
+
+  test('renders a table, a code block and a mention', async () => {
+    const doc = panel().locator('.doc')
+
+    // A table as a table, not as its words run together. The header cell is
+    // asserted separately from the body cell because a converter that lost
+    // `header` would still put both strings on the page.
+    await expect(doc.locator('th', { hasText: 'State' })).toBeVisible()
+    await expect(doc.locator('td', { hasText: 'reconcile' })).toBeVisible()
+
+    await expect(doc.locator('pre code')).toHaveText('git worktree prune --dry-run')
+
+    // A mention is text, not a link. The href would be a Jira profile URL and
+    // who this is is the part the reader needs.
+    await expect(doc).toContainText('@Sam Ellery')
+  })
+
+  test('names the node it cannot render instead of dropping it', async () => {
+    // The assertion this whole path exists for. A description whose acceptance
+    // criteria were in a node like this reads as complete once it is gone, and
+    // nothing on the screen suggests otherwise — which is why the placeholder
+    // says *what* it was rather than "unsupported content".
+    const placeholder = panel().locator('.doc__unsupported')
+
+    await expect(placeholder).toHaveCount(1)
+    await expect(placeholder).toContainText('panel')
+    await expect(placeholder).toContainText(/open the ticket at the tracker/i)
+  })
+
+  test('puts no markup and no anchor on the page', async () => {
+    /*
+     * FR-129, two ways.
+     *
+     * **No markup**: the description is the least trusted input this
+     * application handles, and the way it would go wrong is `innerHTML`. So the
+     * assertion is against the page's own HTML rather than its text — a
+     * `<script>` in a ticket would be invisible to any text assertion.
+     *
+     * **No anchor**: the renderer does not name destinations (`main/links.ts`).
+     * A link in a description is an arbitrary provider URL and is not a
+     * subject, so it is shown, marked, and inert. If that ever changes it must
+     * change deliberately, and this line is what makes it deliberate.
+     */
+    const doc = panel().locator('.doc')
+
+    await expect(doc.locator('a')).toHaveCount(0)
+    await expect(doc.locator('script')).toHaveCount(0)
+
+    const link = doc.locator('.doc__link')
+    await expect(link).toHaveText('the RFC')
+    await expect(link).toHaveAttribute('title', 'https://example.com/rfc/worktrees')
+  })
+
+  test('scrolls inside its own bounds rather than growing the column', async () => {
+    // US1 scenario 2. A description can be any length at all, and a panel that
+    // grew to fit one would push the sessions and ball-in-court panels off a
+    // board whose whole claim is that everything is visible at once.
+    const box = await panel().locator('.active').evaluate((el) => ({
+      client: el.clientHeight,
+      scroll: el.scrollHeight,
+      overflow: getComputedStyle(el).overflowY,
+    }))
+
+    expect(box.overflow).toBe('auto')
+    expect(box.client).toBeLessThanOrEqual(320)
+    // And it really does overflow, so the assertion above is about a panel that
+    // is actually being constrained rather than one that happens to fit.
+    expect(box.scroll).toBeGreaterThan(box.client)
+  })
+
+  test('says nothing about a description it has not been told about', async () => {
+    // `null` is "no description has reached this mirror", which is true of a
+    // ticket synced before the column existed and of every ticket on a
+    // connection that has never synced. Reporting that as "no description"
+    // would be a claim about the ticket drawn from an absence of data.
+    const response = await agent('focus.set', { ticketKey: 'jira:acme.atlassian.net/MERC-1201' })
+    expect(response.ok).toBe(true)
+
+    await expect(panel()).toContainText('MERC-1201', PUSHED)
+    await expect(panel().locator('.doc')).toHaveCount(0)
+    await expect(panel()).not.toContainText(/no description/i)
+  })
+})

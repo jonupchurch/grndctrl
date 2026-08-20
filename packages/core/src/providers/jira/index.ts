@@ -1,3 +1,4 @@
+import { fromAdf } from '../../domain/adf.js'
 import { ticketKey } from '../../domain/keys.js'
 import type {
   StatusCategory,
@@ -57,6 +58,8 @@ interface JiraIssue {
   key: string
   fields?: {
     summary?: string
+    /** Atlassian Document Format — a node tree, not a string. See `domain/adf.ts`. */
+    description?: unknown
     status?: { name?: string; statusCategory?: { key?: string } }
     assignee?: JiraUser | null
     reporter?: JiraUser | null
@@ -160,6 +163,12 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
         maxResults: pageSize ?? 100,
         fields: [
           'summary',
+          // The active-ticket panel's whole reason for scrolling (007/R1). One
+          // extra field on a search that already names them explicitly, and
+          // unlike story points and sprint it has a fixed id — `description` is
+          // a system field on every Jira Cloud site, so there is nothing to
+          // resolve and nothing to omit when it is missing.
+          'description',
           'status',
           'assignee',
           'reporter',
@@ -284,6 +293,11 @@ function toTicket(
     connectionId,
     issueKey: issue.key,
     summary: fields.summary ?? '',
+    // Converted here rather than at render (T124). A description this
+    // application cannot make sense of becomes one line in a sync log, where
+    // there is something to read; at render it would be a blank panel in a
+    // process nobody is watching, re-walked on every filter keystroke.
+    description: fromAdf(fields.description),
     assignee: toIdentity(fields.assignee),
     reporter: toIdentity(fields.reporter),
     statusName,

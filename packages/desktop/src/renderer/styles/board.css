@@ -639,3 +639,145 @@
   color: var(--accent);
   border-color: var(--line);
 }
+
+/* ── A ticket description ────────────────────────────────────────── */
+
+/*
+ * Deliberately quiet. This is somebody else's prose arriving in the middle of a
+ * dense board, and the risk is that a ticket with three headings and a table
+ * shouts louder than the lane it is describing. Everything here is one step
+ * smaller and one step greyer than the panel around it.
+ */
+.doc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: var(--t-meta);
+  line-height: 1.5;
+  color: var(--ink-2);
+  /* Nothing in here may widen the column. A description is provider content and
+     the board's geometry is not its to change. */
+  min-width: 0;
+}
+
+.doc__p {
+  margin: 0;
+  /* A pasted URL or a stack frame has no spaces to break at, and the column is
+     narrow. Without this one word decides the width of the panel. */
+  overflow-wrap: anywhere;
+}
+
+.doc__h {
+  margin: 4px 0 0;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.doc__list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.doc__list li {
+  margin: 2px 0;
+}
+
+.doc__code {
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  /* The block scrolls; the panel does not widen. Same rule as the table. */
+  overflow-x: auto;
+  white-space: pre;
+  font-size: calc(var(--t-meta) - 1px);
+}
+
+.doc__mono {
+  padding: 0 3px;
+  background: var(--sunken);
+  border-radius: 2px;
+  font-size: calc(var(--t-meta) - 1px);
+}
+
+.doc__quote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-3);
+}
+
+.doc__rule {
+  width: 100%;
+  height: 0;
+  margin: 2px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.doc__table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.doc__table {
+  border-collapse: collapse;
+  font-size: calc(var(--t-meta) - 1px);
+}
+
+.doc__table th,
+.doc__table td {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc__table th {
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--sunken);
+}
+
+/*
+ * A link that is shown and is not clickable.
+ *
+ * `main/links.ts` is the one place a URL becomes an action, and the renderer
+ * passes it a subject key rather than a URL precisely so that a compromised page
+ * cannot name a destination. A description link is an arbitrary provider URL and
+ * is not a subject, so making it clickable means adding that argument back.
+ *
+ * Underlined so it reads as a link and **not** given the accent colour or a
+ * pointer cursor, so it does not read as a *button*. The URL is in its `title`.
+ */
+.doc__link {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+/*
+ * The placeholder, and it is meant to be noticed.
+ *
+ * A dropped node is the failure this whole path exists to prevent: a description
+ * whose acceptance criteria were in a `panel` reads as complete once the panel is
+ * gone, and nothing on the screen suggests otherwise. So this is drawn as a
+ * warning rather than as a gap.
+ */
+.doc__unsupported {
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 3px;
+  color: var(--ink-3);
+  font-size: calc(var(--t-meta) - 1px);
+}
+
+.doc__unsupported--inline {
+  padding: 0 3px;
+  border-style: dotted;
+}

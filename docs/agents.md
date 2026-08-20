@@ -131,6 +131,17 @@ the key and says plainly that it has no summary or status for it, rather than
 going and fetching one — a pointer you set must not become a network request
 the operator did not ask for.
 
+**The description comes with the ticket.** `grndctrl_get_work_item` and
+`grndctrl_list_work` carry `ticket.description` already converted out of
+Atlassian Document Format <E> a small node tree of paragraphs, headings, lists,
+code blocks, quotes, rules, tables, mentions and links, with `unsupported` nodes
+naming anything Ground Control does not render. There is no separate call for it
+and no ADF anywhere on this surface.
+
+`null` means no description has reached the mirror; `[]` means the tracker says
+there is none. They are different facts and are worth telling apart before
+concluding a ticket has no acceptance criteria.
+
 **Clear it when the work ends.** A stale active ticket is worse than an empty
 panel: the operator reads that panel as "this is happening now".
 

@@ -48,6 +48,7 @@ function ticket(url: string): Ticket {
     summary: 'Reconcile worktree state',
     assignee: null,
     reporter: null,
+    description: null,
     statusName: 'In Review',
     statusCategory: 'indeterminate',
     isBlocked: false,

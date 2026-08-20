@@ -283,6 +283,9 @@ describe('priority and story points', () => {
     const search = calls.find((c) => c.url.includes('/search'))
     expect((search?.body as { fields: string[] }).fields).toEqual([
       'summary',
+      // A system field on every Cloud site, with a fixed id. Unlike the two
+      // custom fields around it there is nothing to resolve and nothing to omit.
+      'description',
       'status',
       'assignee',
       'reporter',
@@ -291,6 +294,94 @@ describe('priority and story points', () => {
       'updated',
     ])
     expect(tickets[0]?.storyPoints).toBeNull()
+  })
+})
+
+describe('the description', () => {
+  // Its own helpers rather than the ones above: those live inside the
+  // story-points block, and reaching into another describe's scope makes two
+  // groups of tests fail together for reasons neither states.
+  const FIELDS = [{ id: 'summary', name: 'Summary', custom: false, schema: { type: 'string' } }]
+
+  const issue = (fields: Record<string, unknown>) => ({
+    issues: [
+      {
+        id: '10001',
+        key: 'MERC-1184',
+        fields: {
+          summary: 'Reconcile worktree state',
+          status: { name: 'In Review', statusCategory: { key: 'indeterminate' } },
+          ...fields,
+        },
+      },
+    ],
+  })
+
+  /**
+   * Converted at ingest, in the provider (007/T124).
+   *
+   * The alternative was converting at render, and it is worse in two ways that
+   * only show up later: a description this application cannot make sense of
+   * becomes a blank panel in a renderer nobody is watching rather than one line
+   * in a sync, and the whole tree gets re-walked on every keystroke of a filter.
+   *
+   * What is asserted here is that the *converted* form is what leaves the
+   * provider — not that ADF was fetched. A provider that passed the raw node
+   * tree through would satisfy any assertion about the words in it.
+   */
+  it('arrives converted, not as Atlassian Document Format', async () => {
+    const { jira } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({
+        description: {
+          type: 'doc',
+          version: 1,
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Reconcile it.' }] },
+            { type: 'panel', attrs: { panelType: 'info' }, content: [] },
+          ],
+        },
+      }),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    expect(tickets[0]?.description).toEqual([
+      {
+        kind: 'paragraph',
+        content: [
+          { kind: 'text', text: 'Reconcile it.', marks: { strong: false, em: false, code: false, href: null } },
+        ],
+      },
+      // The node this application does not render, kept and named. Dropping it
+      // is the failure `domain/adf.ts` exists to prevent, and it would look like
+      // success here too without this line.
+      { kind: 'unsupported', nodeType: 'panel' },
+    ])
+  })
+
+  it('is null when the ticket has none', async () => {
+    const { jira } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({ description: null }),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+    expect(tickets[0]?.description).toBeNull()
+  })
+
+  it('does not fail the sync over a description it cannot read', async () => {
+    // Everything on the wire is `unknown`. A converter that trusted the shape
+    // would throw inside `toTicket`, and the ticket lane would go down over one
+    // malformed field on one ticket.
+    const { jira } = provider({
+      '/rest/api/3/field': FIELDS,
+      '/rest/api/3/search/jql': issue({ description: { type: 'doc', content: 'not an array' } }),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+    expect(tickets).toHaveLength(1)
+    expect(tickets[0]?.description).toEqual([])
   })
 })
 

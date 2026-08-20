@@ -1,4 +1,5 @@
 import type { Database } from 'better-sqlite3'
+import type { DocNode } from '../../domain/adf.js'
 import type { NaturalKey, SubjectKind } from '../../domain/keys.js'
 import { subjectKindOf } from '../../domain/keys.js'
 import type {
@@ -118,6 +119,7 @@ export function mirrorRepository(db: Database): MirrorRepository {
       'priority',
       'story_points',
       'sprint',
+      'description',
       'created_at',
       'updated_at',
       'last_real_activity_at',
@@ -138,6 +140,9 @@ export function mirrorRepository(db: Database): MirrorRepository {
       t.priority,
       t.storyPoints,
       t.sprint,
+      // `null` and `'[]'` are different rows on purpose: no description at all,
+      // versus one that is empty. See the migration.
+      t.description === null ? null : JSON.stringify(t.description),
       t.createdAt,
       t.updatedAt,
       t.lastRealActivityAt,
@@ -206,6 +211,11 @@ export function mirrorRepository(db: Database): MirrorRepository {
         // "unestimated" and puts a dash where the tracker says zero.
         storyPoints: nullableNumber(r['story_points']),
         sprint: nullableString(r['sprint']),
+        // A row written before migration 5, or a ticket with no description at
+        // all, reads as `null`. A malformed one also reads as `null` rather than
+        // throwing: this is a cache, and a description that cannot be parsed
+        // must not be able to take the ticket lane down with it.
+        description: json<DocNode[] | null>(r['description'], null),
         createdAt: String(r['created_at']),
         updatedAt: String(r['updated_at']),
         lastRealActivityAt: nullableString(r['last_real_activity_at']),

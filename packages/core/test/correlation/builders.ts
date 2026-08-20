@@ -58,6 +58,10 @@ export function ticket(over: Partial<Ticket> & { issueKey?: string } = {}): Tick
     isBlocked: false,
     priority: 'Medium',
     storyPoints: 3,
+    // Correlation never reads it. Null rather than a document, so a rule that
+    // started depending on the description would be visible as a builder change
+    // rather than as one more field that happened to be populated.
+    description: null,
     sprint: 'Sprint 12',
     createdAt: hoursAgo(200),
     updatedAt: hoursAgo(1),

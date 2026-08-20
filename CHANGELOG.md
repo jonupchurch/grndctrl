@@ -105,10 +105,78 @@ copy anywhere.
   timestamp and carries the exact age in its `title`.
 - **`--repo` and `--checkout`** from `scripts/bind-project.mjs`.
 
+### Added
+
+The agent console, arriving with the removal above rather than after it: 006
+leaves a board thin enough that the layout deserved a second look, so both
+changes ship as one release.
+
+- **Every region on the board folds**, and the choice survives a restart.
+  Collapsing renders no children rather than hiding them — `display: none`
+  would leave a folded two-hundred-row lane in the page, and both the
+  performance budget and the greyscale count use `querySelectorAll`, which
+  cannot tell a hidden row from a visible one. What stays visible when a region
+  is folded is its count and its freshness: tidying the board must not become a
+  way of not being told it cannot refresh. Only the folded regions are stored,
+  so expanding one deletes its key rather than accumulating a dead one.
+
+- **An active ticket**, in a panel of its own, settable by an agent over MCP.
+
+  Three new operations — `focus.get`, `focus.set`, `focus.clear` — all at
+  exposure `all`, with `grndctrl_set_active_ticket` and its two companions on
+  the MCP surface. This is the one that must not be `ui-only`: parking the
+  pointer on `settings` would have been less code and would have put it out of
+  reach of the caller it exists for.
+
+  **Who set it comes from the transport, never from the payload.** An agent
+  cannot record the operator as having set a ticket itself.
+
+  **A key the mirror does not hold is legal and is not fetched.** An agent may
+  set focus before the sync that would fetch the ticket, and a ticket that is
+  not the operator's is never in this mirror at all — so the panel shows the
+  key, says plainly that it has no summary or status for it, and still offers
+  the link. Turning an agent's input into a network call the operator did not
+  ask for is the thing being avoided.
+
+  The ticket lane's rows gained a matching control, so the operator can set it
+  by hand from the row they are looking at.
+
+- **The ticket description**, converted and rendered as structured content.
+
+  Jira Cloud returns `description` as Atlassian Document Format, a JSON node
+  tree. Ground Control converts it **at ingest** through a whitelist and stores
+  the result: paragraphs, headings, lists, code blocks, block quotes, rules,
+  tables, mentions, inline cards, and the `strong` / `em` / `code` / `link`
+  marks.
+
+  **A node outside the whitelist becomes a labelled placeholder naming it**, and
+  is never dropped. A description whose acceptance criteria were in a `panel`
+  node reads as complete once the node is gone, with nothing on screen to
+  suggest otherwise.
+
+  Neither `expand=renderedFields` nor an ADF renderer package was used. The
+  first would put provider HTML on a page whose CSP is `default-src 'none'`; the
+  second would bring a large React tree into an application with four production
+  dependencies.
+
+  Links inside a description are **shown and are not clickable** — see Known
+  gaps.
+
 ### Known gaps
 
 Named rather than left to be discovered.
 
+- **A link inside a ticket description does not open.** It is rendered as text,
+  marked as a link, with its URL in the tooltip where it can be read and copied.
+  The renderer deliberately has no way to name a destination: it passes a
+  subject key, main resolves it through `links.resolve`, and only what core
+  returned reaches the OS — so a page with a script in it cannot ask for a URL
+  of its own. A description link is an arbitrary provider URL and is not a
+  subject, so making it clickable means adding that argument back. The ticket
+  opens at the tracker from the same panel, where the link works.
+- **Two of the new panels are empty until an agent uses them.** The active
+  ticket is populated by MCP in the normal case; nothing in this application can
+  make an agent call a tool.
 - **Nothing in the interface can put an action in the outbox.** The queue, its
   durability and the claim protocol are all still here and still tested; the only
   route to it from a screen ran through a drift finding, and that route left with
