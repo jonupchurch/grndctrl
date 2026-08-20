@@ -802,8 +802,8 @@ work: `speckit-specify` creates the feature branch at Phase 4.
 
 ## Next action
 
-**Build 007 M4, the agent update panel.** 006 is complete; 007 M1, M3a and M3b
-are built. The branch is **pushed** to `origin` and CI is green on it. Nothing is
+**Build 007 M5, prompts and the clipboard.** 006 is complete; 007 M1, M3a, M3b
+and M4 are built. The branch is **pushed** to `origin` and CI is green on it. Nothing is
 tagged, so nothing is published — `release.yml` fires on `v*` tags only.
 
 ### The decisions taken on 2026-08-19, all by the operator
@@ -863,12 +863,33 @@ without any of the others.
 | M2 — The handed-off lane | ⛔ Blocked on T106a, moved to last |
 | M3a — The active ticket | ✅ Complete — T114—T120 |
 | M3b — The ticket description | ✅ Complete — T121—T127 |
-| M4 — Agent updates | ⬜ Next |
-| M5 — Prompts | ⬜ |
+| M4 — Agent updates | ✅ Complete — T128—T134 |
+| M5 — Prompts | ⬜ Next |
 | M6 — Layout, docs, audits | ⬜ |
 
-779 unit tests and 88 end-to-end tests green, nothing skipped, nothing known
+795 unit tests and 94 end-to-end tests green, nothing skipped, nothing known
 failing.
+
+**M4 found a defect older than 007, and it is worth reading before M5.** There
+was no push event for notes at all and there never had been: a note written by an
+agent did not reach an open board until an unrelated sync finished. Nothing
+noticed because until now a note changed exactly one thing on screen — a badge
+count — and a badge a few minutes stale is indistinguishable from a correct one.
+FR-135 puts an agent's unanswered *question* in a panel, which is a different
+standard, and an end-to-end test that posted one and waited found it in a minute.
+
+**The fix has a deliberate hole in it.** `notes:changed` refreshes the questions
+and the badge counts and **not** the open note modal's list. The revision that
+modal read is what makes a lost write detectable (FR-055) — refreshing it under
+an editor hands it the newest revision, the operator's save then succeeds,
+overwrites the other writer, and nobody is told. A reported conflict becomes a
+silent clobber. Adding `notes.list` to that invalidation turns
+`golden-path.spec.ts` step 5b red, which is the pin.
+
+The same milestone also caught a test passing for the wrong reason: `push.test.ts`
+asserted that a plain read announces nothing, and `notes.list` was silent only
+because no prefix happened to match it. It now supplies the `mutates` predicate
+the real caller reads off the registry.
 
 **Description links open, and were the operator's call.** The first version
 rendered them inert, because `main/links.ts` withholds from the renderer any

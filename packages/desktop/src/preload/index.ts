@@ -114,6 +114,8 @@ contextBridge.exposeInMainWorld('grndctrl', {
     outboxChanged: subscribe(PUSH_CHANNELS.outboxChanged),
     sessionsChanged: subscribe(PUSH_CHANNELS.sessionsChanged),
     focusChanged: subscribe(PUSH_CHANNELS.focusChanged),
+    updatesChanged: subscribe(PUSH_CHANNELS.updatesChanged),
+    notesChanged: subscribe(PUSH_CHANNELS.notesChanged),
   },
 })
 

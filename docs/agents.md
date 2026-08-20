@@ -150,6 +150,43 @@ every other URL here.
 **Clear it when the work ends.** A stale active ticket is worse than an empty
 panel: the operator reads that panel as "this is happening now".
 
+### Saying something
+
+| Tool | |
+| --- | --- |
+| `grndctrl_post_update` | Tell the operator something worth reading |
+| `grndctrl_list_updates` | What agents have said, newest first |
+
+**There are now four things in this neighbourhood and they are not
+interchangeable.** Getting this wrong is the difference between a board that is
+useful to watch and one nobody looks at:
+
+- **`grndctrl_heartbeat`** — "the process is alive". On a timer. Says nothing
+  about work.
+- **`grndctrl_report_activity`** — "work happened". Advances the activity clock,
+  which is what stops a stuck agent looking busy. Machine-facing: it moves a
+  colour.
+- **`reportedStatus`** on your session — "what I am doing", one line,
+  **overwritten** each time. The current state, not a record.
+- **`grndctrl_post_update`** — "here is something worth reading". Appended,
+  kept, shown as a stream.
+
+The distinction that decides it: **a status is replaced and an update is added.**
+Post an update when there is news — a decision made, a surprise found, a
+direction changed — not on a timer. An agent that posts every thirty seconds has
+written a log nobody asked for; an agent that only overwrites its status has left
+the operator with the last thing it said and no idea it said anything else.
+
+**Who posted it is taken from the session**, not from your payload, so you cannot
+post as another agent. **The ticket is captured too** — whatever was active when
+you posted — and it stays that ticket afterwards, so an update is not
+re-attributed when the operator moves on.
+
+Updates are **append-only**. There is no edit and no delete. Said something
+wrong? Say something else; the operator is reading a history.
+
+Each session keeps its most recent 50, pruned as each one is written.
+
 ### Sessions
 
 | Tool | |

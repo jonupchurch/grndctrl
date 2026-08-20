@@ -1,6 +1,7 @@
 import type { DocNode as CoreDocNode, InlineNode as CoreInlineNode } from '@grndctrl/core'
 import type {
   AgentSession as CoreAgentSession,
+  AgentUpdate as CoreAgentUpdate,
   Note as CoreNote,
   Project as CoreProject,
   Ticket as CoreTicket,
@@ -80,6 +81,19 @@ export type Ticket = Pick<
  */
 export type DocNode = CoreDocNode
 export type InlineNode = CoreInlineNode
+
+/**
+ * Every field, and there are only six.
+ *
+ * `Pick`ed like everything else in this file rather than aliased, so that a
+ * field added in core has to be named here before the panel can read it — the
+ * discipline at the top of this file is about the fields the interface renders,
+ * and a full alias would quietly opt this type out of it.
+ */
+export type AgentUpdate = Pick<
+  CoreAgentUpdate,
+  'id' | 'sessionKey' | 'agentId' | 'ticketKey' | 'text' | 'postedAt'
+>
 
 export type AgentSession = Pick<
   CoreAgentSession,

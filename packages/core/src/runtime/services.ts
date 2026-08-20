@@ -9,6 +9,7 @@ import { runSync, type SyncReport } from '../services/sync.js'
 import { buildSyncTargets, type BuiltTargets } from './providers.js'
 import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
 import { focusService, type FocusService } from '../services/focus.js'
+import { updatesService, type UpdatesService } from '../services/updates.js'
 import { notesService, type NotesService } from '../services/notes.js'
 import { outboxService, type OutboxService } from '../services/outbox.js'
 import { connectionsService, type ConnectionsService } from '../services/connections.js'
@@ -16,6 +17,7 @@ import { sessionsService, type SessionsService } from '../services/sessions.js'
 import { settingsStore, type SettingsStore } from '../services/settings.js'
 import { projectsRepository, type ProjectsRepository } from '../store/authored/config.js'
 import { focusRepository } from '../store/authored/focus.js'
+import { updatesRepository } from '../store/authored/updates.js'
 import { notesRepository } from '../store/authored/notes.js'
 import { outboxRepository } from '../store/authored/outbox.js'
 import { sessionsRepository } from '../store/authored/sessions.js'
@@ -45,6 +47,8 @@ export interface CoreServices {
   notes: NotesService
   /** The one ticket being worked. Authored, and settable by an agent (FR-127). */
   focus: FocusService
+  /** What agents have said while working. Append-only (FR-132). */
+  updates: UpdatesService
   sessions: SessionsService
   outbox: OutboxService
   settings: SettingsStore
@@ -107,6 +111,15 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   })
 
   const focus = focusService({ focus: focusRepository(authoredDb) })
+
+  // Both dependencies are read per call rather than captured, so an update
+  // posted after the operator moves focus captures the ticket that is active
+  // *then* — which is the whole point of capturing it at all.
+  const updates = updatesService({
+    updates: updatesRepository(authoredDb),
+    agentOf: (sessionKey) => sessionsRepo.get(sessionKey)?.agentId ?? null,
+    activeTicket: () => focus.get()?.ticketKey ?? null,
+  })
 
   const sessions = sessionsService({
     sessions: sessionsRepo,
@@ -174,6 +187,7 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     connections,
     notes,
     focus,
+    updates,
     sessions,
     outbox,
     settings,

@@ -79,7 +79,20 @@ describe('events derived from what actually ran', () => {
 
   it('says nothing about a plain read', async () => {
     const target = recorder()
-    const dispatch = push({ targets: () => [target] }).observing(() => Promise.resolve({}))
+    /*
+     * The **wired** predicate, not the default.
+     *
+     * This used to pass with the default "everything mutates", because
+     * `notes.list` matched no prefix in `afterDispatch` and so was silent by
+     * accident rather than by rule. Adding the notes event made that accident
+     * visible, which is the right way round: `mutates` is the mechanism that
+     * keeps a read quiet, and a test of that mechanism has to supply it. The
+     * real caller reads it off the registry (`main/index.ts`).
+     */
+    const dispatch = push({
+      targets: () => [target],
+      mutates: (operation) => !operation.endsWith('.list'),
+    }).observing(() => Promise.resolve({}))
 
     await dispatch('work.list', {})
     await dispatch('notes.list', {})
@@ -101,6 +114,26 @@ describe('events derived from what actually ran', () => {
     }
 
     expect(target.sent.filter((s) => s.channel === PUSH_CHANNELS.sessionsChanged)).toHaveLength(3)
+  })
+
+  /*
+   * The event that did not exist until 007, and the reason it does now.
+   *
+   * A note used to change one thing on an open board — a badge count — and a
+   * badge a few minutes stale is indistinguishable from a correct one. FR-135
+   * puts an agent's unanswered question in a panel, and a question that appears
+   * whenever the next poll happens to finish is not a question the operator was
+   * asked. Found by an end-to-end test that posted one and waited.
+   */
+  it('announces a note being written, so a question reaches an open board', async () => {
+    const target = recorder()
+    const dispatch = push({ targets: () => [target] }).observing(() => Promise.resolve({}))
+
+    for (const operation of ['notes.create', 'notes.update', 'notes.delete']) {
+      await dispatch(operation, {})
+    }
+
+    expect(target.sent.filter((s) => s.channel === PUSH_CHANNELS.notesChanged)).toHaveLength(3)
   })
 
   it('announces the active ticket being set or cleared', async () => {

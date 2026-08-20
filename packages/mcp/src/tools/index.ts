@@ -3,6 +3,7 @@ import { notesTools } from './notes.js'
 import { outboxTools } from './outbox.js'
 import { readTools } from './read.js'
 import { sessionsTools } from './sessions.js'
+import { updatesTools } from './updates.js'
 import type { ToolBinding } from './shared.js'
 
 export type { ToolBinding } from './shared.js'
@@ -20,6 +21,7 @@ export const TOOLS: readonly ToolBinding[] = [
   ...notesTools,
   ...focusTools,
   ...sessionsTools,
+  ...updatesTools,
   ...outboxTools,
 ]
 

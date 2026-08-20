@@ -108,6 +108,35 @@ export function usePushInvalidation(): void {
       // exists to be populated by MCP — so without it the panel is a snapshot
       // of whatever was true when the window opened.
       bridge.on.focusChanged(() => void client.invalidateQueries({ queryKey: ['focus.get'] })),
+      // An agent said something. This is the panel with the shortest useful
+      // lifetime on the board — an update the operator reads four minutes late
+      // is one they read after the agent has moved on.
+      bridge.on.updatesChanged(() => void client.invalidateQueries({ queryKey: ['updates.list'] })),
+      /*
+       * A note was written, answered or deleted — by this window or by an agent.
+       *
+       * **`notes.list` is deliberately not invalidated, and that is the whole
+       * subtlety of this event.** The note modal reads it, and the revision it
+       * read is what makes a lost write *detectable*: FR-055 rejects a stale
+       * write and hands back the row that won, so the operator can see both
+       * versions instead of losing their draft. Refreshing the list under an
+       * open editor quietly hands it the newest revision — at which point their
+       * save succeeds, overwrites the other writer, and nobody is told. A
+       * detected conflict becomes a silent clobber, which is the exact failure
+       * the conflict machinery exists to prevent.
+       *
+       * That is not hypothetical: adding `notes.list` here turned
+       * `golden-path.spec.ts` step 5b green-to-red by making the conflict it
+       * stages stop happening. The modal is an editing surface working against a
+       * snapshot, on purpose.
+       *
+       * What does need to be live is everything *outside* the editor: the
+       * questions the update panel shows (FR-135), and the per-row badge counts.
+       */
+      bridge.on.notesChanged(() => {
+        void client.invalidateQueries({ queryKey: ['notes.questions'] })
+        void client.invalidateQueries({ queryKey: ['notes.counts'] })
+      }),
       // Nothing changed; the numbers aged. Re-render without refetching — the
       // data is identical and only the "4 minutes ago" beside it is not.
       bridge.on.freshnessTick(() => void client.invalidateQueries({ queryKey: ['__tick'] })),

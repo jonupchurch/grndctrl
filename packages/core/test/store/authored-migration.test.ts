@@ -330,6 +330,70 @@ const CASES: MigrationCase[] = [
       ).not.toThrow()
     },
   },
+  {
+    version: 4,
+    name: 'agent-updates',
+    /**
+     * Additive again, and the case is again about keeping it that way.
+     *
+     * The one thing worth asserting beyond survival is the **absence of a
+     * foreign key** to `agent_sessions`. It would be the natural thing to add,
+     * it would be wrong, and it would not fail anything until a session was
+     * deleted and took a history of what an agent said with it.
+     */
+    seed: (db) => {
+      db.prepare(
+        `INSERT INTO agent_sessions (key, agent_id, session_id, started_at, last_heartbeat_at,
+                                     heartbeat_interval_sec)
+         VALUES ('session:claude/a', 'claude', 'a', '2026-08-01T09:00:00Z',
+                 '2026-08-01T09:00:00Z', 60)`,
+      ).run()
+      db.prepare(
+        `INSERT INTO active_ticket (id, ticket_key, set_by, set_by_id, set_at)
+         VALUES (1, 'jira:acme.atlassian.net/ENG-1', 'agent', 'claude', '2026-08-01T09:00:00Z')`,
+      ).run()
+    },
+    verify: (db) => {
+      const columns = (
+        db.prepare(`PRAGMA table_info("agent_updates")`).all() as { name: string }[]
+      ).map((c) => c.name)
+      expect(columns).toEqual(['id', 'session_key', 'agent_id', 'ticket_key', 'text', 'posted_at'])
+
+      // What migration 3 wrote is still there. `active_ticket` is a single row
+      // by CHECK, so a migration that recreated it would be silently destructive
+      // in a way no row count catches.
+      expect(
+        (db.prepare('SELECT ticket_key FROM active_ticket WHERE id = 1').get() as {
+          ticket_key: string
+        }).ticket_key,
+      ).toBe('jira:acme.atlassian.net/ENG-1')
+
+      /*
+       * No foreign key to `agent_sessions`, asserted by deleting one.
+       *
+       * An update has to outlive the session row it came from -- the panel shows
+       * a history, and a history that disappeared when a session was tidied away
+       * would not be one. A `REFERENCES agent_sessions(key) ON DELETE CASCADE`
+       * here is the obvious thing to write and would pass every other test in
+       * this file.
+       */
+      db.prepare(
+        `INSERT INTO agent_updates (id, session_key, agent_id, ticket_key, text, posted_at)
+         VALUES ('u1', 'session:claude/a', 'claude', 'jira:acme.atlassian.net/ENG-1',
+                 'Found the cause.', '2026-08-01T10:00:00Z')`,
+      ).run()
+
+      db.prepare(`DELETE FROM agent_sessions WHERE key = 'session:claude/a'`).run()
+
+      const survived = db.prepare('SELECT agent_id, text FROM agent_updates WHERE id = ?').get('u1') as
+        | { agent_id: string; text: string }
+        | undefined
+      expect(survived?.text).toBe('Found the cause.')
+      // And it can still name its author, which is why `agent_id` is stored
+      // here rather than joined.
+      expect(survived?.agent_id).toBe('claude')
+    },
+  },
 ]
 
 describe('authored migrations', () => {

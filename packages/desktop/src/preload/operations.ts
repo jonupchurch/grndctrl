@@ -59,6 +59,8 @@ export const OPERATIONS = [
   'settings.update',
   'sync.now',
   'sync.status',
+  'updates.list',
+  'updates.post',
   'work.get',
   'work.list',
 ] as const

@@ -11,11 +11,12 @@ import { Tickets, type NotesAccess } from './lanes/Lanes.js'
 import { LaneBoundary } from './lanes/LaneBoundary.js'
 import { Sessions } from './lanes/Sessions.js'
 import { ActiveTicket, type ActiveTicketView } from './panels/ActiveTicket.js'
+import { AgentUpdates } from './panels/AgentUpdates.js'
 import { call } from './bridge.js'
 import { useOperation, usePushInvalidation, worstFreshness, type Envelope } from './query.js'
 import { Settings } from './settings/Settings.js'
 import { Titlebar } from './Titlebar.js'
-import type { AgentSession, Note, Project, WorkItem } from './types.js'
+import type { AgentSession, AgentUpdate, Note, Project, WorkItem } from './types.js'
 
 /**
  * One page (T137).
@@ -84,6 +85,16 @@ export function App(): ReactElement {
   const active = useOperation<ActiveTicketView | null>('focus.get')
 
   /**
+   * What the agents have said (FR-132).
+   *
+   * Unfiltered by session and by ticket, because the panel is the operator's
+   * view of *everything happening*, not of the active ticket. An agent working
+   * a second ticket is exactly the thing they need to see without going looking
+   * for it.
+   */
+  const updates = useOperation<AgentUpdate[]>('updates.list')
+
+  /**
    * Every subject a row could carry a badge for, in one call (T150).
    *
    * Taken from the **unfiltered** snapshot on purpose. Keying the query on the
@@ -143,8 +154,8 @@ export function App(): ReactElement {
    * Which regions are folded away (T102, T103).
    *
    * **The ids are literals, here and in each component that names one**:
-   * `summary`, `connections`, `tickets`, `active-ticket`, `sessions`, `court`.
-   * They are the keys
+   * `summary`, `connections`, `tickets`, `active-ticket`, `updates`, `sessions`,
+   * `court`. They are the keys
    * of a stored preference, so a generated one would change between builds and
    * quietly unfold everything the operator had put away — and would leave a dead
    * key behind each time. There is no registry of them and there deliberately is
@@ -314,6 +325,21 @@ export function App(): ReactElement {
                     // pressed a project chip would read as "nothing is active".
                     items={work.data?.data}
                     onClear={clearActive}
+                  />
+                </LaneBoundary>
+
+                {/*
+                  Below the active ticket, because it is commentary on it: what
+                  is being worked, then what is being said about it.
+                */}
+                <LaneBoundary lane="Agent updates">
+                  <AgentUpdates
+                    updates={updates.data ?? []}
+                    // Unresolved only, and unfiltered by project — the same
+                    // snapshot the row badges use. A question hidden by the
+                    // current project filter is still a question owed an answer.
+                    questions={(questions.data ?? []).filter((n) => n.resolvedAt === null)}
+                    onOpenQuestion={(key, label) => setNotesFor({ key, label })}
                   />
                 </LaneBoundary>
 

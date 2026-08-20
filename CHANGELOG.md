@@ -172,6 +172,48 @@ changes ship as one release.
   launcher path has no URL argument" stays exactly true and the narrower
   capability can be audited on its own.
 
+- **Agent updates**, in a panel of their own.
+
+  An agent posts a line through `grndctrl_post_update` and it appears on an open
+  board immediately, with no poll. Two of the four fields are filled by the
+  service and not by the agent: the **author** comes from the session, so no
+  agent can post as another, and the **ticket** is whatever was active at the
+  moment of posting — captured, never joined, so an update is not silently
+  re-attributed when the operator moves focus.
+
+  **Append-only.** There is no edit and no delete operation, anywhere. An agent
+  that said something wrong says something else; the operator reads a history,
+  not a status. That is the difference between this and `reportedStatus`, which
+  is overwritten.
+
+  Retention is 50 per session, pruned **inside the same write** that appends. A
+  scheduled prune is a thing that can fail to run, and the way anyone finds out
+  is a database nobody can open a year later.
+
+  The panel renders text, agent and age — and nothing else. The text is bounded
+  at 400 characters by the operation's schema, which is what makes terse a
+  property of the data rather than a hope about agent behaviour.
+
+- **Open questions from agents have a home again.** A `question-for-human` note
+  appears at the top of the update panel, visually distinct from the stream, and
+  opens the note so the answer is written where the question was asked. 006
+  removed the Attention region that used to list them; this is the display
+  landing where 006 said it would.
+
+### Fixed
+
+- **A note written by an agent never reached an open board.** There was no push
+  event for notes at all, and there never had been: until now a note changed one
+  thing on an open board — a badge count — and a badge a few minutes stale is
+  indistinguishable from a correct one. An unanswered question in a panel is a
+  different standard, and found it. `notes:changed` now refreshes the questions
+  and the badge counts.
+
+  **Not the open note modal, deliberately.** The revision it read is what makes a
+  lost write detectable, so refreshing the list under an editor would hand it the
+  newest revision, let the save succeed, and overwrite the other writer with
+  nobody told — turning a reported conflict into a silent clobber.
+
 ### Known gaps
 
 Named rather than left to be discovered.

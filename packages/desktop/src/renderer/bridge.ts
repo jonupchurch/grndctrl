@@ -38,6 +38,8 @@ export interface Bridge {
     outboxChanged(listener: (payload: unknown) => void): () => void
     sessionsChanged(listener: (payload: unknown) => void): () => void
     focusChanged(listener: (payload: unknown) => void): () => void
+    updatesChanged(listener: (payload: unknown) => void): () => void
+    notesChanged(listener: (payload: unknown) => void): () => void
   }
 }
 

@@ -284,6 +284,39 @@ export interface AgentSession {
  * completable. An action the operator confirmed is theirs, and a narrowing type
  * is not entitled to make it unopenable.
  */
+/**
+ * What an agent said, as it was working (007/FR-132, R5).
+ *
+ * **Append-only, and that is the reason it is not `AgentSession.reportedStatus`.**
+ * A status is one mutable string: an agent that overwrites it leaves the
+ * operator with the last thing it said and no way to see that it had said three
+ * other things first. This is a history, so an agent that said something wrong
+ * says something else and both stay readable.
+ *
+ * There is no update and no delete operation for these anywhere in the product.
+ *
+ * `agentId` is denormalised from the session on purpose: an update outlives the
+ * session row being read, and a panel that had to join to name its author would
+ * show blanks for anything whose session had been tidied away.
+ */
+export interface AgentUpdate {
+  id: string
+  sessionKey: NaturalKey
+  /** Denormalised, so an update can name its author without a join. */
+  agentId: string
+  /**
+   * The active ticket **at the moment this was posted**, or null.
+   *
+   * Captured, never joined. The active ticket changes; an update said what it
+   * said about the ticket that was active when it was posted, and resolving it
+   * at read time would silently re-attribute the entire history every time the
+   * operator moved focus.
+   */
+  ticketKey: NaturalKey | null
+  text: string
+  postedAt: Timestamp
+}
+
 export type ActionKind = 'transition-ticket' | 'investigate'
 
 export type ActionState = 'pending' | 'claimed' | 'complete' | 'failed' | 'expired' | 'cancelled'

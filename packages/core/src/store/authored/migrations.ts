@@ -284,6 +284,46 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 4,
+    name: 'agent-updates',
+    /**
+     * What an agent said while it worked (007/FR-132).
+     *
+     * **The tasks file calls this "migration 3" and it is 4.** M3a took 3 for
+     * `active_ticket`, and the plan had M2 before it. Numbering here is
+     * positional and not negotiable: a duplicate version silently never runs on
+     * a database that already applied the other one.
+     *
+     * **No foreign key to `agent_sessions`.** `session_key` is a natural key,
+     * like every other cross-reference in this file, and an update must outlive
+     * the session row it came from — the panel shows a history, and a history
+     * that vanished when a session was tidied away would not be one. It is also
+     * why `agent_id` is stored here rather than joined: the author of an update
+     * is part of the update.
+     *
+     * **No CHECK on the text length.** The bound is at the operation's schema,
+     * where a violation becomes a validation error the agent can read, rather
+     * than a constraint failure inside a write. Both would refuse it; only one
+     * says why.
+     *
+     * The index is `(session_key, posted_at DESC)` because both things that read
+     * this table want the newest first for one session — the panel, and the
+     * prune inside every insert.
+     */
+    up: `
+      CREATE TABLE agent_updates (
+        id          TEXT PRIMARY KEY,
+        session_key TEXT NOT NULL,
+        agent_id    TEXT NOT NULL,
+        -- The active ticket at post time. Captured, never joined.
+        ticket_key  TEXT,
+        text        TEXT NOT NULL,
+        posted_at   TEXT NOT NULL
+      );
+      CREATE INDEX idx_updates_session ON agent_updates(session_key, posted_at DESC);
+    `,
+  },
 ]
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {

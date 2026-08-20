@@ -789,3 +789,78 @@
   padding: 0 3px;
   border-style: dotted;
 }
+
+/* ── Agent updates ────────────────────────────────────────────── */
+
+/*
+ * Three columns and no chrome (FR-134).
+ *
+ * Not a card, not a list item with a bullet, not a row with a status mark. The
+ * update *is* the text; the agent and the age are the two things you need to
+ * know whether to care about it, and they sit right-aligned so the eye reads a
+ * column of text rather than a column of metadata.
+ *
+ * Deliberately **not** `.row`: `perf.spec.ts` counts `.row` against SC-013's two
+ * hundred and `greyscale.spec.ts` looks for severity marks on them. An update is
+ * neither, and borrowing the class would put a panel's worth of them into both
+ * numbers — the exact mistake `lane__headings` already made once.
+ */
+.update {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  font-size: var(--t-meta);
+  text-align: left;
+}
+
+.update:last-child {
+  border-bottom: 0;
+}
+
+.update__text {
+  color: var(--ink-2);
+  line-height: 1.4;
+  /* Wraps rather than truncates. The text is bounded at 400 characters by the
+     operation's schema, so it fits — and an ellipsis on the one thing the
+     panel exists to show would be the worst possible economy. */
+  overflow-wrap: anywhere;
+}
+
+.update__agent {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.update__age {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/*
+ * A question is not an update, and looks like it.
+ *
+ * An update is something to read; a question is something to do. It is a button
+ * because it opens the note — the operator answers where the question was
+ * asked, rather than in a second place that would have to be reconciled with
+ * the first.
+ */
+.update--question {
+  cursor: pointer;
+  background: var(--accent-wash);
+}
+
+.update--question .update__text {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.update--question:hover {
+  background: var(--sunken);
+}

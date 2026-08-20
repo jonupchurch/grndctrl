@@ -73,6 +73,8 @@ export const PUSH_CHANNELS = {
   outboxChanged: 'grndctrl:push:outbox-changed',
   sessionsChanged: 'grndctrl:push:sessions-changed',
   focusChanged: 'grndctrl:push:focus-changed',
+  updatesChanged: 'grndctrl:push:updates-changed',
+  notesChanged: 'grndctrl:push:notes-changed',
 } as const
 
 /**

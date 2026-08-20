@@ -26,6 +26,16 @@ import { PUSH_CHANNELS } from '../shared/channels.js'
  * - `sessions:changed` — an agent started, reported activity, or ended. The
  *   Sessions panel tells the operator "a session appears here the moment one
  *   starts"; until this existed that sentence was false for an open window.
+ * - `notes:changed` — a note was written, edited, resolved or deleted, by this
+ *   window or by an agent. **This one was missing for the whole life of the
+ *   product** and nothing noticed, because until 007 the only thing a note
+ *   changed on an open board was a badge count, and a badge that is a few
+ *   minutes stale looks exactly like a badge that is correct. FR-135 puts an
+ *   agent's unanswered *question* in a panel, and a question that appears when
+ *   the next poll happens to finish is not a question the operator was asked.
+ * - `updates:changed` — an agent posted an update. The panel is the one place
+ *   an agent talks to the operator in sentences, and it is worth nothing if it
+ *   only catches up when something else happens to invalidate the board.
  * - `focus:changed` — the active ticket was set or cleared. This is the event
  *   with the highest ratio of *agent* to *window* traffic on the list: the
  *   operator can set focus from a ticket row, but the caller it was built for is
@@ -95,6 +105,8 @@ export interface Push {
   outboxChanged(): void
   sessionsChanged(): void
   focusChanged(): void
+  updatesChanged(): void
+  notesChanged(): void
   /**
    * Emit whatever this operation implies, having run.
    *
@@ -126,6 +138,8 @@ export function push(options: PushOptions): Push {
     outboxChanged: () => broadcast(PUSH_CHANNELS.outboxChanged, {}),
     sessionsChanged: () => broadcast(PUSH_CHANNELS.sessionsChanged, {}),
     focusChanged: () => broadcast(PUSH_CHANNELS.focusChanged, {}),
+    updatesChanged: () => broadcast(PUSH_CHANNELS.updatesChanged, {}),
+    notesChanged: () => broadcast(PUSH_CHANNELS.notesChanged, {}),
 
     afterDispatch(operation) {
       // A read changes nothing, and announcing one is not merely wasteful — it
@@ -148,6 +162,8 @@ export function push(options: PushOptions): Push {
       // `focus.get`, so announcing reads would be a loop with a one-event cycle
       // rather than the long one the outbox nearly had.
       if (operation.startsWith('focus.')) self.focusChanged()
+      if (operation.startsWith('updates.')) self.updatesChanged()
+      if (operation.startsWith('notes.')) self.notesChanged()
     },
 
     start() {
