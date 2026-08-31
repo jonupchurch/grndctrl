@@ -145,7 +145,51 @@ test('narrows to what the operator is looking for', async () => {
   await expect(panel()).toContainText(/nothing in the history matches/i)
 
   await search.fill('')
+  await expect(panel().locator('.history')).toHaveCount(4)
+})
+
+/**
+ * The project chips narrow this region too (FR-070).
+ *
+ * Added on 2026-08-31, when the operator asked for it. The chips filter the
+ * whole board and this was the one region they did not reach, which made the
+ * narrowed board a half-truth: a lane showing one project's tickets above a
+ * history showing everybody's.
+ *
+ * The sharp assertion is **MERC-1150**, which is not on the board and never
+ * will be. It has no mirrored row, so it has no project id — the join that
+ * every other list filters on is gone — and it still has to disappear when
+ * Apollo is selected and come back when Mercury is. That is what makes this a
+ * test of the issue-key rule rather than of a join that happens to be there.
+ */
+test('the project chips narrow the history, including entries no ticket backs', async () => {
+  const chip = (code: string) =>
+    it.window.getByRole('navigation', { name: 'Filter by project' }).getByRole('button', {
+      name: code,
+      exact: true,
+    })
+
+  await chip('APOL').click()
+  await expect(chip('APOL')).toHaveAttribute('aria-pressed', 'true')
+
+  await expect(row('APOL-77')).toHaveCount(1)
+  await expect(panel().locator('.history')).toHaveCount(1)
+  // Apollo has no tickets at all, so the lane beside it is empty. The history
+  // is not, which is the whole point of a region that outlives the mirror.
+  await expect(tickets()).not.toContainText('MERC-')
+
+  await chip('MERC').click()
+  await expect(chip('APOL')).toHaveAttribute('aria-pressed', 'false')
+
   await expect(panel().locator('.history')).toHaveCount(3)
+  await expect(row('MERC-1150')).toHaveCount(1)
+  await expect(row('APOL-77')).toHaveCount(0)
+
+  // Back to all of it. The chip is a toggle, and the rest of this file reads an
+  // unfiltered board.
+  await chip('MERC').click()
+  await expect(chip('MERC')).toHaveAttribute('aria-pressed', 'false')
+  await expect(panel().locator('.history')).toHaveCount(4)
 })
 
 test('an entry recorded by an agent arrives without the window being touched', async () => {

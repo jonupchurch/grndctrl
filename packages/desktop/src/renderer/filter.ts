@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentSession, Project, WorkItem } from './types.js'
+import type { AgentSession, Project, TicketHistoryEntry, WorkItem } from './types.js'
 
 /**
  * Project selection is a filter, not navigation (T138 — FR-070).
@@ -113,6 +113,59 @@ export function filterSessions(
   filter: Filter,
 ): AgentSession[] {
   return sessions.filter((s) => filter.projectId === null || s.projectId === filter.projectId)
+}
+
+/**
+ * The ticket history, narrowed by the same project chips (FR-070).
+ *
+ * ## Why this one cannot filter on `projectId`
+ *
+ * Every other list on the board carries the project it belongs to, because every
+ * other list is a projection of the mirror and the mirror holds the binding. A
+ * history entry outlives the mirrored ticket by design (008/FR-149) — it is
+ * written *because* the work finished, and a finished ticket stops being
+ * assigned to the operator and leaves the mirror on the next sync. So the join
+ * that would give it a `projectId` is exactly the join that is gone by the time
+ * anybody reads one, and filtering on it would empty the region for old entries
+ * and keep the new ones: the opposite of what the chip means.
+ *
+ * What survives on the entry is its own key, and the issue key derived from it
+ * — `MERC-1184`. A Jira project key is the part before the last dash and a
+ * project binds exactly one of them, so the chip narrows on that.
+ *
+ * **This is the one place in the renderer that reads a key's contents.** It is
+ * the same exception `issueKeyOfTicketKey` names in core, one level down: the
+ * service already parsed `jira:<site>/<ISSUE>` and handed over the issue key, so
+ * nothing here touches the natural key itself.
+ *
+ * **The site is not checked**, and two projects on two Jira sites sharing a
+ * project key would show each other's history. Both would have to be configured
+ * here, and neither the entry nor `Project` carries a site the renderer can see
+ * — `jiraConnectionId` names a connection, not a host. Named rather than fixed:
+ * the failure is a few extra rows in a narrowed region, and the alternative is
+ * plumbing a site through two layers for a board nobody has.
+ *
+ * `mineOnly` deliberately does **not** apply. "Your court" is a fact about a
+ * ticket that is still moving; every entry here is about work that is finished
+ * and therefore in nobody's court, so honouring the toggle would empty the
+ * region every time the operator narrowed to their own work — reading as "you
+ * have no history" rather than as a filter.
+ */
+export function filterHistory(
+  entries: readonly TicketHistoryEntry[],
+  filter: Filter,
+): TicketHistoryEntry[] {
+  if (filter.projectId === null) return [...entries]
+
+  const key = filter.only?.jiraProjectKey ?? null
+  // A project with no Jira project key has no tickets either, so its ticket lane
+  // is empty for the same reason. Returning everything instead would make the
+  // one chip that narrows nothing look like the chip that was not pressed.
+  if (key === null) return []
+
+  const prefix = `${key.toUpperCase()}-`
+
+  return entries.filter((entry) => entry.issueKey?.toUpperCase().startsWith(prefix) === true)
 }
 
 /**

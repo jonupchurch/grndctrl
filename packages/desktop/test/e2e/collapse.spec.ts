@@ -56,9 +56,7 @@ const REGIONS = [
   'connections',
   'tickets',
   'active-ticket',
-  'updates',
-  'sessions',
-  'court',
+  'ticket-history',
 ] as const
 
 let it: LaunchedApp
@@ -178,10 +176,10 @@ test('what was folded is still folded after a restart', async () => {
   it = await launch({ scenario: SCENARIO })
   const dir = it.dir
 
-  await toggle('court').click()
-  await toggle('sessions').click()
-  await expect(toggle('court')).toHaveAttribute('aria-expanded', 'false')
-  await expect(toggle('sessions')).toHaveAttribute('aria-expanded', 'false')
+  await toggle('ticket-history').click()
+  await toggle('active-ticket').click()
+  await expect(toggle('ticket-history')).toHaveAttribute('aria-expanded', 'false')
+  await expect(toggle('active-ticket')).toHaveAttribute('aria-expanded', 'false')
 
   // Past the write. The persist is fire-and-forget over IPC, like every other
   // settings write on this board.
@@ -191,8 +189,8 @@ test('what was folded is still folded after a restart', async () => {
   it = await launch({ env: { GRNDCTRL_DATA_DIR: dir } })
   it.dir = dir
 
-  await expect(toggle('court')).toHaveAttribute('aria-expanded', 'false')
-  await expect(toggle('sessions')).toHaveAttribute('aria-expanded', 'false')
+  await expect(toggle('ticket-history')).toHaveAttribute('aria-expanded', 'false')
+  await expect(toggle('active-ticket')).toHaveAttribute('aria-expanded', 'false')
 
   // And the three nobody touched are still open, so this is not asserting that
   // everything came back folded.
@@ -224,9 +222,9 @@ test('expanding a region removes it from the stored map rather than writing fals
 
   expect(await stored()).toEqual({})
 
-  await toggle('court').click()
-  await expect.poll(stored).toEqual({ court: true })
+  await toggle('ticket-history').click()
+  await expect.poll(stored).toEqual({ 'ticket-history': true })
 
-  await toggle('court').click()
+  await toggle('ticket-history').click()
   await expect.poll(stored).toEqual({})
 })

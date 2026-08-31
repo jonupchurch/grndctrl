@@ -55,7 +55,8 @@ export interface SectionProps {
   /** Freshness. Stays visible when folded, deliberately. */
   status?: ReactNode
   /**
-   * The element class. `lane` and `court` are existing treatments; a region with
+   * The element class. `lane` and `tiles-section` are the treatments in use — it
+   * was `lane` and `court` until the ball-in-court panel went; a region with
    * no class is unstyled, which is a visible mistake rather than a silent one.
    */
   className?: string

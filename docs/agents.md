@@ -32,10 +32,19 @@ running app's back.
 
 **The panels above are empty until something calls the tools, and connecting the
 server is not that something.** An MCP server appears in an agent's tool list;
-it does not make the agent reach for it. Three of the four regions 007 adds —
-the active ticket, the update stream, the prompt shelf — stay blank on a
-correctly configured, correctly connected, perfectly healthy installation until
-an agent is *told* to use them.
+it does not make the agent reach for it. The active ticket and the ticket
+history stay blank on a correctly configured, correctly connected, perfectly
+healthy installation until an agent is *told* to use them.
+
+> **Two of the tools below no longer have a region on the board** (2026-08-31):
+> the agent update stream and the recent prompt shelf were removed at the
+> operator's request. `grndctrl_post_update` and `grndctrl_record_prompt` still
+> work, still store what they are given, and are still worth calling — an agent
+> that records its reasoning is writing a record the operator can read back
+> through the CLI and that a future region could show again. What they do *not*
+> do any more is put anything on screen. The instruction block below is left as
+> it is for that reason; if you want an agent's commentary visible today, have
+> it write a **ticket history** entry instead.
 
 That is why this section is part of the feature rather than documentation of it.
 Put this in the `CLAUDE.md` of any repository you want on the board, or in the

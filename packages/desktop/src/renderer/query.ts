@@ -97,9 +97,12 @@ export function usePushInvalidation(): void {
         void client.invalidateQueries({ queryKey: ['outbox.pending'] })
       }),
       // An agent started, reported activity, ended, or simply proved it is still
-      // alive. The panel's own empty state promises a session "appears here the
-      // moment one starts", which was untrue for an open window until this
-      // existed — the board only caught up when an unrelated sync finished.
+      // alive. The session lane's empty state used to promise a session "appears
+      // here the moment one starts", which was untrue for an open window until
+      // this existed — the board only caught up when an unrelated sync finished.
+      // The lane went on 2026-08-31 and this stayed: the *Agents live* tile is a
+      // count over exactly this read, and a stale count is the same lie in fewer
+      // words. `agent-push.spec.ts` asserts it against the tile now.
       bridge.on.sessionsChanged(
         () => void client.invalidateQueries({ queryKey: ['sessions.list'] }),
       ),
@@ -108,10 +111,20 @@ export function usePushInvalidation(): void {
       // exists to be populated by MCP — so without it the panel is a snapshot
       // of whatever was true when the window opened.
       bridge.on.focusChanged(() => void client.invalidateQueries({ queryKey: ['focus.get'] })),
-      // An agent said something. This is the panel with the shortest useful
-      // lifetime on the board — an update the operator reads four minutes late
-      // is one they read after the agent has moved on.
-      bridge.on.updatesChanged(() => void client.invalidateQueries({ queryKey: ['updates.list'] })),
+      /*
+       * `updates:changed` and `prompts:changed` were subscribed here, each
+       * invalidating the list its panel read. **Both panels were removed from the
+       * board on 2026-08-31** and the subscriptions went with them, rather than
+       * being left invalidating a query key nothing reads — which costs nothing
+       * at runtime and reads, to the next person, as a live wire.
+       *
+       * Main still announces both events (`main/push.ts`) and the preload still
+       * exposes both listeners, because neither is about this window's regions:
+       * an agent posting an update over MCP is still a change the shell reports.
+       * A region that comes back needs its `useOperation` in `App.tsx` **and** a
+       * subscription here; one without the other is a panel that is right only
+       * about what this window did.
+       */
       /*
        * A note was written, answered or deleted — by this window or by an agent.
        *
@@ -130,23 +143,15 @@ export function usePushInvalidation(): void {
        * stages stop happening. The modal is an editing surface working against a
        * snapshot, on purpose.
        *
-       * What does need to be live is everything *outside* the editor: the
-       * questions the update panel shows (FR-135), and the per-row badge counts.
+       * What does need to be live is everything *outside* the editor: the open
+       * questions — which drove the update panel's question rows until that panel
+       * was removed, and still drive the `?` on a row's note badge — and the
+       * per-row badge counts.
        */
       bridge.on.notesChanged(() => {
         void client.invalidateQueries({ queryKey: ['notes.questions'] })
         void client.invalidateQueries({ queryKey: ['notes.counts'] })
       }),
-      /*
-       * A prompt was recorded or deleted.
-       *
-       * Both directions matter and they arrive over different surfaces: an agent
-       * records one over MCP and the operator deletes one from the window, so
-       * without this the panel is only ever right about the half that happened
-       * here. There is no editing surface open over this list — the modal
-       * argument above does not apply — so the whole list refreshes.
-       */
-      bridge.on.promptsChanged(() => void client.invalidateQueries({ queryKey: ['prompts.list'] })),
       /*
        * A ticket history entry was recorded, revised or deleted.
        *

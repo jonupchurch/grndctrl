@@ -1,5 +1,10 @@
 /*
- * The page: titlebar, tiles, Attention, lanes, sessions, ball in court.
+ * The page: titlebar, tiles, the ticket lane, the active ticket, the history.
+ *
+ * The agent session lane, ball-in-court, the update stream and the prompt shelf
+ * were removed from the board on 2026-08-31, and their rules went with them —
+ * `.session`, `.court`, `.update` and `.prompt` are not here any more. The one
+ * survivor of that pass is `.history`, which borrowed nothing from them.
  *
  * Separate from `app.css`, which holds the primitives. The split is the same one
  * the design system makes — a row, a chip and a status mark are components that
@@ -118,41 +123,21 @@
   padding: 18px 16px 40px;
 }
 
-.board__columns {
-  display: grid;
-  /*
-   * The rail was 320px, chosen when `--t-meta` was 11px. **Widened with the type
-   * scale on 2026-08-20**, by the same 1.25 step, because a fixed-width column
-   * holding text fits proportionally less of it when the text grows — and the
-   * prompt shelf, whose rows are a truncated preview meant to be recognisable at
-   * a glance, was wrapping to six and seven lines.
-   *
-   * Sessions and ball-in-court did not need it. The rail is sized for the one
-   * thing in it that is prose.
-   */
-  grid-template-columns: minmax(0, 1fr) 400px;
-  gap: 16px;
-  align-items: start;
-}
-
 /*
- * One column when the side panels would squeeze the lanes. The lanes are the
- * thing; the panels are context.
+ * One column, and it takes the window.
  *
- * The breakpoint moved with the rail. It was 1100px against a 320px rail, which
- * left the main column about 750px before the lanes collapsed; holding that same
- * 750px against a 400px rail puts the switch at 1180. Leaving it at 1100 would
- * have meant a window between 1100 and 1180 where the ticket lane — eight
- * columns wide — kept the two-column layout with 80px less to draw it in.
+ * This was `display: grid` with `minmax(0, 1fr) 400px` — a wide track for the
+ * work and a fixed rail for context — collapsing to one column under 1180px.
+ * **The rail's three regions were removed on 2026-08-31**, so the grid, the rail
+ * and the breakpoint went with them: a two-column layout with nothing in the
+ * second column is a quarter of the window held empty, and the media query that
+ * used to rescue narrow windows now describes every window there is.
+ *
+ * `min-width: 0` stays and still earns its place. The ticket lane is a grid of
+ * eleven tracks inside a flex column, and without it a long summary would push
+ * the lane wider than the board rather than being clipped by `text-overflow`.
  */
-@media (max-width: 1180px) {
-  .board__columns {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.board__main,
-.board__side {
+.board__stack {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -166,10 +151,11 @@
  *
  * `display: contents` on the body is what makes that cost nothing structurally:
  * the wrapper carries the id that `aria-controls` names and takes no part in
- * layout, so `.lane`, `.court` and `.notice` each keep the box model they had
- * before there was a wrapper at all. Without it, `.notice` — a flex column —
- * would collapse its three children into one flex item, and the ball-in-court
- * rows would lose their shared border.
+ * layout, so `.lane` and `.notice` keep the box model they had before there was
+ * a wrapper at all. Without it, `.notice` — a flex column — would collapse its
+ * three children into one flex item and they would lose their shared border. It
+ * mattered for `.court` too, which is why the rule is written about the
+ * treatment rather than about any one region.
  *
  * There is no rule here that hides anything. That is deliberate and is the
  * decision `Section.tsx` explains at length: a folded region renders no
@@ -246,13 +232,28 @@
 
 /* ── Tiles ───────────────────────────────────────────────────────────────── */
 
+/*
+ * Three tracks, because there are three tiles.
+ *
+ * It was `repeat(4, …)` from when there were four — Drifting counted the
+ * subjects two systems disagreed about, and went when the second system did.
+ * The fourth track went on making room for it, which was a quarter of the row
+ * held empty for a tile that no longer exists; unnoticeable beside a 400px rail
+ * and obvious once the board took the whole window on 2026-08-31.
+ *
+ * A fourth tile means editing this number, and that is the intended cost: an
+ * `auto-fit` that adapted would also let a tile silently drop to a second row on
+ * a narrow window, and these three are a single reading of the board.
+ */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
 
+/* Below this the three would be too narrow to hold a 48px figure and its
+   caption, so they wrap: two across, one beneath. */
 @media (max-width: 820px) {
   .tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -449,97 +450,6 @@
   cursor: pointer;
 }
 
-/* ── Agent sessions ──────────────────────────────────────────────────────── */
-
-.session {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-  height: var(--row-h);
-  padding: 0 12px;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--t-meta);
-}
-
-.session:last-child {
-  border-bottom: 0;
-}
-
-.session__agent {
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.session__status {
-  color: var(--ink-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session__state {
-  color: var(--ink-2);
-}
-
-.session[data-state='needs-you'] .session__state {
-  color: var(--critical);
-  font-weight: 600;
-}
-
-.session[data-state='silent'] .session__state {
-  color: var(--serious);
-}
-
-.session__age {
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Ball in court ───────────────────────────────────────────────────────── */
-
-.court {
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.court__row {
-  display: grid;
-  grid-template-columns: auto 52px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--t-meta);
-}
-
-.court__row:last-child {
-  border-bottom: 0;
-}
-
-.court__glyph {
-  color: var(--ink-3);
-}
-
-.court__row[data-court='you'] .court__glyph {
-  color: var(--accent);
-}
-
-.court__label {
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.court__sub {
-  color: var(--ink-3);
-}
-
-.court__count {
-  font-size: var(--t-title);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── Active ticket ─────────────────────────────────────────────────── */
 
 /*
@@ -547,8 +457,9 @@
  *
  * The cap is here rather than on the body because M3b puts a Jira description
  * inside it, and a description can be any length at all. A panel that grew to
- * fit one would push the sessions panel and the ball-in-court panel off the
- * bottom of a board whose whole claim is that everything is visible at once.
+ * fit one would push everything below it — the ticket history now, three more
+ * regions before 2026-08-31 — off the bottom of a board whose whole claim is
+ * that everything is visible at once.
  *
  * **Raised from 320px with the type scale on 2026-08-20**, for the same reason
  * the row heights moved: this is a fixed box holding text, so text that grew
@@ -767,188 +678,13 @@
   border-style: dotted;
 }
 
-/* ── Agent updates ────────────────────────────────────────────── */
-
-/*
- * Three columns and no chrome (FR-134).
- *
- * Not a card, not a list item with a bullet, not a row with a status mark. The
- * update *is* the text; the agent and the age are the two things you need to
- * know whether to care about it, and they sit right-aligned so the eye reads a
- * column of text rather than a column of metadata.
- *
- * Deliberately **not** `.row`: `perf.spec.ts` counts `.row` against SC-013's two
- * hundred and `greyscale.spec.ts` looks for severity marks on them. An update is
- * neither, and borrowing the class would put a panel's worth of them into both
- * numbers — the exact mistake `lane__headings` already made once.
- */
-.update {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: baseline;
-  width: 100%;
-  padding: 6px 12px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: none;
-  font-size: var(--t-meta);
-  text-align: left;
-}
-
-.update:last-child {
-  border-bottom: 0;
-}
-
-.update__text {
-  color: var(--ink-2);
-  line-height: 1.4;
-  /* Wraps rather than truncates. The text is bounded at 400 characters by the
-     operation's schema, so it fits — and an ellipsis on the one thing the
-     panel exists to show would be the worst possible economy. */
-  overflow-wrap: anywhere;
-}
-
-.update__agent {
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-
-.update__age {
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/*
- * A question is not an update, and looks like it.
- *
- * An update is something to read; a question is something to do. It is a button
- * because it opens the note — the operator answers where the question was
- * asked, rather than in a second place that would have to be reconciled with
- * the first.
- */
-.update--question {
-  cursor: pointer;
-  background: var(--accent-wash);
-}
-
-.update--question .update__text {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.update--question:hover {
-  background: var(--sunken);
-}
-
-/*
- * A recorded prompt (FR-141).
- *
- * Same grid as an update and the same reason for not being a `.row`: the perf
- * and greyscale suites count those, and a panel's worth of prompts in either
- * number would be measuring the wrong thing.
- *
- * The text is a button and the delete is a second one, side by side, rather than
- * a button inside a button - which is invalid markup and which browsers resolve
- * by dropping one of the two click targets, usually the one you wanted.
- */
-.prompt {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  gap: 8px;
-  align-items: baseline;
-  width: 100%;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--t-meta);
-}
-
-.prompt:last-child {
-  border-bottom: 0;
-}
-
-.prompt__copy {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink-2);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.prompt__copy:hover .prompt__text {
-  color: var(--ink);
-  text-decoration: underline;
-}
-
-.prompt__text {
-  /*
-   * Wraps rather than clipping, and the clipping has already happened.
-   *
-   * The panel cuts the preview in JavaScript (`panels/Prompts.tsx`), so what is
-   * here is already short. A CSS ellipsis instead would leave the whole prompt
-   * in the DOM looking short, which is the arrangement where a copy path reading
-   * the rendered element would appear to work.
-   */
-  overflow-wrap: anywhere;
-  line-height: 1.4;
-}
-
-.prompt__agent,
-.prompt__age {
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-
-.prompt__age {
-  font-variant-numeric: tabular-nums;
-}
-
-.prompt__delete {
-  padding: 0 4px;
-  border: 0;
-  background: none;
-  color: var(--ink-3);
-  font: inherit;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.prompt__delete:hover {
-  color: var(--critical);
-}
-
-/*
- * The confirmation, and the refusal, occupy the same place.
- *
- * Spanning the whole row on its own line rather than squeezing beside the age:
- * the failure text is a sentence ("The clipboard took 12 of 4,301 characters"),
- * and a message that has to fit next to a timestamp is a message that gets
- * truncated at exactly the moment it matters most.
- */
-.prompt__copied,
-.prompt__failed {
-  grid-column: 1 / -1;
-  font-size: var(--t-meta);
-}
-
-.prompt__copied {
-  color: var(--good);
-}
-
-.prompt__failed {
-  color: var(--critical);
-}
-
 /*
  * The ticket history (008/FR-158).
  *
- * Not a `.row` and not a `.prompt`, for the reason both of those give: the perf
- * and greyscale suites count `.row`, and a year of history in that number would
- * be measuring the wrong thing entirely.
+ * Not a `.row`, for the reason `.row` gives: the perf and greyscale suites
+ * count them, and a year of history in that number would be measuring the wrong
+ * thing entirely. The update and prompt rows made the same call and are gone;
+ * this is the last region holding the line.
  *
  * The head is one line and stays one line — `text-overflow: ellipsis` here is
  * correct where it was wrong for a prompt, because nothing reads this element to

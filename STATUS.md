@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-20 (0.5.0 published from a tag) · **Stage:** released · **On npm:** 0.5.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-31 (0.6.0 cut) · **Stage:** released · **On npm:** 0.6.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.4.0 is on the registry**, published 2026-08-20 by the tag `v0.4.0` on
 `main`, each package carrying SLSA provenance — read back from
@@ -59,6 +59,61 @@ than one session out of date. Historical detail belongs in `CHANGELOG.md`; this
 file describes only the present and the immediate next step.
 
 ## Where we are
+
+### 0.6.0: the board is one column
+
+**Four regions came off the board on 2026-08-31**, on the operator's
+instruction, given as a marked-up screenshot of their own board: the agent
+session lane, ball-in-court, the agent update stream and the recent prompt
+shelf. The side rail went with them, and what remains takes the full width of
+the window — headline counts, the ticket lane, the active ticket, the ticket
+history.
+
+**Asked how far to go, the operator chose to delete rather than hide.** Four
+components, three end-to-end spec files, and the two reads whose only consumers
+they were. Nothing behind them changed: every session, update and prompt
+operation still exists, still works over MCP, and is still covered by
+`test/services`. No table was dropped and no migration ran. **Putting a region
+back is a component and a read.**
+
+**What is genuinely lost, and it is worth knowing before somebody goes looking
+for it.** An agent's *reported status* is no longer rendered anywhere — the
+board says how many sessions are live and which ticket has an agent on it, not
+what the agent is doing. An agent's update stream is not rendered, so open
+`question-for-human` notes lost the display 007 gave them for the second time;
+the row's `?` badge remains, which means **a question on a ticket that is not on
+the board can no longer be seen**. A recorded prompt cannot be copied from the
+board. All of it is recorded in `specs/007-agent-console/spec.md` beside the
+requirements, and `board.spec.ts` asserts all four regions absent so a return is
+a decision rather than a drift.
+
+**The project chips now narrow the ticket history too**, which the operator
+asked for in the same breath (008/FR-157a). It is the one list on the board that
+cannot filter on a project id: a history entry outlives the mirrored ticket by
+design, so the join that would give it a project is gone by the time anybody
+reads it — and filtering on that join would drop precisely the entries the
+region exists for. It matches the issue key's project prefix instead. The court
+toggle deliberately does not apply, because a finished ticket is in nobody's
+court.
+
+**Two things were fixed that the removal exposed rather than caused.** The three
+stat tiles had been on a four-column grid since the DRIFTING tile went at 0.4.0
+— a quarter of the row held for a tile that does not exist, invisible beside a
+400px rail and obvious at full width. And `agent-console.json` gained a second
+project with one history entry and no tickets, because a fixture with one
+project cannot tell a filter that works from a filter that does nothing.
+
+**Verified before the tag:** 887 unit and 97 end-to-end, lint clean, typecheck
+clean, client audit PASS on the tree. The board was also run and looked at — one
+column, full width, three tiles spanning the row — which is the check the suite
+cannot make, and the fifth time on this project that running the app has found
+what a green suite could not: the tiles' dead fourth column was invisible to
+every assertion.
+
+**No migration runs.** The database shape is identical to 0.5.0 — this release
+removes display, not data — so the smoke test's `dbVersions` should read
+`{mirror: 5, authored: 6}` exactly as 0.5.0's did. A *different* number here
+would mean something was removed that should not have been.
 
 ### 0.5.0: the ticket history — published
 

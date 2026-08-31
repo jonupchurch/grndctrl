@@ -213,6 +213,23 @@ correct is a list you stop trusting.
 - **FR-156**: Entries MUST be listed most-recently-written first.
 - **FR-157**: The list MUST be narrowable by a term matching the ticket key, the
   line, or the notes.
+- **FR-157a**: The project chips MUST narrow the history as they narrow every
+  other list on the board (001/FR-070). *Added 2026-08-31, on the operator's
+  request.*
+
+  > **It cannot filter on a project id, and that is the whole difficulty.** The
+  > entry outlives the mirrored ticket by design (FR-149), so by the time anybody
+  > reads one the join that would give it a project is gone — filtering on it
+  > would drop precisely the entries this region exists for. It matches on the
+  > **issue key's project prefix** instead, which is on the entry's own key and
+  > survives.
+  >
+  > Two consequences, both accepted rather than discovered: two projects sharing
+  > a Jira project key across two sites would show each other's entries, and a
+  > project with no Jira binding narrows to nothing, exactly as its ticket lane
+  > does. The court toggle deliberately does **not** apply — every entry is about
+  > finished work, which is in nobody's court, so honouring it would empty the
+  > region. See `filterHistory` in `renderer/filter.ts`.
 - **FR-158**: The board MUST show the history as its own collapsible region, one
   row per entry, with the notes shown on demand rather than always.
 - **FR-159**: An empty history MUST name the tool that fills it, as the prompts

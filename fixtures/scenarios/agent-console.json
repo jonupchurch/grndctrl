@@ -1,5 +1,5 @@
 {
-  "description": "The agent console, populated. `canonical-board.json` with 007's three agent-written regions filled in — an active ticket, an update stream and a prompt shelf.\n\n**It is a second file rather than an addition to the canonical board, and that is the point.** Those three regions are empty until an agent calls something, and three end-to-end tests assert exactly that: they check the empty states say what fills them rather than looking broken (FR-141), which is the state a fresh install is actually in. Populating the canonical board turned all three red. The empty board and the full one are both real states worth having a fixture for, so there are two.\n\nThe active ticket is MERC-1184 while the session reports against MERC-1190, deliberately: a session's work item and the operator's focus are different pointers, and a board that conflated them would look correct against a fixture where they agreed.\n\n**Not here: the handed-off tickets T150 also asks for.** That lane was 007 M2 and it was dropped on 2026-08-20 without being built — it needed JQL history operators verified against a Jira nobody could reach. There are no rows to seed because there is no lane to seed them into.\n\n**Also here: the ticket history 008 adds.** Three entries, one of them against MERC-1150 — a ticket no lane holds and the mirror has never seen. That is the case the feature exists for and the one nothing else on this board can represent: it has **no** `ticketSummary`, because the seeder records it the way an agent would and the mirror has nothing to snapshot. Live tickets get one; this one shows what an entry looks like when the snapshot was never taken. The retention rule itself — a snapshot kept after the ticket goes — is asserted in `test/services/history.test.ts`, where the ticket can be made to leave.\n\nEvery timestamp is an offset resolved at load (FR-118).",
+  "description": "The agent console, populated. `canonical-board.json` with 007's three agent-written regions filled in — an active ticket, an update stream and a prompt shelf.\n\n**It is a second file rather than an addition to the canonical board, and that is the point.** Those three regions are empty until an agent calls something, and three end-to-end tests assert exactly that: they check the empty states say what fills them rather than looking broken (FR-141), which is the state a fresh install is actually in. Populating the canonical board turned all three red. The empty board and the full one are both real states worth having a fixture for, so there are two.\n\nThe active ticket is MERC-1184 while the session reports against MERC-1190, deliberately: a session's work item and the operator's focus are different pointers, and a board that conflated them would look correct against a fixture where they agreed.\n\n**Not here: the handed-off tickets T150 also asks for.** That lane was 007 M2 and it was dropped on 2026-08-20 without being built — it needed JQL history operators verified against a Jira nobody could reach. There are no rows to seed because there is no lane to seed them into.\n\n**Also here: the ticket history 008 adds.** Three entries, one of them against MERC-1150 — a ticket no lane holds and the mirror has never seen. That is the case the feature exists for and the one nothing else on this board can represent: it has **no** `ticketSummary`, because the seeder records it the way an agent would and the mirror has nothing to snapshot. Live tickets get one; this one shows what an entry looks like when the snapshot was never taken. The retention rule itself — a snapshot kept after the ticket goes — is asserted in `test/services/history.test.ts`, where the ticket can be made to leave.\n\n**A second project, with no tickets and one history entry.** Apollo exists so the project chips have something to narrow: FR-070 says selection filters the whole board, and a fixture with one project cannot tell a filter that works from a filter that does nothing. It shares Mercury's connection, so both are on the same Jira site and the only thing separating their entries is the issue key — which is what the history's filter has to match on, the mirrored ticket that would carry a project id having left long before anybody reads the entry.\n\nEvery timestamp is an offset resolved at load (FR-118).",
   "now": "now",
   "freshness": [
     {
@@ -32,6 +32,16 @@
         "colorIndex": 0,
         "jiraConnectionId": "jira-1",
         "jiraProjectKey": "MERC",
+        "documentationUrl": null,
+        "statusOverrides": {}
+      },
+      {
+        "id": "p-apol",
+        "code": "APOL",
+        "name": "Apollo",
+        "colorIndex": 2,
+        "jiraConnectionId": "jira-1",
+        "jiraProjectKey": "APOL",
         "documentationUrl": null,
         "statusOverrides": {}
       }
@@ -386,7 +396,9 @@
         "heartbeatIntervalSec": 60
       }
     ],
-    "operatorAccountIds": ["me"]
+    "operatorAccountIds": [
+      "me"
+    ]
   },
   "activeTicket": "jira:acme.atlassian.net/MERC-1184",
   "updates": [
@@ -443,6 +455,13 @@
       "notes": "A global backoff stopped every project because one Jira site was throttling. Closed a month ago; kept here because the reasoning comes up every time somebody proposes a single shared limiter.",
       "agentId": "claude-code",
       "updatedAt": "now-30d"
+    },
+    {
+      "ticketKey": "jira:acme.atlassian.net/APOL-77",
+      "line": "Second project, so the chips have something to narrow.",
+      "notes": "Apollo has no tickets on the board and one history entry. Pressing its chip has to leave this row and take the three Mercury ones away; pressing MERC has to do the reverse.",
+      "agentId": "claude-code",
+      "updatedAt": "now-6d"
     }
   ]
 }

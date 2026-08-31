@@ -250,6 +250,14 @@ One provider being unreachable, rate-limited, or unauthorized degrades only what
 - **FR-045**: Reported timestamps in the future MUST be clamped to receipt time.
 - **FR-046**: Sessions MUST survive restarts, with liveness re-evaluated from the heartbeat rule rather than assumed.
 - **FR-047**: Sessions MUST contribute to lane counts, headline counts, and ball-in-court on equal footing with tickets and PRs.
+
+  > **⚠ Partly departed from on 2026-08-31, by the operator's decision.** The
+  > session lane was removed from the board, so there is no lane count to
+  > contribute to. The other two arms are unchanged and still asserted: sessions
+  > drive the *Agents live* headline count, and ball-in-court still resolves to
+  > an agent. What is lost is the *display* — an agent's reported status is no
+  > longer rendered anywhere, which is the one fact a session carried that
+  > nothing else does.
 - **FR-048**: A session has no provider page; the system MUST NOT fabricate a URL for one.
 
 ### Notes
@@ -281,6 +289,17 @@ One provider being unreachable, rate-limited, or unauthorized degrades only what
 ### The board
 
 - **FR-069**: The system MUST present a single page containing: headline counts, an Attention region, lanes for tickets, pull requests, and open branches, a lane for agent sessions, and a ball-in-court panel.
+
+  > **⚠ Reduced twice.** 006 removed the pull request lane, the branch lane and
+  > the Attention region with their providers. **On 2026-08-31 the operator
+  > removed the session lane and the ball-in-court panel** — along with 007's
+  > update stream and prompt shelf — leaving one full-width column: headline
+  > counts, the ticket lane, the active ticket, and the ticket history.
+  >
+  > *Single page* is the part of this requirement that was load-bearing and it
+  > still holds. The enumeration was a description of the board at the time, and
+  > `board.spec.ts` asserts each departed region absent so a return is a decision
+  > rather than a drift.
 - **FR-070**: Project selection MUST be a filter on that single page, not navigation to another page. Selecting exactly one project MUST additionally render that project's ticket-project, repository, and documentation links.
 - **FR-071**: Each lane MUST show its own count, its threshold, and an explicit empty state.
 - **FR-072**: The Attention region MUST show drift findings and question-for-human nudges, each with its age and its action.
@@ -294,8 +313,9 @@ One provider being unreachable, rate-limited, or unauthorized degrades only what
   > before the change was made, and asked for again after.
   >
   > **The scope is the ticket row only.** `StatusMark` is unchanged and still
-  > drawn by the stat tiles and the session lane, and the correlation badges are
-  > a separate alphabet that still obeys this rule.
+  > drawn by the stat tiles — and was drawn by the session lane until that lane
+  > was removed on 2026-08-31 — and the correlation badges are a separate
+  > alphabet that still obeys this rule.
   >
   > Three end-to-end tests went with it. They could not be repointed at another
   > surface, and that was checked rather than assumed: the tiles can only produce

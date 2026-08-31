@@ -144,7 +144,11 @@ test('the board is still readable with the whole page desaturated', async () => 
   await expect(rows.getByText('MERC-2001')).toBeVisible()
 
   // Severity is not the only thing colour could have been carrying. Each of
-  // these is a word, in greyscale, on a row.
+  // these is a word, in greyscale — the ticket's own status on a row, and the
+  // tiles' labels above them. The ball-in-court panel carried the third and was
+  // removed on 2026-08-31; the fact it stated is in the first tile's own words.
   await expect(rows.getByText('Blocked')).toBeVisible()
-  await expect(it.window.getByRole('region', { name: 'Ball in court' }).getByText('waiting on you')).toBeVisible()
+  await expect(it.window.getByRole('button', { name: /Your court/ })).toContainText(
+    /press to show only yours|showing only yours/,
+  )
 })

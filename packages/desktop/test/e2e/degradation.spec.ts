@@ -135,24 +135,28 @@ test('the lane keeps its data and its own reading', async () => {
  * and a board-wide error boundary or a single `if (failed) return null` would
  * take the lot.
  *
- * The session panel is the sharpest case: an agent reporting over the loopback
+ * The agent's session is the sharpest case: an agent reporting over the loopback
  * API is *still working* while Jira is unreachable, and a board that hid it
  * would be hiding the one thing still moving.
  */
 test('nothing that does not come from the provider is affected', async () => {
-  // Agent sessions. Authored data, arriving over a completely different path.
-  const sessions = it.window.getByRole('region', { name: 'Agent sessions' })
-  await expect(sessions.getByText('claude-code')).toBeVisible()
-  await expect(sessions.getByText('Silent')).toBeVisible()
+  // The session count. Authored data, arriving over a completely different path
+  // — the panel that named the agent went on 2026-08-31, the fact did not.
+  const live = it.window.locator('.tile', { hasText: 'Agents live' })
+  await expect(live).toContainText('of 1 session')
 
-  // Ball in court still accounts for every item, from the rows the mirror
-  // already holds. A panel that emptied itself here would be reporting "nothing
-  // is waiting on you" — which is a claim, and a false one.
-  const court = it.window.getByRole('region', { name: 'Ball in court' })
-  await expect(court.getByText('waiting on you')).toBeVisible()
-  await expect(court.getByText('waiting on someone else')).toBeVisible()
+  // The row still says an agent is on that ticket, which is the same authored
+  // row seen from the lane. A badge that emptied itself here would be reporting
+  // "no agent on this" — which is a claim, and a false one.
+  await expect(
+    it.window
+      .locator('.row', { hasText: 'MERC-1190' })
+      .locator('.badge[data-kind="agent"]'),
+  ).toHaveAttribute('data-present', 'true')
 
-  // The tiles, which are counts over the same rows.
+  // The tiles, which are counts over the rows the mirror already holds. A tile
+  // that blanked because the *provider* failed would be reporting "nothing is
+  // waiting on you", and that is a claim rather than an absence.
   await expect(it.window.getByRole('button', { name: /Your court/ })).toBeVisible()
   await expect(it.window.getByText('Stalled')).toBeVisible()
   await expect(it.window.getByText('Agents live')).toBeVisible()

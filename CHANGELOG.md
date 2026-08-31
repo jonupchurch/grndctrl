@@ -7,10 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Released versions are at the top, newest first. The v1 releases are summarised
 there and their detail is in **[Unreleased]** below them, which holds the
-accumulated working record of that build. **0.4.0 and 0.5.0 carry their own
-detail** instead: the first is a removal, and what an upgrader needs is the list
-of what is gone rather than a sentence saying a lot is; the second is small
+accumulated working record of that build. **0.4.0, 0.5.0 and 0.6.0 carry their
+own detail** instead: the first is a removal, and what an upgrader needs is the
+list of what is gone rather than a sentence saying a lot is; the others are small
 enough to state in full.
+
+## [0.6.0] — 2026-08-31
+
+**The board is one column.** Four regions came off it and the rest took the
+width. The second release where an upgrade takes something away — and unlike
+0.4.0, nothing behind the regions was removed with them.
+
+### Removed
+
+- **The agent session lane, ball-in-court, the agent update stream and the
+  recent prompt shelf.** All four went in one pass, on the operator's
+  instruction, given as a marked-up screenshot of their own board.
+
+  The side rail went with them. The board is now **one column at the full width
+  of the window**: headline counts, the ticket lane, the active ticket, the
+  ticket history. Asked how far the removal should go, the operator chose to
+  delete rather than hide — four components, three end-to-end spec files, and the
+  two reads whose only consumers they were. A `useOperation` with no consumer is
+  a poll nobody watches.
+
+  **Nothing behind them changed, and this is the half that matters on an
+  upgrade.** `sessions.start`, `sessions.heartbeat`, `sessions.activity`,
+  `sessions.end`, `updates.post`, `updates.list`, `prompts.record`,
+  `prompts.list` and `prompts.delete` all still exist, still work over MCP, and
+  are still covered by `test/services`. No table was dropped, no retention policy
+  changed, and **no migration runs** — the database is byte-identical in shape to
+  0.5.0. An agent configured against 0.5.0 needs no change. Putting a region back
+  is a component and a read.
+
+  **What you lose by upgrading, stated plainly rather than implied:**
+
+  - An agent's **reported status** is no longer rendered anywhere. The board says
+    how many sessions are live and which ticket has an agent on it; it does not
+    say what the agent is doing.
+  - An agent's **update stream** is no longer rendered, and with it goes the
+    display of open `question-for-human` notes that 007/FR-135 gave them. The
+    row's `?` badge remains, so **a question on a ticket that is not on the board
+    can no longer be seen**.
+  - A **recorded prompt** cannot be copied from the board. The clipboard path in
+    main is untouched; nothing calls it.
+  - Ball-in-court is still derived, still counted by the *Your court* tile and
+    still what its filter narrows on, but the board no longer enumerates the
+    three states side by side.
+
+  Recorded in `specs/007-agent-console/spec.md` beside the requirements, and
+  `board.spec.ts` asserts all four regions absent — paired with a region that is
+  present, so a selector that broke could not make the absences pass trivially.
+
+### Added
+
+- **The project chips narrow the ticket history** (008/FR-157a), as they narrow
+  every other list on the board.
+
+  It is the one list that cannot filter on a project id. A history entry outlives
+  the mirrored ticket by design — it is written *because* the work finished — so
+  by the time anybody reads one, the join that would give it a project is gone,
+  and filtering on it would drop precisely the entries the region exists for. It
+  matches the **issue key's project prefix** instead, which is on the entry's own
+  key and survives: `MERC-1150` belongs to Mercury whether or not that ticket has
+  been on the board this year.
+
+  Two consequences, both accepted rather than discovered: two projects sharing a
+  Jira project key across two sites would show each other's entries, and a
+  project with no Jira binding narrows to nothing — exactly as its ticket lane
+  does. The court toggle deliberately does **not** apply, because every entry is
+  about work that is finished and therefore in nobody's court; honouring it would
+  empty the region every time the operator narrowed to their own work.
+
+### Fixed
+
+- **The three stat tiles span the row.** They had been laid out on a four-column
+  grid since the DRIFTING tile went at 0.4.0 — a quarter of the row held for a
+  tile that no longer exists. Unnoticeable beside a 400px rail, and obvious the
+  moment the board took the whole window.
 
 ## [0.5.0] — 2026-08-20
 
@@ -475,6 +549,10 @@ First working release. `npx grndctrl` runs on Windows, macOS and Linux.
 superseded and should be treated as withdrawn. See below for what it was.
 
 ## [Unreleased]
+
+> Not a list of pending work — see the note at the top of this file. This is the
+> accumulated working record of the v1 build, whose releases are summarised
+> above. **Nothing here is unreleased**, and 0.6.0 is the tip.
 
 ### Added
 

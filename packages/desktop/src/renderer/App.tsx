@@ -1,55 +1,46 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo, useState, type ReactElement } from 'react'
-import { BallInCourt } from './components/BallInCourt.js'
 import { ConnectionNotice } from './components/ConnectionNotice.js'
 import { NoProjects } from './components/EmptyState.js'
 import { NotesModal } from './components/NotesModal.js'
 import { StatTiles } from './components/StatTiles.js'
-import { filterSessions, filterWork, summarise, useFilter } from './filter.js'
+import { filterHistory, filterSessions, filterWork, summarise, useFilter } from './filter.js'
 import { RegionsProvider, useRegionState } from './regions.js'
 import { Tickets, type NotesAccess } from './lanes/Lanes.js'
 import { LaneBoundary } from './lanes/LaneBoundary.js'
-import { Sessions } from './lanes/Sessions.js'
 import { ActiveTicket, type ActiveTicketView } from './panels/ActiveTicket.js'
-import { AgentUpdates } from './panels/AgentUpdates.js'
-import { Prompts } from './panels/Prompts.js'
 import { TicketHistory } from './panels/TicketHistory.js'
 import { call } from './bridge.js'
 import { useOperation, usePushInvalidation, worstFreshness, type Envelope } from './query.js'
 import { Settings } from './settings/Settings.js'
 import { Titlebar } from './Titlebar.js'
-import type {
-  AgentSession,
-  AgentUpdate,
-  Note,
-  Project,
-  Prompt,
-  TicketHistoryEntry,
-  WorkItem,
-} from './types.js'
+import type { AgentSession, Note, Project, TicketHistoryEntry, WorkItem } from './types.js'
 
 /**
  * One page (T137).
  *
- * Everything the operator needs is here at once — tiles, the ticket lane, agent
- * sessions, and who is holding what up. There is no navigation and no second
- * screen, because the value of this application is entirely in the
- * *relationships between* the systems it reads, and a relationship you have to
- * navigate to see is one you will not see.
+ * Everything the operator needs is here at once — the three tiles, the ticket
+ * lane, what is being worked, and what has been recorded about work that is
+ * done. There is no navigation and no second screen, because the value of this
+ * application is entirely in the *relationships between* the systems it reads,
+ * and a relationship you have to navigate to see is one you will not see.
  *
- * **This is the thin board**, and it is an intended intermediate state. 006 took
- * the pull request lane, the branch lane and the Attention region off it in one
- * pass, and 007 fills the space with the agent console. A board that is mostly
- * empty column is not the finished product; a board carrying three lanes that
- * can never have anything in them was worse.
+ * **The board is narrower than it has been, twice over.** 006 took the pull
+ * request lane, the branch lane and the Attention region off it; 007 filled the
+ * space with an agent console — sessions, ball-in-court, an update stream and a
+ * prompt shelf — and on **2026-08-31 the operator removed all four of those**,
+ * leaving one column at the full width of the window. What went with them is
+ * recorded where each read used to be, rather than only in the git history:
+ * three regions were the only place a session's reported status, an agent's
+ * running commentary and a recorded prompt were shown.
  *
  * Two structural decisions:
  *
  * **Each lane has its own error boundary** (T141, XV). Without one, a single
  * malformed ticket unmounts the whole tree and the operator's board goes white
- * because Jira returned something odd. Every boundary that survived 006 is still
- * here — the count went from six to four because four regions left, not because
- * a surviving region gave one up.
+ * because Jira returned something odd. Every boundary that remains is still one
+ * per region — the count has only ever fallen because regions left, never
+ * because a surviving region gave one up.
  *
  * **Every lane narrows from one snapshot.** The reads happen here and the
  * filtering happens in `filter.ts`, so the number in a tile and the length of
@@ -78,8 +69,14 @@ export function App(): ReactElement {
    * the mistake this comment exists to have prevented** (FR-121). Two other
    * things depend on it and neither is going: the asking set below puts the
    * question mark on a row's note badge, and core's ball-in-court hands an item
-   * to the operator when an agent is waiting on them. 007 gives the display
-   * itself a new home in the agent update panel.
+   * to the operator when an agent is waiting on them.
+   *
+   * 007 gave the questions a *display* of their own in the agent update panel,
+   * and that panel was removed on 2026-08-31. The badge is what is left: a row
+   * with an unanswered question carries `?` in its trailing slot and opens the
+   * note that asked it. **A question on a ticket that is not on the board can no
+   * longer be seen** — that is the cost of the removal, and it is stated here
+   * rather than left to be discovered.
    */
   const questions = useOperation<Note[]>('notes.questions')
 
@@ -94,25 +91,20 @@ export function App(): ReactElement {
    */
   const active = useOperation<ActiveTicketView | null>('focus.get')
 
-  /**
-   * What the agents have said (FR-132).
+  /*
+   * `updates.list` and `prompts.list` were read here, for the agent update
+   * stream (FR-132) and the prompt shelf (FR-136). **Both regions were removed
+   * on 2026-08-31**, on the operator's instruction, along with the agent session
+   * lane and ball-in-court — see the board below.
    *
-   * Unfiltered by session and by ticket, because the panel is the operator's
-   * view of *everything happening*, not of the active ticket. An agent working
-   * a second ticket is exactly the thing they need to see without going looking
-   * for it.
+   * The reads went with them rather than being left in place "for later". A
+   * `useOperation` with no consumer is a poll nobody watches: it refetches on
+   * every push, keeps its answer in the query cache, and shows up in the
+   * performance budget as work the board does not use. The *operations* are
+   * untouched — agents still record updates and prompts over MCP, and nothing
+   * about the store changed — so putting a region back is a component and a
+   * read, not a migration.
    */
-  const updates = useOperation<AgentUpdate[]>('updates.list')
-
-  /**
-   * Prompts worth keeping (FR-136).
-   *
-   * Unfiltered by session and by project, for the same reason the updates above
-   * are: the panel's value is that the operator can grab a prompt and send it
-   * somewhere else, and the one they want is as likely to be from last week's
-   * work as from the ticket they happen to be looking at.
-   */
-  const prompts = useOperation<Prompt[]>('prompts.list')
 
   /**
    * The curated ticket history (008/FR-156).
@@ -194,11 +186,16 @@ export function App(): ReactElement {
    * Which regions are folded away (T102, T103).
    *
    * **The ids are literals, here and in each component that names one**:
-   * `summary`, `connections`, `tickets`, `active-ticket`, `updates`, `prompts`,
-   * `sessions`, `court`, `ticket-history`. They are the keys
-   * of a stored preference, so a generated one would change between builds and
-   * quietly unfold everything the operator had put away — and would leave a dead
-   * key behind each time. There is no registry of them and there deliberately is
+   * `summary`, `connections`, `tickets`, `active-ticket`, `ticket-history`.
+   * They are the keys of a stored preference, so a generated one would change
+   * between builds and quietly unfold everything the operator had put away — and
+   * would leave a dead key behind each time.
+   *
+   * `updates`, `prompts`, `sessions` and `court` were four more until
+   * 2026-08-31. A stored map that still holds them is harmless and is left
+   * alone: the map records only what is *collapsed*, nothing reads a key it has
+   * no region for, and rewriting the operator's settings row to tidy up four
+   * dead booleans is a migration with nothing to gain. There is no registry of them and there deliberately is
    * not: a region whose id is wrong shows up immediately as a fold that does not
    * survive a restart, and a list to keep in step is a second place to get it
    * wrong.
@@ -224,23 +221,6 @@ export function App(): ReactElement {
    */
   const clearActive = useCallback(() => {
     void call('focus.clear', {}).catch(() => undefined)
-  }, [])
-
-  /**
-   * Removing a recorded prompt (FR-140).
-   *
-   * Nothing is invalidated here. `prompts.delete` mutates, so main's push
-   * wrapper announces `prompts:changed` when it returns and
-   * `usePushInvalidation` refetches - the same one-code-path rule the focus
-   * controls above follow.
-   *
-   * There is no confirmation dialog. The thing being deleted is one line of
-   * recorded text in the operator's own store, and a modal between them and
-   * removing a prompt that turned out to have a token in it is friction on
-   * exactly the wrong side.
-   */
-  const deletePrompt = useCallback((id: string) => {
-    void call('prompts.delete', { id }).catch(() => undefined)
   }, [])
 
   /**
@@ -301,6 +281,9 @@ export function App(): ReactElement {
   const known = projects.data
   const items = filterWork(work.data?.data ?? [], filter)
   const live = filterSessions(sessions.data ?? [], filter)
+  // Narrowed here rather than in the panel, with the rest of them, so the count
+  // in the region header and the rows beneath it come from one snapshot.
+  const pastWork = filterHistory(history.data ?? [], filter)
   const counts = summarise(items, live)
   // The lane reports its own resource, not the board-wide worst. The header
   // summarises only what is on screen — an envelope also carries freshness for
@@ -375,113 +358,68 @@ export function App(): ReactElement {
               <ConnectionNotice onOpenSettings={() => setShowSettings(true)} />
             </LaneBoundary>
 
-            <div className="board__columns">
-              {/*
-                The main column is **the work**: what is on your plate, what is
-                being worked right now, and what is being said about it. US1
-                asks for the active ticket and the agent's last word "in one
-                column", and this is that column (T145).
+            {/*
+              **One column, the full width of the window** (2026-08-31).
 
-                The active ticket moved here from the side rail for a reason
-                the side rail made obvious: it carries a rendered description —
-                paragraphs, lists, tables, code — and 320px is not a width you
-                can read a table in. A panel whose whole content is prose does
-                not belong in the narrow track.
-              */}
-              <div className="board__main">
-                <LaneBoundary lane="Tickets">
-                  <Tickets
-                    items={items}
-                    projects={known}
-                    freshness={ticketFreshness}
-                    notes={notes}
-                  />
-                </LaneBoundary>
+              It was a two-column grid: the work in a wide main track, context in
+              a 400px rail holding the agent sessions, ball-in-court and the
+              prompt shelf, with the agent update stream below the active ticket.
+              The operator removed all four regions. What is left is the work,
+              and a main column still sized as though a rail sat beside it would
+              hold a quarter of the window empty for panels that are not coming
+              back — so the regions take the width instead.
 
-                {/*
-                  T145 put a "no longer mine" lane here, between the tickets and
-                  the active ticket. **It was dropped on 2026-08-20**, by the
-                  operator, rather than shipped as an approximation: it needed
-                  JQL history operators verified against a real Jira and there
-                  was none to reach. Nothing was ever built, so nothing was
-                  removed from this file — this note exists so the next reader
-                  does not re-derive the lane from the specification and wonder
-                  where it went. See `specs/007-agent-console/spec.md`.
-                */}
-
-                <LaneBoundary lane="Active ticket">
-                  <ActiveTicket
-                    active={active.data}
-                    // The **unfiltered** snapshot. The active ticket is one
-                    // pointer, not a lane: blanking it because the operator
-                    // pressed a project chip would read as "nothing is active".
-                    items={work.data?.data}
-                    onClear={clearActive}
-                  />
-                </LaneBoundary>
-
-                {/*
-                  Directly below it, because it is commentary on it: what is
-                  being worked, then what is being said about it. The two are
-                  read together and separating them across columns would put a
-                  scroll between a question and the ticket it is about.
-                */}
-                <LaneBoundary lane="Agent updates">
-                  <AgentUpdates
-                    updates={updates.data ?? []}
-                    // Unresolved only, and unfiltered by project — the same
-                    // snapshot the row badges use. A question hidden by the
-                    // current project filter is still a question owed an answer.
-                    questions={(questions.data ?? []).filter((n) => n.resolvedAt === null)}
-                    onOpenQuestion={(key, label) => setNotesFor({ key, label })}
-                  />
-                </LaneBoundary>
-
-                {/*
-                  Last in the column, and the only region on the board that is
-                  not about now. Everything above it answers "what is happening";
-                  this answers "what happened", which is a question asked far less
-                  often and from further away — so it goes below the fold rather
-                  than competing with the work for the top of the screen.
-
-                  In the main column rather than the rail because an expanded
-                  entry is prose, and prose in a 400px track is the mistake the
-                  active ticket panel already made once.
-                */}
-                <LaneBoundary lane="Ticket history">
-                  <TicketHistory
-                    entries={history.data ?? []}
-                    onRevise={reviseHistory}
-                    onDelete={deleteHistory}
-                  />
-                </LaneBoundary>
-              </div>
+              The order is unchanged and still means what it did: what is on your
+              plate, what is being worked right now, and — last, below the fold —
+              what happened. Nothing moved column, because there is only one.
+            */}
+            <div className="board__stack">
+              <LaneBoundary lane="Tickets">
+                <Tickets items={items} projects={known} freshness={ticketFreshness} notes={notes} />
+              </LaneBoundary>
 
               {/*
-                The side rail is **context**: who else is working, who is
-                holding what up, and the shelf you reach for when starting
-                something. None of it is prose and none of it needs width — a
-                session is a name and a state, a court entry is a row, a prompt
-                is one truncated line.
+                T145 put a "no longer mine" lane here, between the tickets and
+                the active ticket. **It was dropped on 2026-08-20**, by the
+                operator, rather than shipped as an approximation: it needed
+                JQL history operators verified against a real Jira and there
+                was none to reach. Nothing was ever built, so nothing was
+                removed from this file — this note exists so the next reader
+                does not re-derive the lane from the specification and wonder
+                where it went. See `specs/007-agent-console/spec.md`.
               */}
-              <aside className="board__side">
-                <LaneBoundary lane="Agent sessions">
-                  <Sessions sessions={live} />
-                </LaneBoundary>
 
-                <LaneBoundary lane="Ball in court">
-                  <BallInCourt items={items} />
-                </LaneBoundary>
+              <LaneBoundary lane="Active ticket">
+                <ActiveTicket
+                  active={active.data}
+                  // The **unfiltered** snapshot. The active ticket is one
+                  // pointer, not a lane: blanking it because the operator
+                  // pressed a project chip would read as "nothing is active".
+                  items={work.data?.data}
+                  onClear={clearActive}
+                />
+              </LaneBoundary>
 
-                {/*
-                  Last, and the only region here that is not about now. It is a
-                  shelf: the operator reaches for it when starting something
-                  rather than while watching something.
-                */}
-                <LaneBoundary lane="Recent prompts">
-                  <Prompts prompts={prompts.data ?? []} onDelete={deletePrompt} />
-                </LaneBoundary>
-              </aside>
+              {/*
+                Last, and the only region on the board that is not about now.
+                Everything above it answers "what is happening"; this answers
+                "what happened", which is a question asked far less often and
+                from further away — so it goes below the fold rather than
+                competing with the work for the top of the screen.
+              */}
+              <LaneBoundary lane="Ticket history">
+                <TicketHistory
+                  // Narrowed by the project chips like every other list here
+                  // (`filterHistory`), and **not** by the court toggle: a
+                  // finished ticket is in nobody's court, so honouring it would
+                  // empty the region every time the operator narrowed to their
+                  // own work. The panel's search box narrows further, over what
+                  // this hands it.
+                  entries={pastWork}
+                  onRevise={reviseHistory}
+                  onDelete={deleteHistory}
+                />
+              </LaneBoundary>
             </div>
           </>
         )}

@@ -165,9 +165,8 @@ port and token are published in a file only your user account can read. Nothing
 listens on an external interface.
 
 **Connecting the server is not the whole job.** It puts the tools in the agent's
-list; it does not make the agent reach for them, so the active ticket, the update
-stream, the prompt shelf and the ticket history stay empty until an agent is
-*told* to use them.
+list; it does not make the agent reach for them, so the active ticket and the
+ticket history stay empty until an agent is *told* to use them.
 [docs/agents.md](docs/agents.md) carries a `CLAUDE.md` block to paste into any
 repository you want on the board — that block is part of the feature, not
 documentation of it.

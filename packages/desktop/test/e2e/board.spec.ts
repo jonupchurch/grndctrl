@@ -62,6 +62,28 @@ test('the pull request lane, the branch lane and the Attention region are gone',
 })
 
 /**
+ * What the operator took off the board on 2026-08-31, asserted the same way.
+ *
+ * 007's four agent-console regions, removed in one pass. The reason they are
+ * *asserted* absent rather than simply deleted from the suite is the one the
+ * test above gives: a region that came back — through a merge, a revert, or a
+ * component nobody meant to re-import — would otherwise be noticed by nothing.
+ *
+ * The operations behind them are untouched. Agents still start sessions, post
+ * updates and record prompts over MCP, and `test/services` covers every one of
+ * those writes. What is asserted here is only that this board does not draw them.
+ */
+test('the agent console regions are gone', async () => {
+  await expect(it.window.getByRole('region', { name: 'Agent sessions' })).toHaveCount(0)
+  await expect(it.window.getByRole('region', { name: 'Ball in court' })).toHaveCount(0)
+  await expect(it.window.getByRole('region', { name: 'Agent updates' })).toHaveCount(0)
+  await expect(it.window.getByRole('region', { name: 'Recent prompts' })).toHaveCount(0)
+
+  // Paired with a presence, for the same reason as above.
+  await expect(it.window.getByRole('region', { name: 'Ticket history' })).toHaveCount(1)
+})
+
+/**
  * The DRIFTING tile, likewise.
  *
  * It counted subjects where two systems disagreed, and with one provider there
@@ -412,20 +434,30 @@ test('selecting a project narrows the page rather than navigating', async () => 
   await expect(chip).toHaveAttribute('aria-pressed', 'false')
 })
 
-test('a silent agent session says so, and is not counted as live', async () => {
-  const sessions = it.window.getByRole('region', { name: 'Agent sessions' })
+/**
+ * A silent session, seen through the tile that survived.
+ *
+ * The agent session lane said this in words — the agent's name, `Silent`, and
+ * `0 of 1`. **It was removed on 2026-08-31** and the tile is what is left, so
+ * the assertion is now about the *number* rather than the label: a session whose
+ * heartbeat stopped is still on the books and is not counted as live.
+ *
+ * Derived from a missed beat rather than from anything the agent said, because
+ * an agent that has crashed cannot report it — which is why the distinction is
+ * worth a test at all.
+ */
+test('a silent agent session is on the books and is not counted as live', async () => {
+  const live = it.window.locator('.tile', { hasText: 'Agents live' })
 
-  await expect(sessions.getByText('claude-code')).toBeVisible()
-  // The heartbeat stopped. Derived from a missed beat rather than from anything
-  // the agent said, because an agent that has crashed cannot report it.
-  await expect(sessions.getByText('Silent')).toBeVisible()
-  await expect(sessions.getByText('0 of 1')).toBeVisible()
+  await expect(live.locator('.tile__value')).toHaveText('0')
+  await expect(live).toContainText('of 1 session')
 })
 
-test('the ball-in-court panel accounts for every item', async () => {
-  const court = it.window.getByRole('region', { name: 'Ball in court' })
-
-  await expect(court.getByText('waiting on you')).toBeVisible()
-  await expect(court.getByText('waiting on someone else')).toBeVisible()
-  await expect(court.getByText('an agent is on it')).toBeVisible()
-})
+/*
+ * `the ball-in-court panel accounts for every item` stood here and went with
+ * the panel on 2026-08-31. Ball-in-court itself did not go: it is still derived
+ * in core, still what the *Your court* tile counts, still what the court filter
+ * narrows on, and `test/services` covers the derivation. What is no longer true
+ * — and so is no longer asserted — is that the board enumerates the three
+ * states side by side.
+ */

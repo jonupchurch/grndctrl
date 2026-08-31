@@ -12,15 +12,15 @@ import {
 /**
  * Which regions of the board are folded away (T102 — FR-143, FR-144).
  *
- * The board is about to have seven regions on it. Not all of them are wanted at
- * once, and the ones that are wanted differ by what the operator is doing —
- * mid-review, the ticket lane matters and the prompt history does not; mid-
- * handover it is the other way round. So each region folds, and the choice
- * survives a restart, because a preference that has to be re-set every launch is
- * one people stop setting.
+ * The board had seven regions when this was written and has five now. Not all of
+ * them are wanted at once, and the ones that are wanted differ by what the
+ * operator is doing — mid-review, the ticket lane matters and the history does
+ * not; when somebody asks what was done, it is the other way round. So each
+ * region folds, and the choice survives a restart, because a preference that has
+ * to be re-set every launch is one people stop setting.
  *
- * **Only collapsed regions are recorded.** The stored map is `{ prompts: true }`,
- * never `{ prompts: true, tickets: false }` — see `Settings.collapsedRegions`
+ * **Only collapsed regions are recorded.** The stored map is
+ * `{ 'ticket-history': true }`, never `{ 'ticket-history': true, tickets: false }` — see `Settings.collapsedRegions`
  * for why that matters more than it looks.
  *
  * ## Why the state is here and not in each section

@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-19
 
-**Status**: Complete — shipped in 0.4.0, less M2, which was dropped (see below)
+**Status**: Complete — shipped in 0.4.0, less M2, which was dropped (see below). **Two of its four regions were removed from the board on 2026-08-31** (see [What was removed](#what-was-removed-2026-08-31)); the operations behind them are untouched.
 
 **Input**: A marked-up screenshot of the operator's own board, 2026-08-19, adding four regions and one cross-cutting behaviour: *"Recent Tickets not assigned"*, *"Currently active ticket. Populated by MCP, scrollable and collapsible, the ticket should have a link to open it in a browser"*, *"Current important info/task update from the Agent. Should be terse and to the point without a lot of extra words or frills"*, *"List of recent prompts. Clicking copies to clipboard."*, and — separately — *"make each section collapsible"*.
 
@@ -32,8 +32,8 @@ And a board that is now seven regions tall on one page needs to be foldable, or 
 |---|---|
 | ~~**A "no longer mine" lane**~~ | ⛔ **Dropped 2026-08-20** — see below. The verification it depended on could not be done. |
 | **Active ticket panel** | The first time this application fetches and renders a ticket's **description**, which is rich text from an untrusted source in a format that is not plain text. See [R1](./research.md#r1--the-ticket-description-is-not-a-string--changes-the-design). |
-| **Agent update panel** | A new authored table, a new MCP tool, and a retention policy — an append-only log with no bound grows until it is a problem. |
-| **Recent prompts panel** | A new authored table, a new MCP tool, and **the first new capability the shell has granted the renderer since 001**: writing to the system clipboard. |
+| ~~**Agent update panel**~~ | ⛔ **Removed from the board 2026-08-31** — see below. The table, the tool and the retention policy stay. |
+| ~~**Recent prompts panel**~~ | ⛔ **Removed from the board 2026-08-31** — see below. The table, the tool and the clipboard capability stay. |
 | **Collapsible sections** | Persisted per-section state, and a rule about what "collapsed" means to everything that counts rows. |
 
 ### What the lane actually is
@@ -233,6 +233,44 @@ Numbering continues the single namespace 001 established.
 - **FR-130**: A description node the renderer does not support MUST render as a labelled placeholder naming what it is. Silently dropping content from a ticket the operator is working is a lie about what the ticket says.
 - **FR-131**: An active ticket that is not in the mirror MUST be shown as what is known plus what is not, and MUST NOT trigger a fetch.
 
+## What was removed (2026-08-31)
+
+**The update panel and the prompt shelf were removed from the board**, together
+with two regions this feature did not add — the agent session lane and the
+ball-in-court panel, both from 001. The operator asked for it directly, marking
+the two areas on a screenshot of their own board, and asked that the regions that
+remained take the width the side rail had been holding.
+
+Asked how far to go — delete the components and their tests, or take the regions
+off the layout and keep the code — they chose *"Delete for good."* So four
+components and three spec files went, and seven end-to-end assertions were either
+repointed or retired.
+
+**What is untouched, and this is the important half.** `updates.post`,
+`updates.list`, `prompts.record`, `prompts.list`, `prompts.delete` and every
+session operation still exist, still work over MCP, and are still covered by
+`test/services`. The tables, the retention policies and the clipboard capability
+are all still there. **Putting a region back is a component and a read**, not a
+migration — which is why the reads were deleted from `App.tsx` rather than left
+running with no consumer.
+
+**What is genuinely lost, stated plainly:**
+
+- An agent's **reported status** is no longer rendered anywhere. The board says
+  how many sessions are live and which ticket has an agent on it; it does not say
+  what the agent is doing.
+- An agent's **update stream** is no longer rendered anywhere, so FR-135's
+  question display is gone with it — see the note under FR-135.
+- A **recorded prompt** cannot be copied from the board.
+- Ball-in-court is still derived, still counted by the *Your court* tile and
+  still what its filter narrows on, but the board no longer enumerates the three
+  states side by side.
+
+`board.spec.ts` asserts all four regions absent, paired with a region that is
+present, so a reintroduction is noticed.
+
+---
+
 ### Agent updates
 
 - **FR-132**: Agents MUST be able to post a short update against their session through the agent interface, and it MUST appear on an open board without a poll.
@@ -240,7 +278,21 @@ Numbering continues the single namespace 001 established.
 - **FR-134**: The update panel MUST render an update as its text, its agent, and its age — and nothing else. The operator asked for terse; a card with a border, an icon, a title and a menu is not terse.
 - **FR-135**: Open `question-for-human` notes MUST surface in the update panel. This satisfies [006's FR-121](../006-remove-code-host-and-local-git/spec.md#what-must-still-be-true), whose display left with the Attention region.
 
+  > **⛔ No longer satisfied, as of 2026-08-31.** The update panel was removed and
+  > this display went with it — the second time 006's FR-121 has lost its home.
+  > What remains is the **row badge**: a ticket carrying an unanswered question
+  > shows `?` in its trailing slot and opens the note that asked it, and
+  > ball-in-court still hands the item to the operator. **A question on a ticket
+  > that is not on the board can no longer be seen**, which is the gap, and it is
+  > recorded in `App.tsx` beside the read that survives for the badge.
+
 ### Prompts
+
+> **⛔ FR-136 to FR-141 describe a region that is no longer on the board**
+> (2026-08-31). Everything below the panel — the operation, the table, the
+> retention rule, the clipboard discipline in FR-138 and FR-139 — is unchanged
+> and still tested. FR-140 and FR-141 describe controls and an empty state that
+> nothing renders.
 
 - **FR-136**: Agents MUST be able to record a prompt through the agent interface, with its text, the agent, and optionally the session and project.
 - **FR-137**: The prompt list MUST be newest first, bounded, and MUST prune on a stated policy.
