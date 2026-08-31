@@ -1,6 +1,30 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-31 (0.6.0 cut) · **Stage:** released · **On npm:** 0.6.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-08-31 (0.6.0 published from a tag) · **Stage:** released · **On npm:** 0.6.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.6.0 is on the registry**, published 2026-08-31 by the tag `v0.6.0` on
+`main`, each package carrying SLSA provenance — read back from
+`registry.npmjs.org` directly rather than through `npm view`, which caches.
+Seventh release cut from a tag, and the second where an upgrade takes something
+away.
+
+**The published artifact was tested, not assumed.** `npx grndctrl@0.6.0` under
+`GRNDCTRL_SMOKE=1`, over a scratch data directory, on a cleared npx cache:
+`{"version":"0.6.0","dbVersions":{"mirror":5,"authored":6},"runtimeAbi":{"modules":"130","electron":"33.4.11","isElectron":true}}`.
+**The database versions are the same as 0.5.0's, and that is the assertion** —
+this release removes display, not data, so a *different* number would have meant
+something went that should not have.
+
+**One stale `_npx` entry was found and removed first**, pinned `^0.5.0`. Caret on
+a `0.x` version does not cross the minor, so it could never have resolved to
+0.6.0 — it would have served 0.5.0 forever while every command reported success.
+That is the second release running where this cache has held a pin that could not
+reach the version under test; check it before believing a smoke result.
+
+**The dry run ran against `main` before the tag** and passed every gate,
+including the client-reference audit over full history — the arm that cannot be
+exercised locally, and which reports hits in this checkout from unreachable
+dangling objects.
 
 **0.4.0 is on the registry**, published 2026-08-20 by the tag `v0.4.0` on
 `main`, each package carrying SLSA provenance — read back from
@@ -111,9 +135,11 @@ what a green suite could not: the tiles' dead fourth column was invisible to
 every assertion.
 
 **No migration runs.** The database shape is identical to 0.5.0 — this release
-removes display, not data — so the smoke test's `dbVersions` should read
-`{mirror: 5, authored: 6}` exactly as 0.5.0's did. A *different* number here
-would mean something was removed that should not have been.
+removes display, not data — and the published artifact confirmed it:
+`dbVersions: {mirror: 5, authored: 6}`, exactly as 0.5.0's did.
+
+**Published** 2026-08-31 from the tag `v0.6.0`, unattended, no OTP. See the top
+of this file.
 
 ### 0.5.0: the ticket history — published
 
