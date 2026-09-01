@@ -7,10 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Released versions are at the top, newest first. The v1 releases are summarised
 there and their detail is in **[Unreleased]** below them, which holds the
-accumulated working record of that build. **0.4.0, 0.5.0 and 0.6.0 carry their
-own detail** instead: the first is a removal, and what an upgrader needs is the
-list of what is gone rather than a sentence saying a lot is; the others are small
+accumulated working record of that build. **0.4.0 onwards carry their own
+detail** instead: the first is a removal, and what an upgrader needs is the list
+of what is gone rather than a sentence saying a lot is; the rest are small
 enough to state in full.
+
+## [0.6.1] — 2026-09-01
+
+**The ticket key fits its column.** A one-line bug with a three-part cause,
+found by looking at the screen after the tests said it was fixed.
+
+### Fixed
+
+- **The ticket key column is measured, not fixed.** It was 82px on every lane,
+  which fits a nine-character key like `MERC-1184` with about seven pixels to
+  spare and does not fit `PLATFORM-1184` at all — so the one string on the row
+  that exists to be copied out and typed into a search box was the one ending in
+  an ellipsis.
+
+  The lane now measures the widest key it is actually holding and sets the track
+  from it. **Nothing changes for a board whose keys already fitted**: 82px is a
+  floor, kept because the column heading is a sort button reading `TICKET` that
+  grows a caret when it is the sorted one, and a column sized to `AB-1` would
+  render `TICK…▼`. There is a ceiling at 220px, because every pixel this column
+  takes comes out of the ticket summary beside it.
+
+  Measured once for the whole lane and set on `.lane`, where the column template
+  already lives — not a content-sized track. Every row is its own grid
+  container, so `auto` would size each row independently and the columns after
+  the key would stop lining up, which is the mistake `app.css` already records
+  against two other tracks.
+
+### Notes for anyone reading the diff
+
+Three things about this bug are worth keeping, because none of them showed up as
+a failing test:
+
+- **A canvas cannot be told about `tabular-nums`.** The 2D context takes a font
+  shorthand — family, style, weight, size — and `.row__id` sets
+  `font-variant-numeric: tabular-nums`, under which every digit takes the widest
+  digit's advance. `1` is a narrow glyph proportionally and a wide one here, so
+  the first measurement came back 110.92px for a string the browser lays out at
+  115.2px. The column was widened to a number that still did not fit. Measuring
+  the identifier with its digits replaced by `0` reproduces the real width to a
+  hundredth of a pixel.
+
+- **`scrollWidth > clientWidth` does not detect this.** Both are integers. A
+  115px cell holding a 115.2px string reports 115 and 115, so the end-to-end
+  check went green over a lane whose every key was visibly truncated. It was the
+  screenshot that caught it. The suite now measures the text at its natural
+  width against the cell's own rect, sub-pixel, with no tolerance.
+
+- **A fixture that cannot fail is not a guard.** Every scenario in the
+  repository used a four-letter project key, so `no ticket key is cut off`
+  passed on the canonical board whether or not any of this existed.
+  `long-ticket-keys.json` is the same board under `PLATFORM`, and
+  `key-column.spec.ts` fails on 0.6.0.
 
 ## [0.6.0] — 2026-08-31
 

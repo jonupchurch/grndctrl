@@ -2,6 +2,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import { launch, type LaunchedApp } from './app.js'
+import { fitOf } from './truncation.js'
 
 /**
  * The board, over the canonical scenario.
@@ -370,6 +371,70 @@ test('the column headings line up with the cells beneath them', async () => {
       `the ${slot} heading is not over its column`,
     ).toBeLessThanOrEqual(1)
   }
+})
+
+/**
+ * The ticket key is readable in full (0.6.1).
+ *
+ * The column was a fixed 82px and `MERC-1184` did not fit it, so the board
+ * ellipsised the one string on the row that exists to be copied out and typed
+ * into a search box. It is measured now: `.lane` carries `--id-w`, the width of
+ * the widest key the lane is holding, and every row and the heading read it
+ * from there.
+ *
+ * Asserted against the *rendered* cells rather than against the number, because
+ * the number is produced by a canvas measuring a font this test cannot name —
+ * `system-ui` resolves to something different on every platform this ships to,
+ * and a pixel assertion would encode whichever one the suite last ran on. What
+ * has to be true everywhere is that no key is cut off.
+ */
+test('no ticket key is cut off', async () => {
+  // Read directly rather than through an auto-waiting locator, so this cannot
+  // rely on an earlier test in the file having already waited for the paint.
+  await it.window.locator('section.lane[data-region="tickets"] .row .row__id').first().waitFor()
+
+  const readings = await fitOf(it.window, 'section.lane[data-region="tickets"] .row .row__id')
+
+  // Without this the loop below passes by checking nothing, which is exactly
+  // how a mistyped selector reports confidence.
+  expect(readings.length).toBeGreaterThan(1)
+
+  for (const { text, box, natural } of readings) {
+    // Sub-pixel, and no tolerance: `text-overflow` fires on any overflow at
+    // all, so a tolerance here would be a tolerance for a visible ellipsis.
+    expect(natural, `${text} wants ${natural}px and has ${box}px`).toBeLessThanOrEqual(box)
+  }
+})
+
+/**
+ * The lane, not the row, decides how wide the key column is.
+ *
+ * The tempting implementation of the test above is a content-sized track, and
+ * it would pass it — while sizing every row independently, because each row is
+ * its own grid container. This is the assertion that fails when someone reaches
+ * for `auto`: one width, declared once, on the element that owns the template.
+ */
+test('the key column is one width for the whole lane', async () => {
+  const lane = it.window.locator('section.lane[data-region="tickets"]')
+
+  await lane.locator('.row .row__id').first().waitFor()
+
+  const widths = await lane.evaluate((element) => {
+    const cells = Array.from(element.querySelectorAll('.row .row__id'))
+
+    return {
+      // The inline value, not the computed one. These keys fit the stylesheet's
+      // fallback, so a computed reading of `82px` would be identical whether the
+      // measurement arrived or the plumbing had been cut — and this assertion
+      // would pass on the board exactly as it was before any of this was built.
+      // `key-column.spec.ts` is where the width has to actually grow.
+      inline: (element as HTMLElement).style.getPropertyValue('--id-w'),
+      rendered: [...new Set(cells.map((cell) => Math.round(cell.getBoundingClientRect().width)))],
+    }
+  })
+
+  expect(widths.inline).toMatch(/^\d+px$/)
+  expect(widths.rendered).toHaveLength(1)
 })
 
 /*

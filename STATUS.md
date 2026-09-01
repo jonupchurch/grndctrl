@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-08-31 (0.6.0 published from a tag) · **Stage:** released · **On npm:** 0.6.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-09-01 (0.6.1 cut) · **Stage:** released · **On npm:** 0.6.0 is `latest` on all four packages — `npx grndctrl`; 0.6.1 is tagged and not yet on the registry. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.6.0 is on the registry**, published 2026-08-31 by the tag `v0.6.0` on
 `main`, each package carrying SLSA provenance — read back from
@@ -83,6 +83,62 @@ than one session out of date. Historical detail belongs in `CHANGELOG.md`; this
 file describes only the present and the immediate next step.
 
 ## Where we are
+
+### 0.6.1: the ticket key fits its column
+
+**The key column was a fixed 82px on every lane**, which fits `MERC-1184` with
+about seven pixels to spare and does not fit `PLATFORM-1184` at all. The one
+string on the row that exists to be copied out and typed into a search box was
+the one ending in an ellipsis. It is measured now: the lane measures the widest
+key it is holding and sets the track from it, with 82px kept as a floor — the
+heading is a sort button reading `TICKET` that grows a caret, and a column sized
+to `AB-1` would render `TICK…▼` — and a 220px ceiling, because every pixel here
+comes out of the ticket summary. A board whose keys already fitted is unchanged.
+
+**Measured once for the whole lane, not per row.** Every row is its own grid
+container, so a content-sized track would size each row independently and the
+columns after the key would stop lining up — the mistake `app.css` already
+records against two other tracks. The width goes on `.lane`, where the column
+template lives.
+
+**This bug was found by looking at the screen, twice, after the tests said
+otherwise.** That is the part worth keeping:
+
+- **A canvas cannot be told about `tabular-nums`.** The 2D context takes a font
+  shorthand and stops there, and `.row__id` sets `font-variant-numeric:
+  tabular-nums`, under which `1` stops being a narrow glyph. The first
+  measurement read 110.92px for a string Chromium lays out at 115.2px, so the
+  column was widened to a number that still did not fit, and the screenshot
+  showed `PLATFORM-11…` in a cell the suite had just called correct. Measuring
+  the key with its digits replaced by `0` reproduces the laid-out width to a
+  hundredth of a pixel.
+
+- **`scrollWidth > clientWidth` cannot see a sub-pixel overflow.** Both are
+  integers: a 115px cell holding a 115.2px string reports 115 and 115. The
+  end-to-end check went green over a lane whose every key was visibly truncated.
+  `truncation.ts` measures the text at its natural width against the cell's own
+  rect instead, sub-pixel and with no tolerance.
+
+- **Every scenario in the repository used a four-letter project key**, so `no
+  ticket key is cut off` passed on the canonical board whether or not any of
+  this existed. `long-ticket-keys.json` is the same board under `PLATFORM` and
+  `key-column.spec.ts` fails on 0.6.0 — confirmed by pinning the column back to
+  82px and watching two assertions go red.
+
+**One flake was found and fixed rather than re-run.** `launch()` returns at
+`domcontentloaded`, which is before React has drawn a row, and the new tests
+read the DOM directly instead of through an auto-waiting locator. It failed once
+in a full-suite run and passed twenty-four times alone; instrumenting the launch
+showed three of five starts with *zero* rows at that moment. The specs wait for
+the first cell now, and three consecutive full runs are clean.
+
+**Verified before the tag:** 900 unit and 102 end-to-end, lint clean, typecheck
+clean. The board was run and looked at under both fixtures — `PLATFORM-1184`
+whole at 118px, `MERC-1184` unchanged at the 82px floor.
+
+**No migration runs.** Nothing about this release touches data, so the smoke
+test's `dbVersions` must still read `{mirror: 5, authored: 6}`; a different
+number would mean something ran that should not have.
 
 ### 0.6.0: the board is one column
 

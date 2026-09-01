@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactElement } from 'react'
 import { EmptyState } from '../components/EmptyState.js'
 import { LaneStatus } from '../components/LaneStatus.js'
 import { Section } from '../components/Section.js'
@@ -7,6 +7,7 @@ import { paletteIndexOf } from '../components/ProjectChip.js'
 import { launch } from '../launch.js'
 import type { FreshnessView } from '../query.js'
 import type { Project, WorkItem } from '../types.js'
+import { identifierTrack, idTextMeasurer } from './idWidth.js'
 import {
   applySort,
   nextSort,
@@ -49,6 +50,20 @@ interface LaneShellProps {
   /** What this lane calls its id, title and status columns. */
   columns: { identifier: string; title: string; status: string }
   /**
+   * Every identifier this lane is about to draw, so the key column can be sized
+   * to the longest of them (0.6.1).
+   *
+   * The whole set rather than the longest string, because *longest* here is a
+   * question about rendered width and not about character count — `MMMM-1` sets
+   * a wider column than `IIIIIIII-1` — and the lane is the only place that
+   * knows the font the answer has to be given in.
+   *
+   * Passed even when the lane is folded and nothing is drawn. A width computed
+   * only on unfolding would make the column jump the first time each lane is
+   * opened, and the fold is meant to be free.
+   */
+  identifiers: readonly string[]
+  /**
    * Whether the rows carry sprint, priority and story points.
    *
    * One flag drives both the headings and `data-metrics` on the section, which
@@ -76,18 +91,31 @@ function Lane({
   freshness,
   resource,
   columns,
+  identifiers,
   metrics = false,
   sort,
   children,
   empty,
   now,
 }: LaneShellProps): ReactElement {
+  // Keyed on the contents rather than the array, which is rebuilt on every
+  // render: the width is a fact about the strings, so re-measuring when the
+  // same strings arrive in a new array is work with no result.
+  const identifierKey = identifiers.join(' ')
+  const track = useMemo(
+    () => identifierTrack(identifiers, idTextMeasurer() ?? (() => 0)),
+    [identifierKey],
+  )
+
   return (
     <Section
       id={id}
       title={title}
       className="lane"
       metrics={metrics}
+      // The cast is the one React needs for a custom property; `ProjectChip`
+      // makes the same one for `--chip`.
+      style={{ '--id-w': `${track}px` } as CSSProperties}
       count={count}
       meta={threshold}
       status={
@@ -267,6 +295,7 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
       freshness={freshness}
       resource="Tickets"
       columns={{ identifier: 'Ticket', title: 'Summary', status: 'Status' }}
+      identifiers={items.map((item) => item.ticket.issueKey)}
       metrics
       sort={sort.props}
       {...(now === undefined ? {} : { now })}

@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react'
+import type { CSSProperties, ReactElement, ReactNode } from 'react'
 import { useRegions } from '../regions.js'
 
 /**
@@ -67,6 +67,16 @@ export interface SectionProps {
   role?: 'region' | 'status'
   /** Widens the row grid. Only the lanes with sprint, priority and points set it. */
   metrics?: boolean
+  /**
+   * Custom properties the region's own contents are measured into.
+   *
+   * `--id-w` is the only one, and it is here rather than in the stylesheet
+   * because its value is the width of the widest ticket key this lane happens
+   * to be holding. It belongs on the section for the same reason the column
+   * template does: the heading row and the rows beneath it must read it from
+   * one place or they can disagree about where a column starts.
+   */
+  style?: CSSProperties
   children: ReactNode
 }
 
@@ -79,6 +89,7 @@ export function Section({
   className,
   role = 'region',
   metrics,
+  style,
   children,
 }: SectionProps): ReactElement {
   const regions = useRegions()
@@ -93,6 +104,7 @@ export function Section({
       data-collapsed={collapsed}
       {...(role === 'status' ? { role: 'status' } : {})}
       {...(metrics === undefined ? {} : { 'data-metrics': metrics })}
+      {...(style === undefined ? {} : { style })}
     >
       <header className="lane__head">
         <button

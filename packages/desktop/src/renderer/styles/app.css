@@ -178,7 +178,7 @@ body {
      **The 62px ball-in-court track went on 2026-08-20** and the width returned
      to the title, which is the only flexible track and so the only one that can
      receive it. */
-  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 96px 44px
+  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 96px 44px
     var(--trailing-w) var(--mark-w);
 }
 
@@ -193,7 +193,7 @@ body {
      is the sort caret's doing: it sits inside the heading's own track, so a
      column sized to `POINTS` renders `POI…▼` the moment it becomes the sorted
      one — the heading going unreadable exactly when it is the one being read. */
-  --row-columns: var(--stale-w) 46px 82px minmax(0, 1fr) 92px 88px 80px 58px 44px
+  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 92px 88px 80px 58px 44px
     var(--trailing-w) var(--mark-w);
 }
 
@@ -219,6 +219,20 @@ body {
 .lane {
   --trailing-w: 40px;
   --mark-w: 10px;
+
+  /*
+   * The fallback width of the key column, and the width it was fixed at until
+   * 0.6.1. `Lane` overrides it per lane with the measured width of the widest
+   * key it is actually holding (`idWidth.ts`), so the column fits `MERC-1184`
+   * and `PLATFORM-12345` alike instead of ellipsising the one thing on the row
+   * that gets copied out.
+   *
+   * The value stays here, not only in TypeScript, because the override is a
+   * *measurement* and a measurement can decline: no document, no canvas, or a
+   * font string the canvas would not parse all end up back on this number, and
+   * that lands the board where it was rather than on a collapsed column.
+   */
+  --id-w: 82px;
 }
 
 /*
