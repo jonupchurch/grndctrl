@@ -1,6 +1,6 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-09-01 (0.6.1 cut) · **Stage:** released · **On npm:** 0.6.0 is `latest` on all four packages — `npx grndctrl`; 0.6.1 is tagged and not yet on the registry. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-09-01 (0.6.1 published from a tag) · **Stage:** released · **On npm:** 0.6.1 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
 
 **0.6.0 is on the registry**, published 2026-08-31 by the tag `v0.6.0` on
 `main`, each package carrying SLSA provenance — read back from
@@ -85,6 +85,35 @@ file describes only the present and the immediate next step.
 ## Where we are
 
 ### 0.6.1: the ticket key fits its column
+
+**0.6.1 is on the registry**, published 2026-09-01 by the tag `v0.6.1` on
+`main`, each package carrying SLSA provenance — read back from
+`registry.npmjs.org` directly rather than through `npm view`, which caches.
+Eighth release cut from a tag. Every gate passed, including the
+client-reference audit over full history.
+
+**That audit FAILs locally and passed in CI, and the reason was checked rather
+than assumed.** All 101 occurrences it reports in this checkout carry a commit
+sha, and every one of those 33 commits is unreachable from `main` — dangling
+objects from earlier rebases that a fresh clone does not have. `git merge-base
+--is-ancestor` against each one is the check; do it before believing either
+verdict, because "expected local noise" is exactly what a real hit would also
+look like.
+
+**The published artifact was tested, not assumed.** `grndctrl@0.6.1` installed
+into a scratch directory and run under `GRNDCTRL_SMOKE=1`:
+`{"version":"0.6.1","dbVersions":{"mirror":5,"authored":6},"runtimeAbi":{"modules":"130","electron":"33.4.11","isElectron":true}}`.
+**The database versions are the same as 0.6.0's, and that is the assertion** —
+this release changes a column width, so a *different* number would have meant
+something ran that should not have.
+
+**The stale `_npx` entry was there again**, this time pinned `^0.6.0`. That one
+*can* reach 0.6.1, unlike the `^0.5.0` pin that could never reach 0.6.0, but it
+was cleared before the smoke test anyway. Third release running that this cache
+has held a pin worth checking. `npx grndctrl` itself would not resolve its bin
+on this machine afterwards — an npx shim problem, not a package one, and the
+install-and-run above is the test that matters.
+
 
 **The key column was a fixed 82px on every lane**, which fits `MERC-1184` with
 about seven pixels to spare and does not fit `PLATFORM-1184` at all. The one
