@@ -77,32 +77,7 @@ body {
   color: var(--ink-2);
 }
 
-/* Correlation badges: outline, not fill. Fill means state; outline means fact. */
-.badge {
-  display: inline-flex;
-  width: 14px;
-  height: 14px;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-}
-
-.badge__shape {
-  width: 9px;
-  height: 9px;
-  /* The outline is drawn as a ring rather than a border so it survives the
-     clip-path that gives the badge its silhouette. */
-  background: var(--ink-2);
-  opacity: 0.85;
-}
-
-/* An absent badge is information, drawn as a hairline placeholder — never
-   omitted, which would let the badges after it slide left. */
-.badge[data-present='false'] .badge__shape {
-  background: var(--line-strong);
-  opacity: 0.5;
-  transform: scale(0.72);
-}
+/* The correlation badge styles went with the row's Agent column in 0.7.0. */
 
 /* ── Staleness ───────────────────────────────────────────────────────────── */
 
@@ -178,22 +153,25 @@ body {
      **The 62px ball-in-court track went on 2026-08-20** and the width returned
      to the title, which is the only flexible track and so the only one that can
      receive it. */
-  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 96px 44px
-    var(--trailing-w) var(--mark-w);
+  /* The 44px correlation track (the Agent column) went in 0.7.0. */
+  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 96px var(--trailing-w)
+    var(--mark-w);
 }
 
 /*
- * Sprint, priority and points, inserted after status: all three are facts about
- * the ticket, so they belong beside the one the tracker already reports. The
- * sequence is stale, project, id, title, status, sprint, priority, points,
- * correlation, trailing, severity — court left on 2026-08-20.
+ * Release before status, then sprint, priority and points after it — all facts
+ * about the ticket. The sequence is stale, project, id, title, release, status,
+ * sprint, priority, points, trailing, severity. Court left on 2026-08-20 and
+ * the Agent column in 0.7.0.
  */
 .lane[data-metrics='true'] {
   /* Priority and points are wider here than the values in them need, and that
      is the sort caret's doing: it sits inside the heading's own track, so a
      column sized to `POINTS` renders `POI…▼` the moment it becomes the sorted
-     one — the heading going unreadable exactly when it is the one being read. */
-  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 92px 88px 80px 58px 44px
+     one — the heading going unreadable exactly when it is the one being read.
+     Release is 110px: `2026.09, 2026.10` ellipsises, and the full list is in
+     the cell's `title`. */
+  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 110px 92px 88px 80px 58px
     var(--trailing-w) var(--mark-w);
 }
 
@@ -334,6 +312,7 @@ body {
      selectable in the notes dialog, which shows the subject as plain text. */
 }
 
+.row__release,
 .row__status,
 .row__sprint,
 .row__priority {
@@ -465,11 +444,6 @@ body {
   flex: none;
   font-size: 0.7em;
   line-height: 1;
-}
-
-.row__correlation {
-  display: flex;
-  gap: 3px;
 }
 
 .row__trailing {

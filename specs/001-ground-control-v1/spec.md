@@ -314,8 +314,9 @@ One provider being unreachable, rate-limited, or unauthorized degrades only what
   >
   > **The scope is the ticket row only.** `StatusMark` is unchanged and still
   > drawn by the stat tiles — and was drawn by the session lane until that lane
-  > was removed on 2026-08-31 — and the correlation badges are a separate
-  > alphabet that still obeys this rule.
+  > was removed on 2026-08-31 — and the correlation badges were a separate
+  > alphabet that obeyed this rule until the Agent column that drew them was
+  > removed in 0.7.0, also on the operator's instruction.
   >
   > Three end-to-end tests went with it. They could not be repointed at another
   > surface, and that was checked rather than assumed: the tiles can only produce

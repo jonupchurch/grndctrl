@@ -68,6 +68,10 @@
         "priority": "High",
         "storyPoints": 5,
         "sprint": "Sprint 12",
+        "fixVersions": [
+          "2026.09",
+          "2026.10"
+        ],
         "description": [
           {
             "kind": "paragraph",
@@ -342,6 +346,7 @@
         "priority": "Low",
         "storyPoints": null,
         "sprint": null,
+        "fixVersions": [],
         "createdAt": "now-2d",
         "updatedAt": "now-3h",
         "lastRealActivityAt": "now-6h",
@@ -371,6 +376,9 @@
         "priority": "Medium",
         "storyPoints": 2,
         "sprint": "Sprint 12",
+        "fixVersions": [
+          "2026.09"
+        ],
         "createdAt": "now-5d",
         "updatedAt": "now-8h",
         "lastRealActivityAt": "now-8h",

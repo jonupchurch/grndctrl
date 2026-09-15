@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { ProjectChip } from './ProjectChip.js'
 import { StaleBar } from './StaleBar.js'
 import type { StalenessBand } from './StaleBar.js'
-import { CorrelationBadge, type CorrelationKind, type Severity } from './StatusMark.js'
+import type { Severity } from './StatusMark.js'
 import type { SortColumn, SortState } from '../lanes/sort.js'
 
 /**
@@ -25,14 +25,19 @@ import type { SortColumn, SortState } from '../lanes/sort.js'
  * content sits in the grid beneath it as static text, and the badge sits above
  * it. Nothing about the row's appearance or keyboard behaviour changes.
  *
- * **Three slots are opt-in, and that is a departure worth naming.** Sprint,
- * priority and story points exist on a ticket and nowhere else. Every other slot
- * is unconditional because an empty one is a *fact* about that row ("no agent on
- * it"); these three would be a fact about the lane, and a column that can never
- * hold anything is noise rather than absence. So a lane either has them for all
- * its rows or has them for none, `.lane[data-metrics]` widens the grid to match,
- * and one prop decides all three — which is what stops the markup and the column
+ * **Four slots are opt-in, and that is a departure worth naming.** Release,
+ * sprint, priority and story points exist on a ticket and nowhere else. Every
+ * other slot is unconditional because an empty one is a *fact* about that row;
+ * these four would be a fact about the lane, and a column that can never hold
+ * anything is noise rather than absence. So a lane either has them for all its
+ * rows or has them for none, `.lane[data-metrics]` widens the grid to match, and
+ * one prop decides all four — which is what stops the markup and the column
  * count disagreeing.
+ *
+ * **The agent column went in 0.7.0**, on the operator's instruction, and the
+ * Release column took its place in the grid (beside the summary rather than at
+ * the far right). The agent presence badge was drawn nowhere else, so it is gone
+ * from the board rather than moved; the sessions behind it are untouched.
  *
  * **There is no age column any more**, and it did not go quietly. It was opt-out
  * — dropped on the ticket lane to pay for the sprint column, kept on the pull
@@ -57,18 +62,6 @@ export type BallInCourt = 'you' | 'them' | 'agent'
  * all name it.
  */
 
-/**
- * What can be correlated with a ticket, which is now one thing.
- *
- * It was four — branch, pull request, CI check, agent — and three of them came
- * from the code host and the local checkout that 006 removes. Kept as a list of
- * one rather than collapsed into a bare conditional, because the slot's value is
- * that it is a *fixed grid of presence marks*: an absent badge is a hairline
- * placeholder holding its column, not a gap. One entry still renders that way,
- * and a second is one line away if there is ever another thing to correlate.
- */
-const CORRELATION_ORDER: CorrelationKind[] = ['agent']
-
 export interface RowProps {
   /** Identifier shown in the id slot — `MERC-1184`, `#482`, a branch name. */
   identifier: string
@@ -76,21 +69,27 @@ export interface RowProps {
   severity: Severity
   staleness: StalenessBand
   lastRealActivityAt: string | null
-  /** Which correlations exist. Absent kinds render as placeholders, not gaps. */
-  correlations: Partial<Record<CorrelationKind, boolean>>
   project?: { id: string; code: string; paletteIndex: number; name?: string } | undefined
   /** Provider status text — "In Review", "checks failing". */
   status?: string | undefined
   /**
    * The ticket-only columns, or nothing at all.
    *
-   * One optional object rather than three optional fields, because the three
+   * One optional object rather than four optional fields, because the four
    * travel together: the lane's grid has all of them or none, and a row that
    * rendered one of them would put every slot after it in the wrong column.
    * `null` inside it is an ordinary value — unknown — and renders as a
-   * placeholder. `0` points is not unknown and renders as `0`.
+   * placeholder, as does an empty `release`. `0` points is not unknown and
+   * renders as `0`.
    */
-  metrics?: { sprint: string | null; priority: string | null; points: number | null } | undefined
+  metrics?:
+    | {
+        release: readonly string[]
+        sprint: string | null
+        priority: string | null
+        points: number | null
+      }
+    | undefined
   /**
    * Notes on **this row's own subject** (T150).
    *
@@ -244,6 +243,7 @@ export function RowHeadings({
 
       {heading('identifier', identifier)}
       {heading('title', title)}
+      {metrics && heading('release', 'Release')}
       {heading('status', status)}
 
       {metrics && (
@@ -254,19 +254,8 @@ export function RowHeadings({
         </>
       )}
 
-      {/* "Links" when it named four systems; the column holds one presence mark
-          now and is named for what that mark is about: *has an agent been on
-          this ticket*.
-
-          **The court column sat beside it until 2026-08-20 and is gone**, to
-          give the summary back the width the wider side rail took. What it
-          showed is not gone with it: ball-in-court still sorts the lane, still
-          drives the "Your court" tile and its filter, and still has a panel of
-          its own in the rail. This was the third place the same fact appeared,
-          and the only one that cost a column on every row. */}
-      <span className="row__correlation" aria-hidden="true">
-        Agent
-      </span>
+      {/* The Agent heading stood here until 0.7.0, over a one-badge column.
+          Removed on the operator's instruction; see the top of this file. */}
 
       {/* The trailing slot holds the note control. It is its own label and
           takes no heading. */}
@@ -281,7 +270,6 @@ export function Row({
   severity,
   staleness,
   lastRealActivityAt,
-  correlations,
   project,
   status,
   metrics,
@@ -339,6 +327,22 @@ export function Row({
 
       <span className="row__id">{identifier}</span>
       <span className="row__title">{title}</span>
+
+      {/*
+        Every fix version, joined — a ticket back-ported to a maintenance line
+        ships in both, and showing one would hide the other. Before status rather
+        than among the other metrics because that is where the operator asked for
+        it. Empty is the placeholder.
+      */}
+      {metrics !== undefined && (
+        <span
+          className="row__release"
+          title={`Release: ${metrics.release.length === 0 ? 'none' : metrics.release.join(', ')}`}
+        >
+          {metrics.release.length === 0 ? <Absent /> : metrics.release.join(', ')}
+        </span>
+      )}
+
       <span className="row__status">{status ?? ''}</span>
 
       {metrics !== undefined && (
@@ -374,12 +378,6 @@ export function Row({
           </span>
         </>
       )}
-
-      <span className="row__correlation">
-        {CORRELATION_ORDER.map((kind) => (
-          <CorrelationBadge key={kind} kind={kind} present={correlations[kind] === true} />
-        ))}
-      </span>
 
       {/*
         Decision 18, settled: the note badge takes the **trailing slot**, which

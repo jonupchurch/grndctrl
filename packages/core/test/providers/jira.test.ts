@@ -6,6 +6,7 @@ import {
   jiraProvider,
   sprintFieldId,
   storyPointFieldId,
+  toFixVersions,
   toPoints,
   toStatusCategory,
 } from '../../src/providers/jira/index.js'
@@ -290,10 +291,47 @@ describe('priority and story points', () => {
       'assignee',
       'reporter',
       'priority',
+      'fixVersions',
       'created',
       'updated',
     ])
     expect(tickets[0]?.storyPoints).toBeNull()
+  })
+})
+
+describe('fix versions', () => {
+  it('reads every fix version name, in the order Jira sends them', async () => {
+    const { jira } = provider({
+      '/rest/api/3/field': [],
+      '/rest/api/3/search/jql': {
+        issues: [
+          {
+            id: '10001',
+            key: 'MERC-1184',
+            fields: {
+              summary: 'Reconcile worktree state',
+              status: { name: 'In Review', statusCategory: { key: 'indeterminate' } },
+              fixVersions: [
+                { id: '1', name: '2026.09', released: false },
+                { id: '2', name: '2026.10', released: false },
+              ],
+            },
+          },
+        ],
+      },
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+    expect(tickets[0]?.fixVersions).toEqual(['2026.09', '2026.10'])
+  })
+
+  it('is empty when the field is missing or malformed, and drops nameless entries', () => {
+    expect(toFixVersions(undefined)).toEqual([])
+    expect(toFixVersions(null)).toEqual([])
+    expect(toFixVersions({ name: '2026.09' })).toEqual([])
+    expect(toFixVersions([{ id: '1' }, { name: '  ' }, 'x', null, { name: ' 2026.09 ' }])).toEqual([
+      '2026.09',
+    ])
   })
 })
 

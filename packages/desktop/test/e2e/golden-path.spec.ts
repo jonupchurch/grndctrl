@@ -199,12 +199,13 @@ test('4b · the row that gained a note still lines up with the one that did not'
       // `.row__court` was here until 2026-08-20, when the column was removed to
       // give the summary back its width. Replaced by the two tracks that now sit
       // furthest right, where a misalignment would show first and worst.
+      // `.row__correlation` was last until 0.7.0, when the Agent column went.
       for (const slot of [
+        '.row__release',
         '.row__status',
         '.row__sprint',
         '.row__priority',
         '.row__points',
-        '.row__correlation',
       ]) {
         const cell = row?.querySelector(slot) ?? null
         if (cell !== null) out[slot] = Math.round(cell.getBoundingClientRect().left)

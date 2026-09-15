@@ -129,6 +129,7 @@ export function mirrorRepository(db: Database): MirrorRepository {
       'priority',
       'story_points',
       'sprint',
+      'fix_versions',
       'description',
       'created_at',
       'updated_at',
@@ -150,6 +151,7 @@ export function mirrorRepository(db: Database): MirrorRepository {
       t.priority,
       t.storyPoints,
       t.sprint,
+      JSON.stringify(t.fixVersions),
       // `null` and `'[]'` are different rows on purpose: no description at all,
       // versus one that is empty. See the migration.
       t.description === null ? null : JSON.stringify(t.description),
@@ -223,6 +225,8 @@ export function mirrorRepository(db: Database): MirrorRepository {
         // "unestimated" and puts a dash where the tracker says zero.
         storyPoints: nullableNumber(r['story_points']),
         sprint: nullableString(r['sprint']),
+        // Null before migration 6 and `[]` after it read the same: none known.
+        fixVersions: stringArray(json<unknown>(r['fix_versions'], null)),
         // A row written before migration 5, or a ticket with no description at
         // all, reads as `null`. A malformed one also reads as `null` rather than
         // throwing: this is a cache, and a description that cannot be parsed
@@ -333,6 +337,11 @@ const SUBJECT_TABLES: Partial<Record<SubjectKind, string>> = {
 
 function nullableString(v: unknown): string | null {
   return v === null || v === undefined ? null : String(v)
+}
+
+/** A parsed JSON array of strings, or `[]` for null, malformed, or anything else. */
+function stringArray(parsed: unknown): string[] {
+  return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
 }
 
 function nullableNumber(v: unknown): number | null {

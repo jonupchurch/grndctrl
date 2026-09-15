@@ -55,6 +55,7 @@ function ticket(url: string): Ticket {
     priority: null,
     storyPoints: null,
     sprint: null,
+    fixVersions: [],
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-10T00:00:00.000Z',
     lastRealActivityAt: null,

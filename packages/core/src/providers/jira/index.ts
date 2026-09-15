@@ -64,6 +64,7 @@ interface JiraIssue {
     assignee?: JiraUser | null
     reporter?: JiraUser | null
     priority?: { name?: string } | null
+    fixVersions?: unknown
     created?: string
     updated?: string
     /** Story points arrive under a `customfield_*` key that varies per site. */
@@ -173,6 +174,8 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
           'assignee',
           'reporter',
           'priority',
+          // A system field like `description`, with a fixed id on every site.
+          'fixVersions',
           'created',
           'updated',
           // Only when the site actually has them. Naming a field id that does
@@ -308,6 +311,7 @@ function toTicket(
     priority: nonEmpty(fields.priority?.name),
     storyPoints: custom.points === null ? null : toPoints(fields[custom.points]),
     sprint: custom.sprint === null ? null : currentSprint(fields[custom.sprint]),
+    fixVersions: toFixVersions(fields.fixVersions),
     createdAt: fields.created ?? fetchedAt,
     updatedAt: fields.updated ?? fetchedAt,
     // Filled in from the changelog, which is a separate call. Null until then,
@@ -494,6 +498,24 @@ function toSprint(entry: unknown): { name: string; state: string } | null {
   }
 
   return null
+}
+
+/**
+ * The names of a ticket's fix versions, in Jira's order.
+ *
+ * Jira sends `[{ id, name, released, releaseDate }]`. Anything that is not an
+ * object with a non-blank name is dropped rather than turned into a blank entry,
+ * and a missing or malformed field is `[]` — this is a column, and it must not
+ * be able to fail the ticket.
+ */
+export function toFixVersions(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const name = (entry as { name?: unknown }).name
+    return typeof name === 'string' && name.trim() !== '' ? [name.trim()] : []
+  })
 }
 
 /** A present, non-blank string, or null. `''` from a provider is not a value. */

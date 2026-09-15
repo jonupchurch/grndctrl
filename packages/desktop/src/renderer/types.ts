@@ -69,6 +69,8 @@ export type Ticket = Pick<
   // the several a carried-over ticket carries. Null is "no sprint" or "this site
   // has no sprint field", and the lane draws a placeholder for either.
   | 'sprint'
+  // Fix version names, drawn in the Release column. Empty is a placeholder.
+  | 'fixVersions'
   // Already converted, at ingest, in the provider. The renderer never sees
   // Atlassian Document Format and never sees markup — see `domain/adf.ts` and
   // `components/Document.tsx`.

@@ -69,69 +69,14 @@ test.afterAll(async () => {
  * `warning` mark any more**, so "all four shapes differ" has no way to put four
  * shapes on a screen.
  *
- * The two tests below survive because they do not depend on the row: the
- * correlation badges are their own alphabet, and the desaturated-page check
- * reads the whole board rather than a mark.
+ * The test below survives because it does not depend on the row: the
+ * desaturated-page check reads the whole board rather than a mark. A second one,
+ * on the correlation badges, went with the Agent column in 0.7.0.
  *
  * If the row mark ever comes back, restore all three from git history rather
  * than rewriting them -- the third in particular took some care to get right,
  * and its comment explains why `grayscale(1)` was the wrong instrument.
  */
-
-test('the correlation badges are a second alphabet, and it is consistent', async () => {
-  /**
-   * Present and absent must differ by more than colour: an absent correlation
-   * is drawn as a hairline placeholder rather than omitted, and "assigned to
-   * me, nothing started" is a sentence the operator reads off the row.
-   *
-   * **Opacity is neutralised as well as colour**, and that is the whole
-   * difference between this assertion and a decorative one. The two states
-   * differ in three ways — hue, opacity, and a `scale(0.72)` — and the first
-   * two are both tone. Leaving opacity in place let a probe that flattened the
-   * colours pass, because 0.5 grey and 0.85 grey are still two greys. At 9px
-   * that is not a distinction anyone reads. Size is.
-   */
-  await it.window.addStyleTag({
-    content: `
-      .badge__shape {
-        background: #000 !important;
-        border-color: #000 !important;
-        opacity: 1 !important;
-      }
-    `,
-  })
-
-  /**
-   * Compared **within one kind**, which the first version of this did not.
-   *
-   * It took the first present badge and the first absent badge on the page —
-   * which are different *kinds*, so it was comparing a square to a triangle and
-   * reporting that present and absent look different. It passed with the size
-   * difference deliberately deleted, because the shapes never matched to begin
-   * with. Found by probing, not by reading.
-   */
-  const kind = 'agent'
-  const present = await it.window
-    .locator(`.row .badge[data-kind="${kind}"][data-present="true"] .badge__shape`)
-    .first()
-    .screenshot()
-  const absent = await it.window
-    .locator(`.row .badge[data-kind="${kind}"][data-present="false"] .badge__shape`)
-    .first()
-    .screenshot()
-
-  expect(
-    present.toString('base64'),
-    'a present and an absent agent badge are indistinguishable without colour',
-  ).not.toBe(absent.toString('base64'))
-
-  // And each carries its own word, so the row is readable without any of it.
-  const labels = await it.window.evaluate(() =>
-    [...document.querySelectorAll('.row .badge')].map((b) => b.textContent?.trim() ?? ''),
-  )
-  expect(labels.some((l) => l.startsWith('no '))).toBe(true)
-  expect(labels.every((l) => l.length > 0)).toBe(true)
-})
 
 test('the board is still readable with the whole page desaturated', async () => {
   // The literal wording of SC-015 — "verified by rendering the board

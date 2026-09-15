@@ -56,6 +56,7 @@ const ticket = (over: Partial<Ticket> & { issueKey: string }): Ticket => ({
   priority: null,
   storyPoints: null,
   sprint: null,
+  fixVersions: [],
   description: null,
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-08-10T00:00:00Z',
@@ -155,6 +156,7 @@ describe('upgrading a mirror that predates the columns', () => {
       '3_ticket-sprint',
       '4_remove-code-host-and-local-git',
       '5_ticket-description',
+      '6_ticket-fix-versions',
     ])
     opened.db.close()
   })
@@ -187,7 +189,25 @@ describe('upgrading a mirror that predates the columns', () => {
     // A `DEFAULT '[]'` would have the migration tell the operator that every
     // ticket they have ever synced has an empty description.
     expect(row?.description).toBeNull()
+    expect(row?.fixVersions).toEqual([])
     opened.db.close()
+  })
+})
+
+describe('storing fix versions', () => {
+  it('round-trips several, in order, and none', () => {
+    const opened = openMirror({ dir })
+    connect(opened.db)
+    const repo = mirrorRepository(opened.db)
+    repo.replaceTickets('c1', [
+      ticket({ issueKey: 'MERC-1', fixVersions: ['2026.10', '2026.09'] }),
+      ticket({ issueKey: 'MERC-2', fixVersions: [] }),
+    ])
+    const rows = repo.listTickets()
+    opened.db.close()
+
+    expect(rows.find((r) => r.issueKey === 'MERC-1')?.fixVersions).toEqual(['2026.10', '2026.09'])
+    expect(rows.find((r) => r.issueKey === 'MERC-2')?.fixVersions).toEqual([])
   })
 })
 

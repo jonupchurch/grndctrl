@@ -1,6 +1,6 @@
 {
   "name": "@grndctrl/desktop",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "The Electron application: the ticket lane, the active ticket, the ticket history, main, preload, and the React renderer.",
   "license": "MIT",
   "type": "module",

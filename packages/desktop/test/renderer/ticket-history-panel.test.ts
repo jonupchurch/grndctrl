@@ -58,6 +58,12 @@ describe('the ticket history region', () => {
     expect(STYLES).toMatch(/\.history__notes\s*\{[^}]*white-space:\s*pre-wrap/)
   })
 
+  it('lets the notes be selected without opening the editor', () => {
+    // `app.css` sets `user-select: none` on the body. Without the opt-in the
+    // only way to copy a note is Edit, then select inside the textarea.
+    expect(STYLES).toMatch(/\.history__notes\s*\{[^}]*user-select:\s*text/)
+  })
+
   it('asks twice before deleting', () => {
     // The opposite call to the prompts panel, and deliberately: a prompt is
     // deleted *because* it holds something unwanted, so a confirmation is

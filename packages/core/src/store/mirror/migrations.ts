@@ -307,4 +307,20 @@ export const MIRROR_MIGRATIONS: readonly Migration[] = [
       ALTER TABLE tickets ADD COLUMN description TEXT;
     `,
   },
+  {
+    version: 6,
+    name: 'ticket-fix-versions',
+    /**
+     * The fix versions, as the ticket lane's Release column shows them.
+     *
+     * Its own migration for the same reason as every one above it: an installed
+     * 0.6.1 has a `mirror.db` at version 5 on disk.
+     *
+     * A JSON array of names. Nullable with no default: a row written before this
+     * migration reads back as `[]`, and the next sync fills it in.
+     */
+    up: `
+      ALTER TABLE tickets ADD COLUMN fix_versions TEXT;
+    `,
+  },
 ]

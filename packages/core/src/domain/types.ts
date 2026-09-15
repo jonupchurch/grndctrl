@@ -133,6 +133,17 @@ export interface Ticket {
    */
   sprint: string | null
   /**
+   * The ticket's fix versions, by name, in the order Jira returns them.
+   *
+   * A system field with a fixed id, so unlike `sprint` there is nothing to
+   * resolve per site. It is an array because a ticket can ship in more than one
+   * release — a fix back-ported to a maintenance line — and picking one would
+   * hide the other.
+   *
+   * `[]` is "no fix version set". The ticket lane draws it as a placeholder.
+   */
+  fixVersions: string[]
+  /**
    * The description, already converted out of Atlassian Document Format.
    *
    * **Converted at ingest and stored converted** (007/T124). Jira returns this

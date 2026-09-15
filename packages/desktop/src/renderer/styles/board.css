@@ -786,6 +786,7 @@
   color: var(--ink-3);
   font-size: var(--t-meta);
   font-style: italic;
+  user-select: text;
 }
 
 /*
@@ -801,6 +802,10 @@
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  /* `app.css` turns selection off for the whole page. These notes are meant to
+     be copied out, and before 0.7.0 the only way to select them was to open the
+     editor and select inside the textarea. */
+  user-select: text;
 }
 
 .history__empty-notes {

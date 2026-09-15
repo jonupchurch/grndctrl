@@ -88,6 +88,8 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
       // sort by any one of them has ties to keep stable rather than a column of
       // distinct values that would order the same way however it was compared.
       sprint: ['Sprint 12', 'Sprint 13', null][i % 3] ?? null,
+      // Some rows with two releases, so the wide cell is measured too.
+      fixVersions: [['2026.09'], ['2026.09', '2026.10'], []][i % 3] ?? [],
       createdAt: 'now-40d',
       updatedAt: activity,
       lastRealActivityAt: activity,

@@ -68,49 +68,8 @@ export function StatusMark({
   )
 }
 
-/**
- * Correlation badges: outlined, where status marks are filled.
- *
- * "Fill means state; outline means fact" — an agent either has a session on this
- * ticket or it does not, and that is not a severity. It shares the shape
- * vocabulary with `StatusMark` so the eye learns one alphabet, and it keeps the
- * diamond it has always had.
- *
- * An absent badge is information. "Assigned to me, nothing started" is a row
- * with an empty slot, drawn as a hairline placeholder rather than omitted —
- * omitting it would let the court column slide left and break the alignment the
- * lane is read down.
- *
- * **There were four kinds**: branch, pull request, CI check, agent. Three of them
- * described a code host and a local checkout, and 006 removed both providers. The
- * type is a one-member union rather than a boolean because the *slot* is the
- * abstraction — presence marks in a fixed grid — and that survives its contents
- * being one thing.
+/*
+ * `CorrelationBadge` lived here — the agent presence diamond on each ticket row.
+ * Its only caller was the row's Agent column, which was removed in 0.7.0, so it
+ * went too. Restore it from git history if that column ever returns.
  */
-export type CorrelationKind = 'agent'
-
-const BADGES: Record<CorrelationKind, { clip: string; label: string }> = {
-  agent: { clip: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', label: 'agent' },
-}
-
-export interface CorrelationBadgeProps {
-  kind: CorrelationKind
-  /** False draws the hairline placeholder — the absence, not nothing. */
-  present: boolean
-}
-
-export function CorrelationBadge({ kind, present }: CorrelationBadgeProps): ReactElement {
-  const badge = BADGES[kind]
-
-  return (
-    <span
-      className="badge"
-      data-kind={kind}
-      data-present={present}
-      title={present ? badge.label : `no ${badge.label}`}
-    >
-      <span className="badge__shape" style={{ clipPath: badge.clip }} aria-hidden="true" />
-      <span className="visually-hidden">{present ? badge.label : `no ${badge.label}`}</span>
-    </span>
-  )
-}

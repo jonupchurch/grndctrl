@@ -12,6 +12,36 @@ detail** instead: the first is a removal, and what an upgrader needs is the list
 of what is gone rather than a sentence saying a lot is; the rest are small
 enough to state in full.
 
+## [0.7.0] — 2026-09-15
+
+**The ticket lane shows the release, not the agent.** Two changes to the ticket
+lane and one to the ticket history, all asked for with a marked-up screenshot.
+
+### Added
+
+- **A Release column on the ticket lane**, showing the ticket's Jira fix
+  versions. It sits between the summary and the status. A ticket with more than
+  one fix version shows them all, comma-separated; a narrow cell ellipsises and
+  the full list is in its tooltip. No fix version is drawn as a dash. The column
+  sorts like the others, with empty rows last.
+
+  `fixVersions` is a Jira system field, so it is fetched on every site with no
+  per-site lookup. **This runs a mirror migration** (mirror 5 → 6, one nullable
+  column). Tickets synced before it show a dash until the next sync.
+
+### Removed
+
+- **The Agent column on the ticket lane.** It held one presence badge per row.
+  The badge was drawn nowhere else, so it is gone from the board; agent
+  sessions and everything behind them are unchanged.
+
+### Fixed
+
+- **Ticket history notes can be selected and copied without opening the
+  editor.** The page turns text selection off everywhere by default, and the
+  notes and the ticket summary above them had never opted back in, so the only
+  way to copy a note was Edit, then select inside the text box.
+
 ## [0.6.1] — 2026-09-01
 
 **The ticket key fits its column.** A one-line bug with a three-part cause,

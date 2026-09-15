@@ -37,7 +37,14 @@
  * `sortableColumns` would have quietly filtered out of every heading row
  * forever. A column nothing can sort by is not an option, it is dead vocabulary.
  */
-export type SortColumn = 'identifier' | 'title' | 'status' | 'sprint' | 'priority' | 'points'
+export type SortColumn =
+  | 'identifier'
+  | 'title'
+  | 'release'
+  | 'status'
+  | 'sprint'
+  | 'priority'
+  | 'points'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -62,7 +69,15 @@ export type SortAccessors<T> = Partial<Record<SortColumn, (row: T) => string | n
 
 /** The columns this lane can actually sort by, in the order they are drawn. */
 export function sortableColumns<T>(accessors: SortAccessors<T>): SortColumn[] {
-  const order: SortColumn[] = ['identifier', 'title', 'status', 'sprint', 'priority', 'points']
+  const order: SortColumn[] = [
+    'identifier',
+    'title',
+    'release',
+    'status',
+    'sprint',
+    'priority',
+    'points',
+  ]
   return order.filter((column) => accessors[column] !== undefined)
 }
 

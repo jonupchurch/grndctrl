@@ -63,6 +63,7 @@ export function ticket(over: Partial<Ticket> & { issueKey?: string } = {}): Tick
     // rather than as one more field that happened to be populated.
     description: null,
     sprint: 'Sprint 12',
+    fixVersions: [],
     createdAt: hoursAgo(200),
     updatedAt: hoursAgo(1),
     lastRealActivityAt: hoursAgo(2),

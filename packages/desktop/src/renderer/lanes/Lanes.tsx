@@ -277,6 +277,8 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
   const sort = useLaneSort<WorkItem>({
     identifier: (i) => i.ticket.issueKey,
     title: (i) => i.ticket.summary,
+    // What the cell shows. No fix version is unknown, and sorts last.
+    release: (i) => (i.ticket.fixVersions.length === 0 ? null : i.ticket.fixVersions.join(', ')),
     status: (i) => i.ticket.statusName,
     sprint: (i) => i.ticket.sprint,
     // The one column whose sort key is not what the cell shows — `Highest` has
@@ -314,12 +316,12 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
           severity={item.severity}
           staleness={item.staleness}
           lastRealActivityAt={item.lastRealActivityAt}
-          correlations={{ agent: item.sessions.length > 0 }}
           status={item.ticket.statusName}
           // Always passed on this lane, because the lane is what declares the
-          // columns: a row that omitted them would leave three tracks empty and
-          // slide its own correlation badges under the "Priority" heading.
+          // columns: a row that omitted them would leave four tracks empty and
+          // slide everything after them under the wrong heading.
           metrics={{
+            release: item.ticket.fixVersions,
             sprint: item.ticket.sprint,
             priority: item.ticket.priority,
             points: item.ticket.storyPoints,

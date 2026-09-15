@@ -131,6 +131,19 @@ test('shows the notes only once the row is opened', async () => {
   await expect(target.locator('.history__notes')).toContainText(/window position/i)
 })
 
+test('the notes can be selected without opening the editor', async () => {
+  // The page turns selection off globally. A double-click on a word in the
+  // notes must select it, and must not have opened the editor to do so.
+  const target = row('MERC-1201')
+  if ((await target.locator('.history__notes').count()) === 0) await open('MERC-1201')
+
+  await target.locator('.history__notes').dblclick()
+
+  const selected = await it.window.evaluate(() => window.getSelection()?.toString() ?? '')
+  expect(selected.trim()).not.toBe('')
+  await expect(target.locator('textarea')).toHaveCount(0)
+})
+
 test('narrows to what the operator is looking for', async () => {
   // FR-157. The search matches the notes as well as the line and the key,
   // because the question is "what did we do about X" and X is as likely to be a

@@ -137,42 +137,16 @@ test('the lane reports its own freshness, not the board-wide worst', async () =>
   await expect(tickets.getByText(/2 hours ago/)).toBeVisible()
 })
 
-/**
- * An absent correlation is still drawn, and it is down to one kind.
- *
- * There were four badges: branch, pull request, CI check, agent. Three of them
- * described a code host and a local checkout. What has to survive the narrowing
- * is the *placeholder* — a row with no agent renders a hairline mark holding
- * its column, not a gap — because that is what keeps the slots after it lined
- * up down the lane.
+/*
+ * "An absent correlation is drawn, not omitted" was here. The Agent column it
+ * checked was removed in 0.7.0 on the operator's instruction, so there is no
+ * badge left to draw; "there is no Agent column any more" below replaces it.
  */
-test('an absent correlation is drawn, not omitted', async () => {
-  const badges = async (issueKey: string) =>
-    it.window.evaluate((key: string) => {
-      const row = [...document.querySelectorAll('.row')].find((r) =>
-        r.querySelector('.row__id')?.textContent?.includes(key),
-      )
-      return [...(row?.querySelectorAll('.badge') ?? [])].map((b) => ({
-        kind: (b as HTMLElement).dataset['kind'],
-        present: (b as HTMLElement).dataset['present'],
-      }))
-    }, issueKey)
 
-  // An agent is working MERC-1190 and none is on MERC-1184. Both rows carry the
-  // same one slot; only the mark inside it differs.
-  const worked = await badges('MERC-1190')
-  const idle = await badges('MERC-1184')
-
-  expect(worked).toHaveLength(1)
-  expect(idle).toHaveLength(1)
-  expect(worked[0]?.kind).toBe('agent')
-  expect(worked[0]?.present).toBe('true')
-  expect(idle[0]?.present).toBe('false')
-})
-
-test('the ticket lane carries sprint, priority and story points, and names its columns', async () => {
+test('the ticket lane carries release, sprint, priority and story points, and names its columns', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
 
+  await expect(tickets.getByText('Release', { exact: true })).toBeVisible()
   await expect(tickets.getByText('Sprint', { exact: true })).toBeVisible()
   await expect(tickets.getByText('Priority', { exact: true })).toBeVisible()
   await expect(tickets.getByText('Points', { exact: true })).toBeVisible()
@@ -182,12 +156,15 @@ test('the ticket lane carries sprint, priority and story points, and names its c
       r.querySelector('.row__id')?.textContent?.includes('MERC-1184'),
     )
     return {
+      release: el?.querySelector('.row__release')?.getAttribute('title') ?? null,
       sprint: el?.querySelector('.row__sprint')?.textContent ?? null,
       priority: el?.querySelector('.row__priority')?.textContent ?? null,
       points: el?.querySelector('.row__points')?.textContent ?? null,
     }
   })
 
+  // Read from `title`, which holds the whole list; the cell may ellipsise it.
+  expect(row.release).toBe('Release: 2026.09, 2026.10')
   expect(row.sprint).toBe('Sprint 12')
   expect(row.priority).toBe('High')
   expect(row.points).toBe('5')
@@ -209,6 +186,24 @@ test('a ticket in no sprint shows a placeholder rather than a name', async () =>
   })
 
   expect(sprint?.trim()).toBe('–')
+})
+
+test('a ticket with no fix version shows a placeholder in the Release column', async () => {
+  const release = await it.window.evaluate(() => {
+    const el = [...document.querySelectorAll('.row')].find((r) =>
+      r.querySelector('.row__id')?.textContent?.includes('MERC-1190'),
+    )
+    return el?.querySelector('.row__release')?.textContent ?? null
+  })
+
+  expect(release?.trim()).toBe('–')
+})
+
+test('there is no Agent column any more', async () => {
+  const tickets = it.window.getByRole('region', { name: 'Tickets' })
+  await expect(tickets.locator('.row').first()).toBeVisible()
+  await expect(tickets.getByText('Agent', { exact: true })).toHaveCount(0)
+  await expect(tickets.locator('.row__correlation, .badge')).toHaveCount(0)
 })
 
 /**
@@ -351,11 +346,11 @@ test('the column headings line up with the cells beneath them', async () => {
     return [
       '.row__id',
       '.row__title',
+      '.row__release',
       '.row__status',
       '.row__sprint',
       '.row__priority',
       '.row__points',
-      '.row__correlation',
     ].map((slot) => ({ slot, head: left(head, slot), row: left(row, slot) }))
   })
 
