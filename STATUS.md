@@ -1,6 +1,21 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-09-01 (0.6.1 published from a tag) · **Stage:** released · **On npm:** 0.6.1 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-09-15 (0.7.0 published from a tag) · **Stage:** released · **On npm:** 0.7.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.7.0 is on the registry**, published 2026-09-15 by the tag `v0.7.0` on
+`main`, each package carrying SLSA provenance, read back from
+`registry.npmjs.org` directly. It adds a Release column (Jira fix versions) to
+the ticket lane, removes the Agent column, and makes ticket history notes
+selectable without opening the editor. A dry run passed against `main` first.
+
+**It runs a migration**: mirror 5 → 6, one nullable `fix_versions` column.
+`npx grndctrl@0.7.0` under `GRNDCTRL_SMOKE=1` over a scratch data directory,
+with no `grndctrl` entry in the `_npx` cache:
+`{"version":"0.7.0","dbVersions":{"mirror":6,"authored":6},"runtimeAbi":{"modules":"130","electron":"33.4.11","isElectron":true}}`.
+
+The registry showed 0.6.1 as `latest` for about 75 seconds after every publish
+step had printed `+ <package>@0.7.0`, cache-busted queries included. Wait
+before concluding a publish failed.
 
 **0.6.0 is on the registry**, published 2026-08-31 by the tag `v0.6.0` on
 `main`, each package carrying SLSA provenance — read back from
