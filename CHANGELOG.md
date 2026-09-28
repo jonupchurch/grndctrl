@@ -12,7 +12,9 @@ detail** instead: the first is a removal, and what an upgrader needs is the list
 of what is gone rather than a sentence saying a lot is; the rest are small
 enough to state in full.
 
-## Next (not yet released)
+## [0.8.0] — 2026-09-28
+
+**The ticket lane shows time spent and pull requests, and can hide statuses.**
 
 ### Added
 

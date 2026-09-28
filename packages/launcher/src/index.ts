@@ -12,7 +12,7 @@
  * entry behind when either fails.
  */
 
-export const LAUNCHER_VERSION = '0.7.0'
+export const LAUNCHER_VERSION = '0.8.0'
 
 export { abiMismatch, probeRuntime, type AbiCheck, type ProbeIo, type RuntimeIdentity } from './abi.js'
 export {
