@@ -17,7 +17,7 @@ type Method = (input?: unknown) => Promise<BridgeResult>
 
 export interface Bridge {
   readonly [namespace: string]: unknown
-  open(request: { subjectKey: string; target?: string }): Promise<BridgeResult>
+  open(request: { subjectKey: string; target?: string; pullRequest?: number }): Promise<BridgeResult>
   /**
    * Store a provider credential. Not an operation — see `shared/channels.ts`.
    * Write-only: there is no counterpart that reads a secret back out.
@@ -229,12 +229,20 @@ export async function copyPrompt(id: string): Promise<{ length: number }> {
   return { length: result.data.length }
 }
 
-export async function openSubject(subjectKey: string, target?: string): Promise<void> {
+export async function openSubject(
+  subjectKey: string,
+  target?: string,
+  pullRequest?: number,
+): Promise<void> {
   const bridge = window.grndctrl
   if (bridge === undefined) {
     throw new BridgeError('invalid', 'The application bridge is not available.')
   }
 
-  const result = await bridge.open(target === undefined ? { subjectKey } : { subjectKey, target })
+  const result = await bridge.open({
+    subjectKey,
+    ...(target === undefined ? {} : { target }),
+    ...(pullRequest === undefined ? {} : { pullRequest }),
+  })
   if (!result.ok) throw new BridgeError(result.error.code, result.error.message)
 }

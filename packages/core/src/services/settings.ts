@@ -34,6 +34,9 @@ export const DEFAULT_SETTINGS: Settings = {
   // empty map is both "fresh install" and "everything open", which are the same
   // board.
   collapsedRegions: {},
+  // Every status shown. Same reasoning as the map above: only what is hidden is
+  // stored, so empty is both a fresh install and "show everything".
+  hiddenStatuses: [],
 }
 
 const geometrySchema = z.object({
@@ -80,6 +83,17 @@ export const settingsSchema = z.object({
    * nothing.
    */
   collapsedRegions: z.record(z.boolean()),
+  /**
+   * Status names the ticket lane hides, as the tracker spells them.
+   *
+   * Names rather than categories, because the operator is choosing between the
+   * columns they see — "In Review" and "In Progress" are both `indeterminate`.
+   * Free strings for the reason `collapsedRegions` takes any key: core does not
+   * know which statuses a site has, and a status that was renamed is a harmless
+   * leftover rather than a settings row that fails to parse. Like that key, it
+   * needs no migration.
+   */
+  hiddenStatuses: z.array(z.string().min(1).max(200)).max(200),
 })
 
 export interface SettingsStore {

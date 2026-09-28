@@ -6,6 +6,7 @@ import type {
   Connection,
   FailureReason,
   FreshnessRecord,
+  PullRequestLink,
   ResourceKind,
   Ticket,
   ViewerIdentity,
@@ -130,6 +131,8 @@ export function mirrorRepository(db: Database): MirrorRepository {
       'story_points',
       'sprint',
       'fix_versions',
+      'time_spent',
+      'pull_requests',
       'description',
       'created_at',
       'updated_at',
@@ -152,6 +155,9 @@ export function mirrorRepository(db: Database): MirrorRepository {
       t.storyPoints,
       t.sprint,
       JSON.stringify(t.fixVersions),
+      t.timeSpentSeconds,
+      // `null` and `'[]'` differ here too: could not look, versus none.
+      t.pullRequests === null ? null : JSON.stringify(t.pullRequests),
       // `null` and `'[]'` are different rows on purpose: no description at all,
       // versus one that is empty. See the migration.
       t.description === null ? null : JSON.stringify(t.description),
@@ -227,6 +233,9 @@ export function mirrorRepository(db: Database): MirrorRepository {
         sprint: nullableString(r['sprint']),
         // Null before migration 6 and `[]` after it read the same: none known.
         fixVersions: stringArray(json<unknown>(r['fix_versions'], null)),
+        timeSpentSeconds: nullableNumber(r['time_spent']),
+        // Null before migration 7, or after a lookup that failed: unknown.
+        pullRequests: pullRequestLinks(json<unknown>(r['pull_requests'], null)),
         // A row written before migration 5, or a ticket with no description at
         // all, reads as `null`. A malformed one also reads as `null` rather than
         // throwing: this is a cache, and a description that cannot be parsed
@@ -342,6 +351,33 @@ function nullableString(v: unknown): string | null {
 /** A parsed JSON array of strings, or `[]` for null, malformed, or anything else. */
 function stringArray(parsed: unknown): string[] {
   return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+}
+
+/**
+ * Stored pull request links, or `null` when there is no array to read.
+ *
+ * Entries that lost a field are dropped rather than repaired: this is a cache,
+ * and a link with no URL is one the row could draw and nothing could open.
+ */
+function pullRequestLinks(parsed: unknown): PullRequestLink[] | null {
+  if (!Array.isArray(parsed)) return null
+
+  return parsed.flatMap((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const e = entry as Partial<Record<keyof PullRequestLink, unknown>>
+    if (typeof e.url !== 'string' || typeof e.label !== 'string') return []
+
+    return [
+      {
+        number: typeof e.number === 'number' ? e.number : null,
+        label: e.label,
+        url: e.url,
+        state:
+          e.state === 'open' || e.state === 'merged' || e.state === 'declined' ? e.state : 'unknown',
+        repository: typeof e.repository === 'string' ? e.repository : null,
+      },
+    ]
+  })
 }
 
 function nullableNumber(v: unknown): number | null {

@@ -19,19 +19,26 @@ import { naturalKeySchema } from './schemas.js'
  *
  * **`target` lost four of its seven members** with the code host and the local
  * checkout. They are enumerated in the schema rather than left open, so a caller
- * asking for `pull-request` gets a validation error naming the targets that do
- * exist. Falling back to the ticket would answer that caller, wrongly, in a way
- * it could not detect.
+ * asking for `branch` gets a validation error naming the targets that do exist.
+ * Falling back to the ticket would answer that caller, wrongly, in a way it
+ * could not detect. `pull-request` came back with the ticket lane's PR column,
+ * as a ticket's linked pull request read through Jira; see `services/links.ts`.
  */
 export function linksOperations(services: CoreServices): Operation<never, never>[] {
   const ops = [
     defineOperation({
       name: 'links.resolve',
       description:
-        'Resolve a subject to the https URL it opens: a ticket, a project board, or a project’s documentation link. Refuses any other scheme.',
+        'Resolve a subject to the https URL it opens: a ticket, one of a ticket’s linked pull requests, a project board, or a project’s documentation link. Refuses any other scheme.',
       input: z.object({
         subjectKey: naturalKeySchema,
-        target: z.enum(['default', 'ticket', 'documentation']).optional(),
+        target: z.enum(['default', 'ticket', 'documentation', 'pull-request']).optional(),
+        /**
+         * Which linked pull request, by position in the ticket's list, for
+         * `pull-request`. A position rather than a URL so the caller still names
+         * no destination — the URL comes from the mirror, as every other one does.
+         */
+        pullRequest: z.number().int().min(0).max(99).optional(),
       }),
       output: z.object({
         url: z.string().url(),
@@ -52,11 +59,16 @@ export function linksOperations(services: CoreServices): Operation<never, never>
         // Defaulted here rather than in the schema: a Zod `.default()` makes the
         // inferred input type optional in a way that fights the operation's own
         // type parameters, and the coalesce reads the same.
-        resolveLink(input.subjectKey, input.target ?? 'default', {
-          tickets: services.mirror.listTickets(),
-          projects: services.projects.list(),
-          connections: services.mirror.listConnections(),
-        }),
+        resolveLink(
+          input.subjectKey,
+          input.target ?? 'default',
+          {
+            tickets: services.mirror.listTickets(),
+            projects: services.projects.list(),
+            connections: services.mirror.listConnections(),
+          },
+          input.pullRequest ?? 0,
+        ),
     }),
   ]
 

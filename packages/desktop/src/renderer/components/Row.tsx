@@ -25,8 +25,9 @@ import type { SortColumn, SortState } from '../lanes/sort.js'
  * content sits in the grid beneath it as static text, and the badge sits above
  * it. Nothing about the row's appearance or keyboard behaviour changes.
  *
- * **Four slots are opt-in, and that is a departure worth naming.** Release,
- * sprint, priority and story points exist on a ticket and nowhere else. Every
+ * **Six slots are opt-in, and that is a departure worth naming.** Release,
+ * sprint, priority, story points, logged time and pull requests exist on a
+ * ticket and nowhere else. Every
  * other slot is unconditional because an empty one is a *fact* about that row;
  * these four would be a fact about the lane, and a column that can never hold
  * anything is noise rather than absence. So a lane either has them for all its
@@ -88,8 +89,17 @@ export interface RowProps {
         sprint: string | null
         priority: string | null
         points: number | null
+        /** Seconds. Null is nothing logged; `0` is logged and deleted, and shows. */
+        logged: number | null
+        /** Null is "could not look", `[]` is "none". Both are the placeholder. */
+        pullRequests: readonly { label: string; state: string; repository: string | null }[] | null
       }
     | undefined
+  /**
+   * Opens the linked pull request at that position. The row never holds the URL
+   * it opens — see `launch.ts`.
+   */
+  onOpenPullRequest?: ((index: number) => void) | undefined
   /**
    * Notes on **this row's own subject** (T150).
    *
@@ -127,6 +137,28 @@ function Absent(): ReactElement {
 }
 
 /**
+ * Seconds as hours, to a tenth: `1.5h`, `8h`, `0h`.
+ *
+ * Hours because that is what the operator asked to see and what a timesheet is
+ * written in. A tenth because a quarter-hour worklog should not read as nothing
+ * — `0.3h` for fifteen minutes — and more precision than that is noise in a
+ * column read at a glance. The exact figure is in the cell's `title`.
+ */
+export function formatHours(seconds: number): string {
+  const hours = Math.round((seconds / 3600) * 10) / 10
+  return `${hours}h`
+}
+
+/** `1h 30m`, `45m`, `0m` — the exact form, for the title. */
+function exactDuration(seconds: number): string {
+  const minutes = Math.round(seconds / 60)
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h === 0) return `${m}m`
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
+/**
  * The column headings, on the row's own grid (T134).
  *
  * A separate component rather than a `<th>` row, because the lane is not a
@@ -159,8 +191,14 @@ export interface RowHeadingsProps {
   identifier: string
   title: string
   status: string
-  /** Draws the three ticket-only headings. Must match the rows' `metrics`. */
+  /** Draws the ticket-only headings. Must match the rows' `metrics`. */
   metrics?: boolean
+  /**
+   * Drawn inside the Status heading, after its sort control: the show/hide
+   * dropdown. A slot rather than props so this file stays ignorant of how the
+   * lane filters.
+   */
+  statusFilter?: ReactNode
   /**
    * What this lane can be sorted by, and how it currently is.
    *
@@ -182,6 +220,7 @@ export function RowHeadings({
   title,
   status,
   metrics = false,
+  statusFilter,
   sort,
 }: RowHeadingsProps): ReactElement {
   /**
@@ -193,8 +232,10 @@ export function RowHeadings({
    * heading that moved its class onto an inner span would keep looking right and
    * stop being checked.
    */
-  const heading = (column: SortColumn, label: string): ReactElement => {
-    const className = `row__${column === 'identifier' ? 'id' : column}`
+  const heading = (column: SortColumn, label: string, slot = true): ReactElement => {
+    // `slot` false is for a heading nested inside a wrapper that carries the
+    // track's class itself — the Status heading, when it has a filter beside it.
+    const className = slot ? `row__${column === 'identifier' ? 'id' : column}` : ''
 
     if (sort === undefined || !sort.columns.includes(column)) {
       return (
@@ -209,7 +250,7 @@ export function RowHeadings({
     return (
       <button
         type="button"
-        className={`${className} lane__sort`}
+        className={`${className} lane__sort`.trim()}
         data-sorted={active ?? 'no'}
         onClick={() => sort.onSort(column)}
         // Spelled out rather than left to `aria-sort`, which needs a real
@@ -244,13 +285,25 @@ export function RowHeadings({
       {heading('identifier', identifier)}
       {heading('title', title)}
       {metrics && heading('release', 'Release')}
-      {heading('status', status)}
+
+      {/* The track's class moves to a wrapper when the filter is present, so
+          the alignment tests still find `.row__status` on the outermost cell. */}
+      {statusFilter === undefined ? (
+        heading('status', status)
+      ) : (
+        <span className="row__status lane__status-head">
+          {heading('status', status, false)}
+          {statusFilter}
+        </span>
+      )}
 
       {metrics && (
         <>
           {heading('sprint', 'Sprint')}
           {heading('priority', 'Priority')}
           {heading('points', 'Points')}
+          {heading('logged', 'Logged')}
+          {heading('pr', 'PR')}
         </>
       )}
 
@@ -273,6 +326,7 @@ export function Row({
   project,
   status,
   metrics,
+  onOpenPullRequest,
   noteCount,
   hasOpenQuestion,
   onOpenNotes,
@@ -375,6 +429,60 @@ export function Row({
             title={metrics.points === null ? 'Not estimated' : `${metrics.points} story points`}
           >
             {metrics.points === null ? <Absent /> : metrics.points}
+          </span>
+
+          {/*
+            Beside the points, where the operator asked for it: the estimate and
+            what has been spent against it, read across. Same rule as points —
+            only null is the placeholder.
+          */}
+          <span
+            className="row__logged"
+            title={metrics.logged === null ? 'Nothing logged' : `Logged: ${exactDuration(metrics.logged)}`}
+          >
+            {metrics.logged === null ? <Absent /> : formatHours(metrics.logged)}
+          </span>
+
+          {/*
+            Each linked pull request as its number, and each number opens that
+            pull request. Buttons rather than anchors because the row holds no
+            URL — main resolves the position through `links.resolve`, as it does
+            for the row itself. Above `.row__open` like the note badge, and the
+            click stopped for the same reason: without it the operator gets the
+            pull request *and* the ticket.
+          */}
+          <span
+            className="row__pr"
+            title={
+              metrics.pullRequests === null
+                ? 'Pull requests unknown — Jira could not be asked'
+                : metrics.pullRequests.length === 0
+                  ? 'No linked pull request'
+                  : metrics.pullRequests
+                      .map((p) => `${p.label} ${p.state}${p.repository === null ? '' : ` · ${p.repository}`}`)
+                      .join('\n')
+            }
+          >
+            {metrics.pullRequests === null || metrics.pullRequests.length === 0 ? (
+              <Absent />
+            ) : (
+              metrics.pullRequests.map((pr, index) => (
+                <button
+                  key={`${index}:${pr.label}`}
+                  type="button"
+                  className="row__pr-link"
+                  data-state={pr.state}
+                  disabled={onOpenPullRequest === undefined}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onOpenPullRequest?.(index)
+                  }}
+                  aria-label={`Open pull request ${pr.label}, ${pr.state}${pr.repository === null ? '' : `, in ${pr.repository}`}`}
+                >
+                  {pr.label}
+                </button>
+              ))
+            )}
           </span>
         </>
       )}

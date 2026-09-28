@@ -90,6 +90,23 @@ export function writeLargeBoard(projectCount = 6, itemCount = 200): LargeBoard {
       sprint: ['Sprint 12', 'Sprint 13', null][i % 3] ?? null,
       // Some rows with two releases, so the wide cell is measured too.
       fixVersions: [['2026.09'], ['2026.09', '2026.10'], []][i % 3] ?? [],
+      // Logged time and pull requests on their own cycles, with gaps, for the
+      // same reason as everything above.
+      timeSpentSeconds: [5400, 28800, null, 0][i % 4] ?? null,
+      pullRequests:
+        i % 4 === 0
+          ? null
+          : i % 4 === 1
+            ? []
+            : [
+                {
+                  number: 400 + i,
+                  label: `#${400 + i}`,
+                  url: `https://github.example/acme/mercury/pull/${400 + i}`,
+                  state: 'open',
+                  repository: 'acme/mercury',
+                },
+              ],
       createdAt: 'now-40d',
       updatedAt: activity,
       lastRealActivityAt: activity,

@@ -159,20 +159,22 @@ body {
 }
 
 /*
- * Release before status, then sprint, priority and points after it — all facts
- * about the ticket. The sequence is stale, project, id, title, release, status,
- * sprint, priority, points, trailing, severity. Court left on 2026-08-20 and
- * the Agent column in 0.7.0.
+ * Release before status, then sprint, priority, points, logged and PR after it —
+ * all facts about the ticket. The sequence is stale, project, id, title,
+ * release, status, sprint, priority, points, logged, pr, trailing, severity.
+ * Court left on 2026-08-20 and the Agent column in 0.7.0.
  */
 .lane[data-metrics='true'] {
-  /* Priority and points are wider here than the values in them need, and that
-     is the sort caret's doing: it sits inside the heading's own track, so a
-     column sized to `POINTS` renders `POI…▼` the moment it becomes the sorted
-     one — the heading going unreadable exactly when it is the one being read.
-     Release is 110px: `2026.09, 2026.10` ellipsises, and the full list is in
-     the cell's `title`. */
-  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 110px 92px 88px 80px 58px
-    var(--trailing-w) var(--mark-w);
+  /* Priority, points and logged are wider here than the values in them need,
+     and that is the sort caret's doing: it sits inside the heading's own track,
+     so a column sized to `POINTS` renders `POI…▼` the moment it becomes the
+     sorted one — the heading going unreadable exactly when it is the one being
+     read. Release is 110px: `2026.09, 2026.10` ellipsises, and the full list is
+     in the cell's `title`. Status is 104px, up from 92px, to hold the filter
+     trigger beside its label. PR is 72px, which fits `#12345` and the heading's
+     caret; a second pull request ellipsises and is listed in the `title`. */
+  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 110px 104px 88px 80px 58px 62px
+    72px var(--trailing-w) var(--mark-w);
 }
 
 /*
@@ -324,13 +326,69 @@ body {
 }
 
 /* Right-aligned and tabular, so a column of estimates can be read down rather
-   than across. */
-.row__points {
+   than across. Logged sits beside points and reads the same way, one weight
+   lighter so the estimate stays the figure the eye lands on. */
+.row__points,
+.row__logged {
   font-size: var(--t-meta);
   color: var(--ink-2);
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+.row__logged {
+  font-weight: 400;
+}
+
+/*
+ * The pull request numbers. Above `.row__open` for the note badge's reason, and
+ * clipped rather than wrapped: a second or third number ellipsises and the whole
+ * list is in the cell's `title`.
+ */
+.row__pr {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--t-meta);
+  position: relative;
+  z-index: 1;
+}
+
+.row__pr-link {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.row__pr-link:hover {
+  text-decoration: underline;
+}
+
+.row__pr-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Done with, but still worth a click: quieter than an open one, not hidden. */
+.row__pr-link[data-state='merged'],
+.row__pr-link[data-state='unknown'] {
+  color: var(--ink-2);
+}
+
+.row__pr-link[data-state='declined'] {
+  color: var(--ink-3);
+  text-decoration: line-through;
 }
 
 /* Where a value would be. Quiet enough not to be mistaken for one, present
@@ -409,10 +467,139 @@ body {
   cursor: pointer;
 }
 
-/* The one right-aligned track. Its heading sits over numbers, so the flex box
+/* The right-aligned tracks. Their headings sit over numbers, so the flex box
    has to push its content to the same edge the numbers are on. */
-.lane__sort.row__points {
+.lane__sort.row__points,
+.lane__sort.row__logged {
   justify-content: flex-end;
+}
+
+/*
+ * The Status heading when it carries the filter: the sort control, then the
+ * trigger. The sort control shrinks and ellipsises; the trigger never does.
+ */
+.lane__status-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  /* It also carries `.row__status`, whose `overflow: hidden` would clip the
+     menu to this cell — which it did, with every test passing. The label
+     ellipsises on its own (`.lane__sort-label`), so nothing here needs it. */
+  overflow: visible;
+}
+
+.status-filter {
+  position: relative;
+  flex: none;
+}
+
+.status-filter__trigger {
+  margin: 0;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.status-filter__trigger:hover {
+  color: var(--ink-2);
+  background: var(--surface);
+}
+
+.status-filter__trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* On whenever anything is hidden — a shorter lane with no sign of why reads as
+   a sync that lost tickets. */
+.status-filter__trigger[data-active='true'] {
+  color: var(--accent);
+}
+
+/*
+ * The menu. It sits inside the heading row, so it undoes everything that row
+ * sets on its text: the uppercase, the tracking, the weight.
+ */
+.status-filter__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+
+.status-filter__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.status-filter__option:hover {
+  background: var(--sunken);
+}
+
+.status-filter__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-filter__count {
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-filter__all {
+  margin: 4px 0 0;
+  padding: 4px 6px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+}
+
+.status-filter__all:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+/* Where the rows would be when the filter hides all of them. `<p>` margin
+   zeroed on the component, per the ticket history's lesson. */
+.lane__all-hidden {
+  margin: 0;
+  padding: 12px;
+  color: var(--ink-3);
+  font-size: var(--t-meta);
 }
 
 .lane__sort:hover {

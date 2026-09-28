@@ -56,6 +56,8 @@ function ticket(url: string): Ticket {
     storyPoints: null,
     sprint: null,
     fixVersions: [],
+    timeSpentSeconds: null,
+    pullRequests: null,
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-10T00:00:00.000Z',
     lastRealActivityAt: null,
@@ -157,7 +159,7 @@ describe('a subject that can no longer be opened', () => {
       // be the *operation's* check rather than the service's: a caller reaching
       // the registry with `target: 'branch'` must be told that target does not
       // exist, whatever the service would have done with it.
-      for (const target of ['pull-request', 'repository', 'branch', 'check']) {
+      for (const target of ['repository', 'branch', 'check']) {
         await expect(
           t.registry.dispatch('links.resolve', { subjectKey: TICKET, target }, ctx),
         ).rejects.toThrow(/Invalid input/)
@@ -165,6 +167,66 @@ describe('a subject that can no longer be opened', () => {
     } finally {
       t.dispose()
     }
+  })
+})
+
+/**
+ * A ticket's linked pull request.
+ *
+ * The URL is Jira's development panel's, which makes it provider data like every
+ * other one here — so it goes through the same https check, and a ticket with no
+ * pull request is refused rather than answered with the ticket page.
+ */
+describe('a ticket’s pull request', () => {
+  const pr = (url: string, number: number) => ({
+    number,
+    label: `#${number}`,
+    url,
+    state: 'open' as const,
+    repository: 'acme/mercury',
+  })
+
+  const withPrs = (pullRequests: Ticket['pullRequests']): Ticket => ({
+    ...ticket('https://acme.atlassian.net/browse/MERC-1184'),
+    pullRequests,
+  })
+
+  it('opens the first linked pull request, or the one asked for', () => {
+    const t = withPrs([
+      pr('https://github.example/acme/mercury/pull/482', 482),
+      pr('https://github.example/acme/atlas/pull/17', 17),
+    ])
+
+    expect(resolveLink(TICKET, 'pull-request', sources({ tickets: [t] })).url).toBe(
+      'https://github.example/acme/mercury/pull/482',
+    )
+    expect(resolveLink(TICKET, 'pull-request', sources({ tickets: [t] }), 1).url).toBe(
+      'https://github.example/acme/atlas/pull/17',
+    )
+  })
+
+  it('refuses rather than opening the ticket when there is nothing to open', () => {
+    for (const pullRequests of [null, []]) {
+      expect(() =>
+        resolveLink(TICKET, 'pull-request', sources({ tickets: [withPrs(pullRequests)] })),
+      ).toThrow(/pull request/)
+    }
+    expect(() =>
+      resolveLink(TICKET, 'pull-request', sources({ tickets: [withPrs([pr('https://x.example/pull/1', 1)])] }), 3),
+    ).toThrow()
+  })
+
+  it('refuses a hostile pull request URL', () => {
+    for (const raw of HOSTILE) {
+      expect(() =>
+        resolveLink(TICKET, 'pull-request', sources({ tickets: [withPrs([pr(raw, 1)])] })),
+      ).toThrow()
+    }
+  })
+
+  it('is only a ticket’s — a project or a pr: key is refused', () => {
+    expect(() => resolveLink('project:p1', 'pull-request', sources({}))).toThrow()
+    expect(() => resolveLink(PULL, 'pull-request', sources({}))).toThrow()
   })
 })
 

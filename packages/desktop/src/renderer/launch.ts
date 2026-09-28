@@ -45,3 +45,21 @@ export async function launch(
     onFailure?.(e instanceof Error ? e.message : 'That link could not be opened.')
   }
 }
+
+/**
+ * Open one of a ticket's linked pull requests, by its position in the list.
+ *
+ * A position, not a URL, for the reason at the top of this file: the renderer
+ * names what it wants and main decides where that is.
+ */
+export async function launchPullRequest(
+  ticketKey: string,
+  index: number,
+  onFailure?: (message: string) => void,
+): Promise<void> {
+  try {
+    await openSubject(ticketKey, 'pull-request', index)
+  } catch (e) {
+    onFailure?.(e instanceof Error ? e.message : 'That pull request could not be opened.')
+  }
+}

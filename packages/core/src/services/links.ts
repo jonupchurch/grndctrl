@@ -21,7 +21,13 @@ import { invalid, notFound } from '../registry/errors.js'
  * handed the ticket page has been answered, wrongly, in a way it cannot detect.
  */
 
-export type LinkTarget = 'default' | 'ticket' | 'documentation'
+/**
+ * `pull-request` is back, and means something narrower than it did. It was a
+ * pull request *subject*, read from GitHub; it is now a pull request **of a
+ * ticket**, as Jira's development panel links it. A `pr:` key still resolves to
+ * nothing — only a ticket carries these.
+ */
+export type LinkTarget = 'default' | 'ticket' | 'documentation' | 'pull-request'
 
 export interface LinkSources {
   tickets: readonly Ticket[]
@@ -58,9 +64,21 @@ export function resolveLink(
   subjectKey: string,
   target: LinkTarget,
   sources: LinkSources,
+  /** Which of the ticket's pull requests, for `pull-request`. The first by default. */
+  pullRequest = 0,
 ): { url: string; fellBack: boolean } {
   const kind = subjectKindOf(subjectKey)
   if (kind === null) throw invalid(`'${subjectKey}' is not a subject key.`)
+
+  if (target === 'pull-request') {
+    // Never a fallback to the ticket: a caller that asked for the pull request
+    // and got Jira has been answered wrongly in a way it cannot detect.
+    if (kind !== 'ticket') throw notFound('Only a ticket has linked pull requests.')
+    const ticket = sources.tickets.find((t) => t.key === subjectKey)
+    const url = safeExternalUrl(ticket?.pullRequests?.[pullRequest]?.url)
+    if (url === null) throw notFound('That ticket has no usable pull request link.')
+    return { url, fellBack: false }
+  }
 
   if (kind === 'project') return resolveProject(subjectKey, target, sources)
 
@@ -118,7 +136,7 @@ export function resolveLink(
  */
 function resolveProject(
   subjectKey: string,
-  target: LinkTarget,
+  target: Exclude<LinkTarget, 'pull-request'>,
   sources: LinkSources,
 ): { url: string; fellBack: boolean } {
   const id = subjectKey.slice('project:'.length)

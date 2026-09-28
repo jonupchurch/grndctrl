@@ -134,6 +134,8 @@ describe('the ticket history', () => {
         storyPoints: null,
         sprint: null,
         fixVersions: [],
+        timeSpentSeconds: null,
+        pullRequests: null,
         description: null,
         createdAt: '2026-08-01T00:00:00.000Z',
         updatedAt: '2026-08-01T00:00:00.000Z',

@@ -12,6 +12,30 @@ detail** instead: the first is a removal, and what an upgrader needs is the list
 of what is gone rather than a sentence saying a lot is; the rest are small
 enough to state in full.
 
+## Next (not yet released)
+
+### Added
+
+- **A Logged column beside Points**, showing the time logged on the ticket in
+  hours (`5.5h`), from Jira's `timespent` — the ticket's own worklogs, not its
+  sub-tasks'. The exact figure is in the tooltip. Nothing logged is a dash.
+- **A PR column**, showing the number of each pull request Jira's development
+  panel links to the ticket. Clicking a number opens that pull request. Open
+  ones come first; merged ones are quieter and declined ones struck through.
+
+  The pull requests come from Jira's `dev-status` endpoint, which Atlassian's
+  own UI uses and does not document. It costs one request per ticket that has
+  pull requests, and one more per ticket on a site with no development field.
+  If the lookup fails the ticket still shows, with a dash whose tooltip says the
+  pull requests are unknown rather than none.
+- **A show/hide dropdown on the Status heading.** It lists the statuses on the
+  lane with their counts; unchecking one hides those tickets. The lane header
+  says how many are hidden, and the choice is saved. The tiles above still count
+  every ticket.
+
+**This runs a mirror migration** (mirror 6 → 7, two nullable columns). Tickets
+synced before it show dashes in both new columns until the next sync.
+
 ## [0.7.0] — 2026-09-15
 
 **The ticket lane shows the release, not the agent.** Two changes to the ticket

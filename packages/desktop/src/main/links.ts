@@ -23,6 +23,8 @@ import { linksIn, type DocNode } from '@grndctrl/core'
 export interface OpenRequest {
   subjectKey: string
   target?: string | undefined
+  /** Which of a ticket's linked pull requests, for `pull-request`. A position, never a URL. */
+  pullRequest?: number | undefined
 }
 
 export interface OpenResult {
@@ -42,6 +44,9 @@ export function linkOpener(options: LinkOpenerOptions) {
     const resolved = (await options.dispatch('links.resolve', {
       subjectKey: request.subjectKey,
       ...(request.target === undefined ? {} : { target: request.target }),
+      // Passed through as sent. `links.resolve` validates it as a small
+      // non-negative integer, so a hostile value is refused there, not here.
+      ...(request.pullRequest === undefined ? {} : { pullRequest: request.pullRequest }),
     })) as OpenResult
 
     if (!isHttps(resolved.url)) {

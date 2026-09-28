@@ -57,6 +57,8 @@ const ticket = (over: Partial<Ticket> & { issueKey: string }): Ticket => ({
   storyPoints: null,
   sprint: null,
   fixVersions: [],
+  timeSpentSeconds: null,
+  pullRequests: null,
   description: null,
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-08-10T00:00:00Z',
@@ -157,6 +159,7 @@ describe('upgrading a mirror that predates the columns', () => {
       '4_remove-code-host-and-local-git',
       '5_ticket-description',
       '6_ticket-fix-versions',
+      '7_ticket-time-and-pull-requests',
     ])
     opened.db.close()
   })
@@ -190,7 +193,54 @@ describe('upgrading a mirror that predates the columns', () => {
     // ticket they have ever synced has an empty description.
     expect(row?.description).toBeNull()
     expect(row?.fixVersions).toEqual([])
+    // Nothing logged, and pull requests not yet looked for — not "none".
+    expect(row?.timeSpentSeconds).toBeNull()
+    expect(row?.pullRequests).toBeNull()
     opened.db.close()
+  })
+})
+
+describe('storing logged time and pull requests', () => {
+  const roundTrip = (tickets: readonly Ticket[]): Ticket[] => {
+    const opened = openMirror({ dir })
+    connect(opened.db)
+    const repo = mirrorRepository(opened.db)
+    repo.replaceTickets('c1', tickets)
+    const read = repo.listTickets()
+    opened.db.close()
+    return read
+  }
+
+  it('keeps zero logged time apart from none', () => {
+    const rows = roundTrip([
+      ticket({ issueKey: 'MERC-1', timeSpentSeconds: 0 }),
+      ticket({ issueKey: 'MERC-2', timeSpentSeconds: null }),
+      ticket({ issueKey: 'MERC-3', timeSpentSeconds: 5400 }),
+    ])
+
+    expect(rows.find((r) => r.issueKey === 'MERC-1')?.timeSpentSeconds).toBe(0)
+    expect(rows.find((r) => r.issueKey === 'MERC-2')?.timeSpentSeconds).toBeNull()
+    expect(rows.find((r) => r.issueKey === 'MERC-3')?.timeSpentSeconds).toBe(5400)
+  })
+
+  // The same distinction as the description's: `[]` is "Jira says none" and
+  // `null` is "the lookup failed". A store that collapsed them would draw a
+  // failed lookup as a ticket with no pull request.
+  it('round-trips pull requests in order, and tells none from unknown', () => {
+    const prs: Ticket['pullRequests'] = [
+      { number: 482, label: '#482', url: 'https://github.example/acme/mercury/pull/482', state: 'open', repository: 'acme/mercury' },
+      { number: null, label: 'abc', url: 'https://git.example/acme/pr/abc', state: 'unknown', repository: null },
+    ]
+
+    const rows = roundTrip([
+      ticket({ issueKey: 'MERC-1', pullRequests: prs }),
+      ticket({ issueKey: 'MERC-2', pullRequests: [] }),
+      ticket({ issueKey: 'MERC-3', pullRequests: null }),
+    ])
+
+    expect(rows.find((r) => r.issueKey === 'MERC-1')?.pullRequests).toEqual(prs)
+    expect(rows.find((r) => r.issueKey === 'MERC-2')?.pullRequests).toEqual([])
+    expect(rows.find((r) => r.issueKey === 'MERC-3')?.pullRequests).toBeNull()
   })
 })
 

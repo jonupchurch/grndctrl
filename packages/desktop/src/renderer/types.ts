@@ -71,6 +71,13 @@ export type Ticket = Pick<
   | 'sprint'
   // Fix version names, drawn in the Release column. Empty is a placeholder.
   | 'fixVersions'
+  // Seconds logged, drawn as hours in the Logged column. Null is nothing logged.
+  | 'timeSpentSeconds'
+  // Linked pull requests, drawn in the PR column. Null is "could not look" and
+  // `[]` is "none"; both are placeholders, with different titles. The URLs ride
+  // along and are never opened from here — `launch` names a position, and main
+  // resolves it through `links.resolve`.
+  | 'pullRequests'
   // Already converted, at ingest, in the provider. The renderer never sees
   // Atlassian Document Format and never sees markup — see `domain/adf.ts` and
   // `components/Document.tsx`.

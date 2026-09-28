@@ -323,4 +323,25 @@ export const MIRROR_MIGRATIONS: readonly Migration[] = [
       ALTER TABLE tickets ADD COLUMN fix_versions TEXT;
     `,
   },
+  {
+    version: 7,
+    name: 'ticket-time-and-pull-requests',
+    /**
+     * Logged time and linked pull requests, for the ticket lane's Logged and PR
+     * columns.
+     *
+     * Its own migration for the same reason as every one above it: an installed
+     * 0.7.0 has a `mirror.db` at version 6 on disk.
+     *
+     * Both nullable, no default, and `NULL` means something different in each.
+     * `time_spent` is seconds and `NULL` is "nothing logged", which is Jira's
+     * own answer. `pull_requests` is a JSON array and `NULL` is "could not look"
+     * — a row written before this migration reads back that way, which is true:
+     * nobody has looked yet. The next sync fills both in.
+     */
+    up: `
+      ALTER TABLE tickets ADD COLUMN time_spent INTEGER;
+      ALTER TABLE tickets ADD COLUMN pull_requests TEXT;
+    `,
+  },
 ]

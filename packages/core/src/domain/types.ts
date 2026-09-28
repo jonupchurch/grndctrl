@@ -144,6 +144,32 @@ export interface Ticket {
    */
   fixVersions: string[]
   /**
+   * Time logged against the ticket, in seconds — Jira's `timespent`.
+   *
+   * A system field, so there is nothing to resolve per site. The ticket's own
+   * worklogs only: `aggregatetimespent` would add its sub-tasks, and a lane of
+   * the operator's own assigned tickets usually has the sub-tasks on it too, so
+   * the aggregate would count the same hours twice down the column.
+   *
+   * `null` is "nothing logged", which is what Jira sends — never `0`, which a
+   * ticket really can carry after a worklog is deleted.
+   */
+  timeSpentSeconds: number | null
+  /**
+   * The pull requests Jira's development panel links to this ticket.
+   *
+   * Read through Jira rather than from the code host, because 006 removed the
+   * GitHub provider: a company GitHub that refuses the API is the reason, and
+   * Jira's integration already holds the link. Ordered open first, then merged,
+   * then everything else, newest first within each.
+   *
+   * **`null` is "could not look" and `[]` is "none"**, and the two are kept apart
+   * on purpose. The lookup is a second request per ticket against an endpoint
+   * Atlassian does not document, and a failure there must not read as a ticket
+   * with no pull request on it.
+   */
+  pullRequests: PullRequestLink[] | null
+  /**
    * The description, already converted out of Atlassian Document Format.
    *
    * **Converted at ingest and stored converted** (007/T124). Jira returns this
@@ -171,6 +197,18 @@ export interface Ticket {
   lastStatusChangeAt: Timestamp | null
   url: string
   fetchedAt: Timestamp
+}
+
+/** One pull request linked to a ticket, as Jira's development panel reports it. */
+export interface PullRequestLink {
+  /** The number the code host gave it. `null` when neither the id nor the URL carried one. */
+  number: number | null
+  /** What the row shows: `#482`, or the provider's own id when there is no number. */
+  label: string
+  /** Stored as sent. Only `links.resolve` turns it into something that opens. */
+  url: string
+  state: 'open' | 'merged' | 'declined' | 'unknown'
+  repository: string | null
 }
 
 export type ActivityAuthorKind = 'human' | 'bot' | 'automation'
@@ -462,6 +500,8 @@ export interface Settings {
    * only `BrowserWindow.setAlwaysOnTop` can.
    */
   alwaysOnTop: boolean
+  /** Status names the ticket lane hides. Empty shows every status. */
+  hiddenStatuses: string[]
   /**
    * Which regions of the board the operator has folded away (FR-143).
    *

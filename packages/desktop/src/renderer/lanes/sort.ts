@@ -45,6 +45,8 @@ export type SortColumn =
   | 'sprint'
   | 'priority'
   | 'points'
+  | 'logged'
+  | 'pr'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -77,6 +79,8 @@ export function sortableColumns<T>(accessors: SortAccessors<T>): SortColumn[] {
     'sprint',
     'priority',
     'points',
+    'logged',
+    'pr',
   ]
   return order.filter((column) => accessors[column] !== undefined)
 }

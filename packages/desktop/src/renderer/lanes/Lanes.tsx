@@ -4,7 +4,8 @@ import { LaneStatus } from '../components/LaneStatus.js'
 import { Section } from '../components/Section.js'
 import { Row, RowHeadings } from '../components/Row.js'
 import { paletteIndexOf } from '../components/ProjectChip.js'
-import { launch } from '../launch.js'
+import { StatusFilter } from '../components/StatusFilter.js'
+import { launch, launchPullRequest } from '../launch.js'
 import type { FreshnessView } from '../query.js'
 import type { Project, WorkItem } from '../types.js'
 import { identifierTrack, idTextMeasurer } from './idWidth.js'
@@ -72,6 +73,14 @@ interface LaneShellProps {
    * the ticket lane is the only place that sets either.
    */
   metrics?: boolean
+  /**
+   * Rows the status filter is holding back, and the control that does it.
+   *
+   * When every row is hidden the lane still draws its headings — the filter
+   * lives in one of them, and an empty state in their place would leave the
+   * operator with no way to undo it and a lane that says "No tickets".
+   */
+  statusFilter?: { hidden: number; control: ReactElement }
   /** The lane's sort state and the columns it can sort by. */
   sort: {
     state: SortState | null
@@ -93,11 +102,13 @@ function Lane({
   columns,
   identifiers,
   metrics = false,
+  statusFilter,
   sort,
   children,
   empty,
   now,
 }: LaneShellProps): ReactElement {
+  const hidden = statusFilter?.hidden ?? 0
   // Keyed on the contents rather than the array, which is rebuilt on every
   // render: the width is a fact about the strings, so re-measuring when the
   // same strings arrive in a new array is work with no result.
@@ -117,7 +128,9 @@ function Lane({
       // makes the same one for `--chip`.
       style={{ '--id-w': `${track}px` } as CSSProperties}
       count={count}
-      meta={threshold}
+      // Said in the header as well as on the trigger, because the header is
+      // what the eye checks when a lane looks shorter than it should.
+      meta={hidden === 0 ? threshold : `${threshold} · ${hidden} hidden by status`}
       status={
         <LaneStatus
           freshness={freshness}
@@ -128,12 +141,23 @@ function Lane({
     >
       {/* Only over rows. Headings above an empty state would label columns that
           are not there, which reads as a lane that failed to load. */}
-      {count === 0 ? (
+      {count === 0 && hidden === 0 ? (
         empty
       ) : (
         <>
-          <RowHeadings {...columns} metrics={metrics} sort={sort} />
-          {children}
+          <RowHeadings
+            {...columns}
+            metrics={metrics}
+            sort={sort}
+            {...(statusFilter === undefined ? {} : { statusFilter: statusFilter.control })}
+          />
+          {count === 0 ? (
+            <p className="lane__all-hidden">
+              All {hidden} ticket{hidden === 1 ? ' is' : 's are'} hidden by the status filter.
+            </p>
+          ) : (
+            children
+          )}
         </>
       )}
     </Section>
@@ -193,6 +217,16 @@ interface LaneProps {
   freshness: FreshnessView | null
   /** Absent while the counts are still loading; badges simply do not appear. */
   notes?: NotesAccess | undefined
+  /**
+   * The status filter: which status names are hidden, and how to change that.
+   * Absent draws no dropdown and hides nothing.
+   */
+  statuses?:
+    | {
+        hidden: ReadonlySet<string>
+        onChange(hidden: readonly string[]): void
+      }
+    | undefined
   now?: Date
 }
 
@@ -265,7 +299,7 @@ const slot = (
  * answer lives now.
  */
 
-export function Tickets({ items, projects, freshness, notes, now }: LaneProps): ReactElement {
+export function Tickets({ items, projects, freshness, notes, statuses, now }: LaneProps): ReactElement {
   // No `withTickets` filter, and no `?.` below. Every work item has a ticket
   // (FR-106), so both were guarding against a state the type no longer permits
   // — and a filter whose predicate is always true is a filter a future reader
@@ -286,19 +320,60 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
     // `priorityOrder`: it orders and never relabels.
     priority: (i) => priorityOrder(i.ticket.priority),
     points: (i) => i.ticket.storyPoints,
+    logged: (i) => i.ticket.timeSpentSeconds,
+    // By the first pull request's number: "which of mine have a PR up" is the
+    // question, and unknown and none both sort last, as every absence does.
+    pr: (i) => {
+      const first = i.ticket.pullRequests?.[0]
+      return first === undefined ? null : (first.number ?? first.label)
+    },
   })
+
+  /*
+   * The status filter narrows **after** the project chips and **inside** this
+   * lane only. The tiles above count the board, not this view of it — hiding
+   * "Done" is about what the operator wants in front of them, and a tile that
+   * dropped the hidden rows would make "stalled" mean "stalled among the ones
+   * I chose to look at".
+   */
+  const hidden = statuses?.hidden ?? new Set<string>()
+  const statusCounts = new Map<string, number>()
+  for (const item of items) {
+    statusCounts.set(item.ticket.statusName, (statusCounts.get(item.ticket.statusName) ?? 0) + 1)
+  }
+  const visible = hidden.size === 0 ? items : items.filter((i) => !hidden.has(i.ticket.statusName))
+
+  const statusFilter =
+    statuses === undefined
+      ? undefined
+      : {
+          hidden: items.length - visible.length,
+          control: (
+            <StatusFilter
+              statuses={[...statusCounts].map(([name, count]) => ({ name, count }))}
+              hidden={hidden}
+              onToggle={(name) =>
+                statuses.onChange(
+                  hidden.has(name) ? [...hidden].filter((n) => n !== name) : [...hidden, name],
+                )
+              }
+              onShowAll={() => statuses.onChange([])}
+            />
+          ),
+        }
 
   return (
     <Lane
       id="tickets"
       title="Tickets"
       threshold="stale past 3d"
-      count={items.length}
+      count={visible.length}
       freshness={freshness}
       resource="Tickets"
       columns={{ identifier: 'Ticket', title: 'Summary', status: 'Status' }}
       identifiers={items.map((item) => item.ticket.issueKey)}
       metrics
+      {...(statusFilter === undefined ? {} : { statusFilter })}
       sort={sort.props}
       {...(now === undefined ? {} : { now })}
       empty={
@@ -308,7 +383,7 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
         </EmptyState>
       }
     >
-      {sort.rows(items).map((item) => (
+      {sort.rows(visible).map((item) => (
         <Row
           key={item.key}
           identifier={item.ticket.issueKey}
@@ -325,7 +400,10 @@ export function Tickets({ items, projects, freshness, notes, now }: LaneProps): 
             sprint: item.ticket.sprint,
             priority: item.ticket.priority,
             points: item.ticket.storyPoints,
+            logged: item.ticket.timeSpentSeconds,
+            pullRequests: item.ticket.pullRequests,
           }}
+          onOpenPullRequest={(index) => void launchPullRequest(item.ticket.key, index)}
           {...slot(item.projectId, projects)}
           {...noteSlot(notes, item.ticket.key, item.ticket.issueKey)}
           {...(now === undefined ? {} : { now })}

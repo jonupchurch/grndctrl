@@ -1,6 +1,7 @@
 import { fromAdf } from '../../domain/adf.js'
 import { ticketKey } from '../../domain/keys.js'
 import type {
+  PullRequestLink,
   StatusCategory,
   Ticket,
   TicketActivity,
@@ -33,6 +34,13 @@ import type { TicketProvider } from '../seam.js'
  *   field's value. The site's field list is fetched **once** per provider
  *   instance and both ids are resolved from it; see `storyPointFieldId` and
  *   `sprintFieldId`.
+ *
+ *   **Pull requests come from an undocumented endpoint.** Jira's development
+ *   panel is fed by `/rest/dev-status/latest/issue/detail`, which Atlassian's
+ *   own UI calls and does not document. It is the only route left: 006 removed
+ *   the GitHub provider, and the company GitHub refuses the API anyway. So every
+ *   failure there becomes `pullRequests: null` on that one ticket — unknown,
+ *   never "none" and never a failed search. See `pullRequestsFor`.
  */
 
 export interface JiraOptions {
@@ -46,6 +54,15 @@ export interface JiraOptions {
 
 /** Issues per `changelog/bulkfetch` request. Atlassian's documented ceiling. */
 const CHANGELOG_BATCH = 100
+
+/**
+ * Tickets whose pull requests are looked up at once.
+ *
+ * The lookup is one or two requests per ticket, and a page is up to a hundred
+ * tickets. Serial would add seconds to every sync; unbounded would put a hundred
+ * requests on the wire at once against a site that rate-limits.
+ */
+const PULL_REQUEST_CONCURRENCY = 4
 
 interface JiraSearchResponse {
   issues?: JiraIssue[]
@@ -65,6 +82,8 @@ interface JiraIssue {
     reporter?: JiraUser | null
     priority?: { name?: string } | null
     fixVersions?: unknown
+    /** Seconds logged on this issue, not its sub-tasks. `null` when none. */
+    timespent?: unknown
     created?: string
     updated?: string
     /** Story points arrive under a `customfield_*` key that varies per site. */
@@ -85,10 +104,37 @@ interface JiraFieldDescriptor {
   schema?: { type?: string; custom?: string }
 }
 
-/** The two per-site custom field ids the ticket lane needs, or nothing. */
+/** The per-site custom field ids the ticket lane needs, or nothing. */
 interface CustomFieldIds {
   points: string | null
   sprint: string | null
+  /** The development summary, which says whether a ticket has pull requests at all. */
+  development: string | null
+}
+
+/**
+ * The `summary` object of a dev-status summary, in either place it arrives.
+ * Only the pull request half is read.
+ */
+export interface DevSummary {
+  pullrequest?: {
+    overall?: { count?: number }
+    /** Keyed by application type — `GitHub`, `githube`, `bitbucket` — which the detail call needs. */
+    byInstanceType?: Record<string, unknown>
+  }
+}
+
+export interface JiraDevDetailResponse {
+  errors?: unknown[]
+  detail?: {
+    pullRequests?: {
+      id?: string
+      url?: string
+      status?: string
+      repositoryName?: string
+      lastUpdate?: string
+    }[]
+  }[]
 }
 
 interface JiraUser {
@@ -145,9 +191,62 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
   const customFields = (): Promise<CustomFieldIds> => {
     fieldLookup ??= client
       .get<JiraFieldDescriptor[]>('/rest/api/3/field')
-      .then((fields) => ({ points: storyPointFieldId(fields), sprint: sprintFieldId(fields) }))
-      .catch(() => ({ points: null, sprint: null }))
+      .then((fields) => ({
+        points: storyPointFieldId(fields),
+        sprint: sprintFieldId(fields),
+        development: developmentFieldId(fields),
+      }))
+      .catch(() => ({ points: null, sprint: null, development: null }))
     return fieldLookup
+  }
+
+  /**
+   * One ticket's pull requests, or `null` when they could not be found out.
+   *
+   * Two steps, because the detail endpoint answers for one application type at a
+   * time and there is no fixed list of them — `GitHub`, `githube` for GitHub
+   * Enterprise, `bitbucket`, `gitlab`, whatever else a site has connected. The
+   * summary names the types that actually hold pull requests for this ticket.
+   *
+   * The summary usually arrives free, on the search, as the development field.
+   * When the site has no such field, or it came back in a shape this could not
+   * read, it is asked for directly — one extra request for that ticket rather
+   * than a guess at which types to try.
+   */
+  const pullRequestsFor = async (
+    issueId: string,
+    development: unknown,
+    developmentField: boolean,
+  ): Promise<PullRequestLink[] | null> => {
+    try {
+      let summary: DevSummary | null | undefined = developmentField
+        ? devSummaryFromField(development)
+        : undefined
+      if (summary === undefined) {
+        const response = await client.get<{ summary?: DevSummary }>(
+          '/rest/dev-status/latest/issue/summary',
+          { issueId },
+        )
+        summary = response.summary ?? null
+      }
+      // Asked and answered with nothing to read: unknown, not none.
+      if (summary === null) return null
+
+      const types = Object.keys(summary.pullrequest?.byInstanceType ?? {})
+      if ((summary.pullrequest?.overall?.count ?? 0) === 0 || types.length === 0) return []
+
+      const found: FoundPullRequest[] = []
+      for (const applicationType of types) {
+        const detail = await client.get<JiraDevDetailResponse>(
+          '/rest/dev-status/latest/issue/detail',
+          { issueId, applicationType, dataType: 'pullrequest' },
+        )
+        found.push(...toPullRequests(detail))
+      }
+      return orderPullRequests(found)
+    } catch {
+      return null
+    }
   }
 
   return {
@@ -176,6 +275,8 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
           'priority',
           // A system field like `description`, with a fixed id on every site.
           'fixVersions',
+          // Also a system field. Seconds, and this issue's own worklogs only.
+          'timespent',
           'created',
           'updated',
           // Only when the site actually has them. Naming a field id that does
@@ -183,6 +284,7 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
           // would take the ticket lane down over a column.
           ...(custom.points === null ? [] : [custom.points]),
           ...(custom.sprint === null ? [] : [custom.sprint]),
+          ...(custom.development === null ? [] : [custom.development]),
         ],
         // Omitted entirely on the first call. The endpoint rejects a null token
         // rather than treating it as "start from the beginning".
@@ -190,9 +292,18 @@ export function jiraProvider(options: JiraOptions): TicketProvider {
       })
 
       const fetchedAt = now().toISOString()
-      const tickets = (response.issues ?? []).map((issue) =>
-        toTicket(issue, options.site, options.connectionId ?? '', fetchedAt, custom),
+      const issues = response.issues ?? []
+      const pullRequests = await mapBounded(issues, PULL_REQUEST_CONCURRENCY, (issue) =>
+        pullRequestsFor(
+          issue.id,
+          custom.development === null ? undefined : issue.fields?.[custom.development],
+          custom.development !== null,
+        ),
       )
+      const tickets = issues.map((issue, i) => ({
+        ...toTicket(issue, options.site, options.connectionId ?? '', fetchedAt, custom),
+        pullRequests: pullRequests[i] ?? null,
+      }))
 
       return {
         tickets,
@@ -312,6 +423,11 @@ function toTicket(
     storyPoints: custom.points === null ? null : toPoints(fields[custom.points]),
     sprint: custom.sprint === null ? null : currentSprint(fields[custom.sprint]),
     fixVersions: toFixVersions(fields.fixVersions),
+    // Seconds, like `timeestimate`, and refused the same way points are: a
+    // missing value is nothing logged, never zero hours.
+    timeSpentSeconds: toPoints(fields.timespent),
+    // Filled in by `searchIssues` from a separate lookup. Unknown until then.
+    pullRequests: null,
     createdAt: fields.created ?? fetchedAt,
     updatedAt: fields.updated ?? fetchedAt,
     // Filled in from the changelog, which is a separate call. Null until then,
@@ -516,6 +632,151 @@ export function toFixVersions(value: unknown): string[] {
     const name = (entry as { name?: unknown }).name
     return typeof name === 'string' && name.trim() !== '' ? [name.trim()] : []
   })
+}
+
+/** The plugin key Jira stamps on the development summary field. */
+const DEVELOPMENT_SCHEMA =
+  'com.atlassian.jira.plugins.jira-development-integration-plugin:devsummary'
+
+/**
+ * Which of a site's fields holds the development summary, by schema key only.
+ *
+ * No name fallback, unlike sprint: "Development" is an ordinary word a team can
+ * give any field, and reading someone's text field as a dev summary would only
+ * fail to parse — at which point the ticket is asked about directly anyway. The
+ * fallback exists; it just is not here.
+ */
+export function developmentFieldId(fields: unknown): string | null {
+  if (!Array.isArray(fields)) return null
+  return (
+    (fields as JiraFieldDescriptor[]).find(
+      (f) => typeof f?.id === 'string' && f.schema?.custom === DEVELOPMENT_SCHEMA,
+    )?.id ?? null
+  )
+}
+
+/**
+ * The summary inside a development field's value.
+ *
+ * The value is not JSON. It is a Java `toString` with JSON embedded in it:
+ * `{pullrequest={dataType=pullrequest, state=OPEN, stateCount=1}, json={"cachedValue":{"summary":{…}}}}`.
+ * The `json=` half carries the same `summary` object the summary endpoint
+ * returns, so that is the half read.
+ *
+ * Three answers, and they mean different things:
+ * - `{}` — the field is empty. Jira has no development data for this ticket, so
+ *   it has no pull requests. That is a real "none".
+ * - a summary — read from the value.
+ * - `undefined` — there is a value and it could not be read. The caller asks the
+ *   summary endpoint instead of concluding anything.
+ */
+export function devSummaryFromField(value: unknown): DevSummary | undefined {
+  if (value === null || value === undefined || value === '' || value === '{}') return {}
+
+  if (typeof value === 'object') {
+    const cached = (value as { cachedValue?: { summary?: DevSummary } }).cachedValue
+    return cached?.summary
+  }
+  if (typeof value !== 'string') return undefined
+
+  const start = value.indexOf('json=')
+  if (start === -1) return undefined
+
+  // The embedded JSON runs to the value's own closing brace.
+  const embedded = value.slice(start + 'json='.length, value.lastIndexOf('}'))
+  try {
+    const parsed = JSON.parse(embedded) as { cachedValue?: { summary?: DevSummary } }
+    return parsed.cachedValue?.summary
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The pull requests in one detail response.
+ *
+ * GitHub's integration sends the id as `#482`; others send a bare number or an
+ * opaque string. The number is taken from the id, then from a `/pull/482` or
+ * `/pull-requests/482` URL, and when neither has one the id itself is the label.
+ * An entry with no URL is dropped: the row could draw it and nothing could open it.
+ */
+export function toPullRequests(response: JiraDevDetailResponse): FoundPullRequest[] {
+  return (response.detail ?? []).flatMap((instance) =>
+    (instance.pullRequests ?? []).flatMap((pr): FoundPullRequest[] => {
+      if (typeof pr?.url !== 'string' || pr.url.trim() === '') return []
+
+      const fromId = /^#?(\d+)$/.exec((pr.id ?? '').trim())?.[1]
+      const fromUrl = /\/(?:pull|pull-requests|merge_requests)\/(\d+)/.exec(pr.url)?.[1]
+      const digits = fromId ?? fromUrl
+      const number = digits === undefined ? null : Number(digits)
+
+      const label = number !== null ? `#${number}` : nonEmpty(pr.id) ?? 'PR'
+      const status = (pr.status ?? '').toUpperCase()
+
+      return [
+        {
+          link: {
+            number,
+            label,
+            url: pr.url.trim(),
+            state:
+              status === 'OPEN'
+                ? 'open'
+                : status === 'MERGED'
+                  ? 'merged'
+                  : status === 'DECLINED'
+                    ? 'declined'
+                    : 'unknown',
+            repository: nonEmpty(pr.repositoryName),
+          },
+          lastUpdate: pr.lastUpdate ?? '',
+        },
+      ]
+    }),
+  )
+}
+
+/** A pull request as read, with the timestamp that orders it and is not stored. */
+export interface FoundPullRequest {
+  link: PullRequestLink
+  lastUpdate: string
+}
+
+/**
+ * Open first, then merged, then the rest; newest first within each; one entry
+ * per URL. The first is the one a single-link cell would mean.
+ */
+export function orderPullRequests(found: readonly FoundPullRequest[]): PullRequestLink[] {
+  const rank = { open: 0, merged: 1, unknown: 2, declined: 3 } as const
+  const seen = new Set<string>()
+
+  return [...found]
+    .sort((a, b) => rank[a.link.state] - rank[b.link.state] || b.lastUpdate.localeCompare(a.lastUpdate))
+    .flatMap(({ link }) => {
+      if (seen.has(link.url)) return []
+      seen.add(link.url)
+      return [link]
+    })
+}
+
+/** `items.map(fn)`, with at most `limit` calls in flight, results in input order. */
+async function mapBounded<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length)
+  let next = 0
+
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i] as T)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
 }
 
 /** A present, non-blank string, or null. `''` from a provider is not a value. */

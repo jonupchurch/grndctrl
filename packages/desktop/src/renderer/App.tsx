@@ -159,7 +159,18 @@ export function App(): ReactElement {
     mineOnly: boolean
     alwaysOnTop: boolean
     collapsedRegions: Record<string, boolean>
+    hiddenStatuses: string[]
   }>('settings.get')
+
+  /**
+   * The ticket lane's hidden statuses.
+   *
+   * Local state over the saved value, so a checkbox takes effect on the click
+   * rather than after a write and a re-read — and so a press made before the
+   * settings read lands is not undone by it, which is the `touched` argument in
+   * `filter.ts`. `null` until the operator changes something.
+   */
+  const [hiddenStatuses, setHiddenStatuses] = useState<readonly string[] | null>(null)
 
   const writeSettings = useCallback(
     (patch: Record<string, unknown>) => {
@@ -375,7 +386,19 @@ export function App(): ReactElement {
             */}
             <div className="board__stack">
               <LaneBoundary lane="Tickets">
-                <Tickets items={items} projects={known} freshness={ticketFreshness} notes={notes} />
+                <Tickets
+                  items={items}
+                  projects={known}
+                  freshness={ticketFreshness}
+                  notes={notes}
+                  statuses={{
+                    hidden: new Set(hiddenStatuses ?? settings.data?.hiddenStatuses ?? []),
+                    onChange: (next) => {
+                      setHiddenStatuses(next)
+                      writeSettings({ hiddenStatuses: next })
+                    },
+                  }}
+                />
               </LaneBoundary>
 
               {/*

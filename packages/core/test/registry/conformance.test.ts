@@ -190,7 +190,9 @@ describe('what 006 removed', () => {
       now: () => new Date(),
     }
     try {
-      for (const target of ['pull-request', 'repository', 'branch', 'check']) {
+      // `pull-request` is not here any more: it came back as a ticket's linked
+      // pull request, read through Jira. See `test/registry/links.test.ts`.
+      for (const target of ['repository', 'branch', 'check']) {
         await expect(
           t.registry.dispatch(
             'links.resolve',

@@ -48,6 +48,8 @@
         "fixVersions": [
           "2026.09"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-14d",
         "updatedAt": "now-2h",
         "lastRealActivityAt": "now-2h",
@@ -71,6 +73,8 @@
         "fixVersions": [
           "2026.09"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-30d",
         "updatedAt": "now-10d",
         "lastRealActivityAt": "now-10d",
@@ -94,6 +98,8 @@
         "fixVersions": [
           "2026.09"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-9d",
         "updatedAt": "now-2h",
         "lastRealActivityAt": "now-2h",
@@ -115,6 +121,8 @@
         "storyPoints": null,
         "sprint": null,
         "fixVersions": [],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-21d",
         "updatedAt": "now-7d",
         "lastRealActivityAt": "now-7d",
@@ -138,6 +146,8 @@
         "fixVersions": [
           "2026.09"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-11d",
         "updatedAt": "now-4h",
         "lastRealActivityAt": "now-4h",
@@ -161,6 +171,8 @@
         "fixVersions": [
           "2026.09"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-16d",
         "updatedAt": "now-4d",
         "lastRealActivityAt": "now-4d",
@@ -184,6 +196,8 @@
         "fixVersions": [
           "2026.09"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-6d",
         "updatedAt": "now-1h",
         "lastRealActivityAt": "now-1h",
@@ -205,6 +219,8 @@
         "storyPoints": null,
         "sprint": null,
         "fixVersions": [],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-3d",
         "updatedAt": "now-1h",
         "lastRealActivityAt": "now-1h",

@@ -64,6 +64,8 @@ export function ticket(over: Partial<Ticket> & { issueKey?: string } = {}): Tick
     description: null,
     sprint: 'Sprint 12',
     fixVersions: [],
+    timeSpentSeconds: null,
+    pullRequests: [],
     createdAt: hoursAgo(200),
     updatedAt: hoursAgo(1),
     lastRealActivityAt: hoursAgo(2),

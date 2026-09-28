@@ -3,11 +3,14 @@ import {
   applyActivity,
   classifyAuthor,
   currentSprint,
+  devSummaryFromField,
   jiraProvider,
+  orderPullRequests,
   sprintFieldId,
   storyPointFieldId,
   toFixVersions,
   toPoints,
+  toPullRequests,
   toStatusCategory,
 } from '../../src/providers/jira/index.js'
 import type { Fetcher } from '../../src/providers/http.js'
@@ -292,6 +295,7 @@ describe('priority and story points', () => {
       'reporter',
       'priority',
       'fixVersions',
+      'timespent',
       'created',
       'updated',
     ])
@@ -332,6 +336,237 @@ describe('fix versions', () => {
     expect(toFixVersions([{ id: '1' }, { name: '  ' }, 'x', null, { name: ' 2026.09 ' }])).toEqual([
       '2026.09',
     ])
+  })
+})
+
+describe('logged time', () => {
+  const search = (timespent: unknown) => ({
+    '/rest/api/3/field': [],
+    '/rest/api/3/search/jql': {
+      issues: [
+        {
+          id: '10001',
+          key: 'MERC-1184',
+          fields: {
+            summary: 'Reconcile worktree state',
+            status: { name: 'In Review', statusCategory: { key: 'indeterminate' } },
+            timespent,
+          },
+        },
+      ],
+      isLast: true,
+    },
+  })
+
+  it('reads seconds logged, and keeps zero apart from nothing', async () => {
+    for (const [sent, read] of [
+      [5400, 5400],
+      [0, 0],
+      [null, null],
+      [undefined, null],
+      ['soon', null],
+    ] as const) {
+      const { jira } = provider(search(sent))
+      const { tickets } = await jira.searchIssues({ jql: 'x' })
+      expect(tickets[0]?.timeSpentSeconds, `timespent ${String(sent)}`).toBe(read)
+    }
+  })
+})
+
+/**
+ * Pull requests, through Jira's development panel.
+ *
+ * The endpoint is undocumented, so the property that matters most is the one at
+ * the bottom: whatever goes wrong there, the search still returns its tickets and
+ * the ticket says "unknown" rather than "none".
+ */
+describe('pull requests', () => {
+  const DEV_FIELD = {
+    id: 'customfield_10000',
+    name: 'Development',
+    custom: true,
+    schema: {
+      type: 'any',
+      custom: 'com.atlassian.jira.plugins.jira-development-integration-plugin:devsummary',
+    },
+  }
+
+  /** The value Jira sends for the development field: a Java toString with JSON inside. */
+  const devValue = (count: number, types: string[]) =>
+    `{pullrequest={dataType=pullrequest, state=OPEN, stateCount=${count}}, json=${JSON.stringify({
+      cachedValue: {
+        errors: [],
+        summary: {
+          pullrequest: {
+            overall: { count, state: 'OPEN' },
+            byInstanceType: Object.fromEntries(types.map((t) => [t, { count, name: t }])),
+          },
+        },
+      },
+      isStale: false,
+    })}}`
+
+  const search = (development: unknown) => ({
+    issues: [
+      {
+        id: '10001',
+        key: 'MERC-1184',
+        fields: {
+          summary: 'Reconcile worktree state',
+          status: { name: 'In Review', statusCategory: { key: 'indeterminate' } },
+          customfield_10000: development,
+        },
+      },
+    ],
+    isLast: true,
+  })
+
+  const DETAIL = {
+    errors: [],
+    detail: [
+      {
+        pullRequests: [
+          {
+            id: '#17',
+            url: 'https://github.example/acme/mercury/pull/17',
+            status: 'MERGED',
+            repositoryName: 'acme/mercury',
+            lastUpdate: '2026-08-10T00:00:00.000+0000',
+          },
+          {
+            id: '#482',
+            url: 'https://github.example/acme/mercury/pull/482',
+            status: 'OPEN',
+            repositoryName: 'acme/mercury',
+            lastUpdate: '2026-08-01T00:00:00.000+0000',
+          },
+        ],
+      },
+    ],
+  }
+
+  it('reads the linked pull requests, open first', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': [DEV_FIELD],
+      '/rest/api/3/search/jql': search(devValue(2, ['GitHub'])),
+      '/rest/dev-status/latest/issue/detail': DETAIL,
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    expect(tickets[0]?.pullRequests).toEqual([
+      { number: 482, label: '#482', url: 'https://github.example/acme/mercury/pull/482', state: 'open', repository: 'acme/mercury' },
+      { number: 17, label: '#17', url: 'https://github.example/acme/mercury/pull/17', state: 'merged', repository: 'acme/mercury' },
+    ])
+
+    // Asked for with the issue's numeric id and the application type the
+    // summary named, and the summary itself came free on the search.
+    const detail = calls.find((c) => c.url.includes('/issue/detail'))
+    const query = new URL(detail?.url ?? 'https://x.example').searchParams
+    expect(query.get('issueId')).toBe('10001')
+    expect(query.get('applicationType')).toBe('GitHub')
+    expect(query.get('dataType')).toBe('pullrequest')
+    expect(calls.some((c) => c.url.includes('/issue/summary'))).toBe(false)
+  })
+
+  it('makes no dev-status call when the development field is empty, and says none', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': [DEV_FIELD],
+      '/rest/api/3/search/jql': search('{}'),
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    expect(tickets[0]?.pullRequests).toEqual([])
+    expect(calls.some((c) => c.url.includes('/dev-status/'))).toBe(false)
+  })
+
+  it('asks the summary endpoint when the site has no development field', async () => {
+    const { jira, calls } = provider({
+      '/rest/api/3/field': [],
+      '/rest/api/3/search/jql': search(undefined),
+      '/rest/dev-status/latest/issue/summary': {
+        summary: { pullrequest: { overall: { count: 2 }, byInstanceType: { GitHub: { count: 2 } } } },
+      },
+      '/rest/dev-status/latest/issue/detail': DETAIL,
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+
+    expect(tickets[0]?.pullRequests?.map((p) => p.label)).toEqual(['#482', '#17'])
+    expect(calls.some((c) => c.url.includes('/issue/summary'))).toBe(true)
+  })
+
+  it('reports unknown, not none, when the lookup fails — and keeps the ticket', async () => {
+    const fetcher: Fetcher = async (url) => {
+      const path = new URL(url).pathname
+      if (path.startsWith('/rest/dev-status/')) {
+        return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } })
+      }
+      const body = path === '/rest/api/3/field' ? [] : search(undefined)
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+
+    const jira = jiraProvider({
+      site: 'acme.atlassian.net',
+      email: 'jon@example.com',
+      apiToken: 'token',
+      connectionId: 'jira-1',
+      fetcher,
+      now: () => NOW,
+    })
+
+    const { tickets } = await jira.searchIssues({ jql: 'x' })
+    expect(tickets).toHaveLength(1)
+    expect(tickets[0]?.pullRequests).toBeNull()
+  })
+
+  it('reads a development value it cannot parse by asking, rather than concluding', () => {
+    expect(devSummaryFromField(null)).toEqual({})
+    expect(devSummaryFromField('{}')).toEqual({})
+    expect(devSummaryFromField('{pullrequest={}, json=not json}')).toBeUndefined()
+    expect(devSummaryFromField(42)).toBeUndefined()
+    expect(devSummaryFromField(devValue(1, ['githube']))?.pullrequest?.byInstanceType).toHaveProperty(
+      'githube',
+    )
+  })
+
+  it('takes the number from the id or the URL, and drops an entry with no URL', () => {
+    const found = toPullRequests({
+      detail: [
+        {
+          pullRequests: [
+            { id: '12', url: 'https://bitbucket.example/acme/repo/pull-requests/12', status: 'DECLINED' },
+            { id: 'opaque', url: 'https://gitlab.example/acme/repo/-/merge_requests/9' },
+            { id: 'nameless', url: 'https://git.example/acme/review/abc' },
+            { id: '#5' },
+          ],
+        },
+      ],
+    }).map((f) => f.link)
+
+    expect(found.map((p) => [p.label, p.number, p.state])).toEqual([
+      ['#12', 12, 'declined'],
+      ['#9', 9, 'unknown'],
+      ['nameless', null, 'unknown'],
+    ])
+  })
+
+  it('orders open, merged, then the rest, and drops a repeated URL', () => {
+    const at = (state: 'open' | 'merged' | 'declined' | 'unknown', url: string, lastUpdate: string) => ({
+      link: { number: null, label: url, url, state, repository: null },
+      lastUpdate,
+    })
+
+    expect(
+      orderPullRequests([
+        at('declined', 'd', '2026-08-09'),
+        at('merged', 'm', '2026-08-01'),
+        at('open', 'o-old', '2026-08-01'),
+        at('open', 'o-new', '2026-08-05'),
+        at('open', 'o-new', '2026-08-05'),
+      ]).map((p) => p.url),
+    ).toEqual(['o-new', 'o-old', 'm', 'd'])
   })
 })
 

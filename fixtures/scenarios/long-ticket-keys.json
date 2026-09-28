@@ -62,6 +62,8 @@
           "2026.09",
           "2026.10"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "description": [
           {
             "kind": "paragraph",
@@ -337,6 +339,8 @@
         "storyPoints": null,
         "sprint": null,
         "fixVersions": [],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-2d",
         "updatedAt": "now-3h",
         "lastRealActivityAt": "now-6h",
@@ -369,6 +373,8 @@
         "fixVersions": [
           "2026.09"
         ],
+        "timeSpentSeconds": null,
+        "pullRequests": [],
         "createdAt": "now-5d",
         "updatedAt": "now-8h",
         "lastRealActivityAt": "now-8h",

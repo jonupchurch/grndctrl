@@ -80,7 +80,7 @@ contextBridge.exposeInMainWorld('grndctrl', {
    * Open a row's provider page. Takes a subject, never a URL — main resolves it
    * through `links.resolve` and opens only what core returned (`main/links.ts`).
    */
-  open: (request: { subjectKey: string; target?: string }) =>
+  open: (request: { subjectKey: string; target?: string; pullRequest?: number }) =>
     ipcRenderer.invoke(OPEN_CHANNEL, request),
 
   /**
