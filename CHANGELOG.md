@@ -12,6 +12,31 @@ detail** instead: the first is a removal, and what an upgrader needs is the list
 of what is gone rather than a sentence saying a lot is; the rest are small
 enough to state in full.
 
+## [0.9.0] — 2026-11-04
+
+**A to-do list, and a sprint column that shows the whole sprint name.**
+
+### Added
+
+- **A To do region**, between the active ticket and the ticket history. Type an
+  item and press Enter; link it to a ticket on the board or leave it
+  free-standing. A checkbox ticks it off, and done items sit behind a "Show N
+  done" toggle. Edit rewords an item; Delete asks twice.
+- **A to-do badge on each ticket row** with its count of open to-dos. Clicking
+  it narrows the list to that ticket and links whatever you add next to it.
+- **Three MCP tools**: `grndctrl_add_todo`, `grndctrl_list_todos` and
+  `grndctrl_update_todo`. Agents can add, reword, link and tick off to-dos.
+  Only the window can delete one.
+
+### Fixed
+
+- **The sprint column no longer cuts names off.** It was a fixed 88px; it now
+  fits the widest sprint on the lane, up to 260px, taking the room from the
+  summary.
+
+**This runs an authored migration** (authored 6 → 7, one new `todos` table).
+Nothing existing changes.
+
 ## [0.8.0] — 2026-09-28
 
 **The ticket lane shows time spent and pull requests, and can hide statuses.**
