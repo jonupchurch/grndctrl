@@ -8,7 +8,7 @@ import { StatusFilter } from '../components/StatusFilter.js'
 import { launch, launchPullRequest } from '../launch.js'
 import type { FreshnessView } from '../query.js'
 import type { Project, WorkItem } from '../types.js'
-import { identifierTrack, idTextMeasurer } from './idWidth.js'
+import { identifierTrack, idTextMeasurer, metaTextMeasurer, sprintTrack } from './idWidth.js'
 import {
   applySort,
   nextSort,
@@ -65,6 +65,11 @@ interface LaneShellProps {
    */
   identifiers: readonly string[]
   /**
+   * Every sprint name this lane is about to draw, so the sprint column fits the
+   * widest of them instead of cutting them off. Only the ticket lane has one.
+   */
+  sprints?: readonly string[]
+  /**
    * Whether the rows carry sprint, priority and story points.
    *
    * One flag drives both the headings and `data-metrics` on the section, which
@@ -101,6 +106,7 @@ function Lane({
   resource,
   columns,
   identifiers,
+  sprints = [],
   metrics = false,
   statusFilter,
   sort,
@@ -117,6 +123,11 @@ function Lane({
     () => identifierTrack(identifiers, idTextMeasurer() ?? (() => 0)),
     [identifierKey],
   )
+  const sprintKey = sprints.join('|')
+  const sprintWidth = useMemo(
+    () => sprintTrack(sprints, metaTextMeasurer() ?? (() => 0)),
+    [sprintKey],
+  )
 
   return (
     <Section
@@ -126,7 +137,7 @@ function Lane({
       metrics={metrics}
       // The cast is the one React needs for a custom property; `ProjectChip`
       // makes the same one for `--chip`.
-      style={{ '--id-w': `${track}px` } as CSSProperties}
+      style={{ '--id-w': `${track}px`, '--sprint-w': `${sprintWidth}px` } as CSSProperties}
       count={count}
       // Said in the header as well as on the trigger, because the header is
       // what the eye checks when a lane looks shorter than it should.
@@ -181,7 +192,11 @@ function Lane({
  */
 function useLaneSort<T>(accessors: SortAccessors<T>): {
   rows: (items: readonly T[]) => readonly T[]
-  props: { state: SortState | null; columns: readonly SortColumn[]; onSort: (c: SortColumn) => void }
+  props: {
+    state: SortState | null
+    columns: readonly SortColumn[]
+    onSort: (c: SortColumn) => void
+  }
 } {
   const [state, setState] = useState<SortState | null>(null)
 
@@ -211,12 +226,55 @@ export interface NotesAccess {
   open(subjectKey: string, label: string): void
 }
 
+/**
+ * What the ticket lane needs to draw a to-do badge (009): open to-dos per
+ * ticket key, and the action that opens the To do panel on that ticket.
+ */
+export interface TodosAccess {
+  counts: Readonly<Record<string, number>>
+  open(ticketKey: string): void
+}
+
+/** The to-do badge for one ticket row. Quiet when there are none, like the note badge. */
+function todoBadge(
+  todos: TodosAccess | undefined,
+  ticketKey: string,
+  issueKey: string,
+): ReactElement | null {
+  if (todos === undefined) return null
+  const count = todos.counts[ticketKey] ?? 0
+
+  return (
+    <button
+      type="button"
+      className="row__todos"
+      data-empty={count === 0 ? 'true' : 'false'}
+      // Stopped so the row does not also open the ticket in the browser.
+      onClick={(event) => {
+        event.stopPropagation()
+        todos.open(ticketKey)
+      }}
+      aria-label={
+        count === 0
+          ? `Add a to-do for ${issueKey}`
+          : `${count} open to-do${count === 1 ? '' : 's'} on ${issueKey}`
+      }
+      title={count === 0 ? 'Add a to-do' : `${count} open to-do${count === 1 ? '' : 's'}`}
+    >
+      <span aria-hidden="true">☐</span>
+      {count === 0 ? null : <span aria-hidden="true">{count}</span>}
+    </button>
+  )
+}
+
 interface LaneProps {
   items: readonly WorkItem[]
   projects: readonly Project[]
   freshness: FreshnessView | null
   /** Absent while the counts are still loading; badges simply do not appear. */
   notes?: NotesAccess | undefined
+  /** Absent draws no to-do badge. */
+  todos?: TodosAccess | undefined
   /**
    * The status filter: which status names are hidden, and how to change that.
    * Absent draws no dropdown and hides nothing.
@@ -241,7 +299,8 @@ function noteSlot(
   notes: NotesAccess | undefined,
   subjectKey: string,
   label: string,
-): { noteCount: number; hasOpenQuestion: boolean; onOpenNotes: () => void } | Record<string, never> {
+):
+  { noteCount: number; hasOpenQuestion: boolean; onOpenNotes: () => void } | Record<string, never> {
   if (notes === undefined) return {}
 
   return {
@@ -263,7 +322,10 @@ const slot = (
     project: {
       id: project.id,
       code: project.code,
-      paletteIndex: paletteIndexOf(project, projects.map((p) => p.id)),
+      paletteIndex: paletteIndexOf(
+        project,
+        projects.map((p) => p.id),
+      ),
       name: project.name,
     },
   }
@@ -299,7 +361,15 @@ const slot = (
  * answer lives now.
  */
 
-export function Tickets({ items, projects, freshness, notes, statuses, now }: LaneProps): ReactElement {
+export function Tickets({
+  items,
+  projects,
+  freshness,
+  notes,
+  todos,
+  statuses,
+  now,
+}: LaneProps): ReactElement {
   // No `withTickets` filter, and no `?.` below. Every work item has a ticket
   // (FR-106), so both were guarding against a state the type no longer permits
   // — and a filter whose predicate is always true is a filter a future reader
@@ -372,6 +442,7 @@ export function Tickets({ items, projects, freshness, notes, statuses, now }: La
       resource="Tickets"
       columns={{ identifier: 'Ticket', title: 'Summary', status: 'Status' }}
       identifiers={items.map((item) => item.ticket.issueKey)}
+      sprints={items.flatMap((item) => (item.ticket.sprint === null ? [] : [item.ticket.sprint]))}
       metrics
       {...(statusFilter === undefined ? {} : { statusFilter })}
       sort={sort.props}
@@ -406,6 +477,7 @@ export function Tickets({ items, projects, freshness, notes, statuses, now }: La
           onOpenPullRequest={(index) => void launchPullRequest(item.ticket.key, index)}
           {...slot(item.projectId, projects)}
           {...noteSlot(notes, item.ticket.key, item.ticket.issueKey)}
+          trailing={todoBadge(todos, item.ticket.key, item.ticket.issueKey)}
           {...(now === undefined ? {} : { now })}
           onOpen={() => void launch(item.key, 'ticket')}
         />

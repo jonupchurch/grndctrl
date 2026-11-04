@@ -560,6 +560,57 @@ const CASES: MigrationCase[] = [
       expect(triggers).toEqual([])
     },
   },
+  {
+    version: 7,
+    name: 'todos',
+    /**
+     * Additive. Pins the columns, that migration 6's rows survive, that a
+     * to-do can stand without a ticket, and that nothing cascades into it.
+     */
+    seed: (db) => {
+      db.prepare(
+        `INSERT INTO ticket_history
+           (ticket_key, line, notes, ticket_summary, author_kind, author_id, revision,
+            created_at, updated_at)
+         VALUES ('jira:acme.atlassian.net/MERC-9', 'Kept.', NULL, NULL, 'agent', 'claude', 1,
+                 '2026-08-01T12:00:00Z', '2026-08-01T12:00:00Z')`,
+      ).run()
+    },
+    verify: (db) => {
+      const columns = (db.prepare(`PRAGMA table_info("todos")`).all() as { name: string }[]).map(
+        (c) => c.name,
+      )
+      expect(columns).toEqual([
+        'id',
+        'text',
+        'ticket_key',
+        'done_at',
+        'author_kind',
+        'author_id',
+        'revision',
+        'created_at',
+        'updated_at',
+      ])
+
+      expect(
+        (
+          db
+            .prepare('SELECT line FROM ticket_history WHERE ticket_key = ?')
+            .get('jira:acme.atlassian.net/MERC-9') as { line: string }
+        ).line,
+      ).toBe('Kept.')
+
+      db.prepare(
+        `INSERT INTO todos (id, text, ticket_key, done_at, author_kind, author_id, revision,
+                            created_at, updated_at)
+         VALUES ('todo:1', 'Free-standing.', NULL, NULL, 'user', NULL, 1,
+                 '2026-08-01T12:00:00Z', '2026-08-01T12:00:00Z')`,
+      ).run()
+
+      db.prepare(`DELETE FROM projects`).run()
+      expect(db.prepare('SELECT COUNT(*) AS n FROM todos').get()).toEqual({ n: 1 })
+    },
+  },
 ]
 
 describe('authored migrations', () => {

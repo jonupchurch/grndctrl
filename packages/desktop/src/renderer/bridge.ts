@@ -17,7 +17,11 @@ type Method = (input?: unknown) => Promise<BridgeResult>
 
 export interface Bridge {
   readonly [namespace: string]: unknown
-  open(request: { subjectKey: string; target?: string; pullRequest?: number }): Promise<BridgeResult>
+  open(request: {
+    subjectKey: string
+    target?: string
+    pullRequest?: number
+  }): Promise<BridgeResult>
   /**
    * Store a provider credential. Not an operation — see `shared/channels.ts`.
    * Write-only: there is no counterpart that reads a secret back out.
@@ -55,6 +59,7 @@ export interface Bridge {
     notesChanged(listener: (payload: unknown) => void): () => void
     promptsChanged(listener: (payload: unknown) => void): () => void
     historyChanged(listener: (payload: unknown) => void): () => void
+    todosChanged(listener: (payload: unknown) => void): () => void
   }
 }
 

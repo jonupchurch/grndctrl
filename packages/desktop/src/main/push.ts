@@ -117,6 +117,7 @@ export interface Push {
   notesChanged(): void
   promptsChanged(): void
   historyChanged(): void
+  todosChanged(): void
   /**
    * Emit whatever this operation implies, having run.
    *
@@ -152,6 +153,7 @@ export function push(options: PushOptions): Push {
     notesChanged: () => broadcast(PUSH_CHANNELS.notesChanged, {}),
     promptsChanged: () => broadcast(PUSH_CHANNELS.promptsChanged, {}),
     historyChanged: () => broadcast(PUSH_CHANNELS.historyChanged, {}),
+    todosChanged: () => broadcast(PUSH_CHANNELS.todosChanged, {}),
 
     afterDispatch(operation) {
       // A read changes nothing, and announcing one is not merely wasteful — it
@@ -185,6 +187,7 @@ export function push(options: PushOptions): Push {
       // on the operator's keystrokes — announcing those would refetch the list
       // being typed into, once per character.
       if (operation.startsWith('history.')) self.historyChanged()
+      if (operation.startsWith('todos.')) self.todosChanged()
     },
 
     start() {

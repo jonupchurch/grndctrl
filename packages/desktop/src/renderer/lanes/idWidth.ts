@@ -144,3 +144,52 @@ export function idTextMeasurer(): Measure | null {
 
   return (text) => context.measureText(text).width
 }
+
+/**
+ * The sprint column's floor and ceiling (0.9.0).
+ *
+ * The sprint track was a fixed 88px, which cut off nearly every real sprint
+ * name (`MERC Sprint 2026-11`). It is now sized to the widest sprint in the
+ * lane, the same way the key column is. The floor is the old width, so the
+ * heading and its sort caret still fit; the ceiling stops one absurd name from
+ * eating the summary, which is the only flexible track.
+ */
+export const SPRINT_TRACK_FLOOR = 88
+export const SPRINT_TRACK_CEILING = 260
+
+/** The width of the sprint column for a lane holding these sprint names. */
+export function sprintTrack(sprints: readonly string[], measure: Measure): number {
+  let widest = 0
+  for (const sprint of sprints) {
+    const width = measure(sprint)
+    if (Number.isFinite(width) && width > widest) widest = width
+  }
+  if (widest === 0) return SPRINT_TRACK_FLOOR
+  return Math.min(
+    SPRINT_TRACK_CEILING,
+    Math.max(SPRINT_TRACK_FLOOR, Math.ceil(widest) + ID_TRACK_PAD),
+  )
+}
+
+let metaCanvas: CanvasRenderingContext2D | null | undefined
+
+/**
+ * A measurer in `.row__sprint`'s font: `--t-meta` at the inherited weight.
+ * `null` where there is no document, so the column falls back to the floor.
+ */
+export function metaTextMeasurer(): Measure | null {
+  if (typeof document === 'undefined') return null
+
+  if (metaCanvas === undefined) metaCanvas = document.createElement('canvas').getContext('2d')
+  if (metaCanvas === null) return null
+
+  const context = metaCanvas
+  const root = getComputedStyle(document.documentElement)
+  const size = root.getPropertyValue('--t-meta').trim() || '12px'
+  const family = root.getPropertyValue('--f-ui').trim() || 'sans-serif'
+
+  context.font = `400 ${size} ${family}`
+  if (!context.font.includes(size)) return null
+
+  return (text) => context.measureText(text).width
+}

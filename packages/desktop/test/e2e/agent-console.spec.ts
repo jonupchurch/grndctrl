@@ -86,7 +86,8 @@ test('the arrangement is one column, in the order the board reads in', async () 
     ),
   )
 
-  expect(order).toEqual(['tickets', 'active-ticket', 'ticket-history'])
+  // The to-do list (009) sits between what is being worked and what happened.
+  expect(order).toEqual(['tickets', 'active-ticket', 'todos', 'ticket-history'])
 
   // And nothing is beside them. A rail reintroduced without this file noticing
   // is how the arrangement drifted the first time.

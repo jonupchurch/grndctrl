@@ -1,5 +1,6 @@
 import { focusTools } from './focus.js'
 import { historyTools } from './history.js'
+import { todosTools } from './todos.js'
 import { notesTools } from './notes.js'
 import { outboxTools } from './outbox.js'
 import { promptsTools } from './prompts.js'
@@ -26,6 +27,7 @@ export const TOOLS: readonly ToolBinding[] = [
   ...updatesTools,
   ...promptsTools,
   ...historyTools,
+  ...todosTools,
   ...outboxTools,
 ]
 

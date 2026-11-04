@@ -74,6 +74,10 @@ This project is tracked on Ground Control. Use the `grndctrl` MCP tools:
   ticket stands, plus any detail worth having later. This is the record the
   operator reads back months afterwards to answer "what did we do about that" —
   it outlives the ticket, so write it as if the reader has forgotten everything.
+- **Add a to-do** (`grndctrl_add_todo`) for follow-up work you found but are
+  not doing now, linked to its ticket when it has one, and **tick it off**
+  (`grndctrl_update_todo`, `done: true`) when you finish one. Check
+  `grndctrl_list_todos` first so you do not add a duplicate.
 - **Read the board before asking the operator** (`grndctrl_list_updates`,
   `grndctrl_list_notes`, `grndctrl_list_ticket_history`): another agent may have
   already tried it, and the history says how it went.
@@ -314,6 +318,25 @@ questions about what happened. Recording adds; only their window rewrites.
 **Timing.** Record when work finishes, not while it runs — `grndctrl_post_update`
 is for "here is what is happening", and this is for "here is what happened".
 
+### To-dos
+
+| Tool | |
+| --- | --- |
+| `grndctrl_add_todo` | Add an item, optionally linked to one ticket |
+| `grndctrl_list_todos` | The list, open items first; narrow by ticket or state |
+| `grndctrl_update_todo` | Tick off, reopen, reword, or link/unlink — needs the revision you read |
+
+**The list is the operator's, and you can write to it.** Add items for work that
+should not be lost but is not yours to do right now, and tick off the ones you
+finish. A to-do is one line; a line break is refused. Detail belongs in a note on
+the linked ticket.
+
+**Every to-do links to at most one ticket**, and a ticket can carry any number.
+The ticket row on the board shows how many open to-dos it has.
+
+**There is no delete on this surface.** `todos.delete` is `ui-only` — a ticked-off
+item is already out of the way, and removing one is the operator's call.
+
 ### Sessions
 
 | Tool | |
@@ -398,6 +421,8 @@ Ground Control is the board and the record; it is not the hand.
 and curating is theirs - an agent that could delete a prompt could remove the
 record of what it was asked to do. Reading them back is allowed, and is often the
 fastest way to find out how work like this has been asked for before.
+
+**Delete a to-do.** `todos.delete` is `ui-only`. Tick it off instead.
 
 **Touch the operator's disk.** There is no local git reader any more and no
 checkout binding to point one at. The application spawns no child process at

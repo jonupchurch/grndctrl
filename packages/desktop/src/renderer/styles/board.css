@@ -911,3 +911,125 @@
   padding: 0;
   color: var(--critical);
 }
+
+/* ── To do (009) ─────────────────────────────────────────────────────────── */
+
+.todos__add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 16rem) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.todos__input,
+.todo__edit {
+  min-width: 0;
+  font: inherit;
+  font-size: var(--t-body);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 3px 6px;
+  user-select: text;
+}
+
+.todos__link {
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  font-size: var(--t-meta);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+.todos__scope,
+.todos__none {
+  margin: 0;
+  padding: 6px 12px;
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+  border-bottom: 1px solid var(--line);
+}
+
+.todos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.todo__text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink);
+  font-size: var(--t-body);
+  user-select: text;
+}
+
+/* Done: struck through and dimmed. The strike is the carrier, not the colour,
+   so it survives greyscale. */
+.todo[data-done='true'] .todo__text {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.todo__ticket {
+  font: inherit;
+  font-size: var(--t-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.todo__ticket[data-linked='false'] {
+  color: var(--ink-3);
+  border-style: dashed;
+}
+
+.todo__author {
+  color: var(--ink-3);
+  font-size: var(--t-meta);
+  white-space: nowrap;
+}
+
+.todo__controls {
+  display: flex;
+  gap: 4px;
+}
+
+.todo__delete[data-confirming='true'] {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+.todo__failed {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--critical);
+  font-size: var(--t-meta);
+}
+
+.todos__toggle-done {
+  margin: 6px 12px;
+}

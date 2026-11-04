@@ -154,8 +154,7 @@ body {
      to the title, which is the only flexible track and so the only one that can
      receive it. */
   /* The 44px correlation track (the Agent column) went in 0.7.0. */
-  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 96px var(--trailing-w)
-    var(--mark-w);
+  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 96px var(--trailing-w) var(--mark-w);
 }
 
 /*
@@ -173,8 +172,13 @@ body {
      in the cell's `title`. Status is 104px, up from 92px, to hold the filter
      trigger beside its label. PR is 72px, which fits `#12345` and the heading's
      caret; a second pull request ellipsises and is listed in the `title`. */
-  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 110px 104px 88px 80px 58px 62px
-    72px var(--trailing-w) var(--mark-w);
+  /* Sprint is sized to the widest sprint name in the lane (`--sprint-w`, set
+     by `Lane` from `sprintTrack`); 88px is the floor and the fallback when the
+     measurement declines. It used to be a fixed 88px and cut names off. */
+  --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 110px 104px var(--sprint-w, 88px)
+    80px 58px 62px 72px var(--trailing-w) var(--mark-w);
+  /* The trailing slot holds the note badge and the to-do badge (009). */
+  --trailing-w: 80px;
 }
 
 /*

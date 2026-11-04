@@ -2,6 +2,7 @@ import type {
   DocNode as CoreDocNode,
   InlineNode as CoreInlineNode,
   TicketHistoryView as CoreTicketHistoryEntry,
+  TodoView as CoreTodo,
 } from '@grndctrl/core'
 import type {
   AgentSession as CoreAgentSession,
@@ -138,6 +139,24 @@ export type TicketHistoryEntry = Pick<
   | 'line'
   | 'notes'
   | 'ticketSummary'
+  | 'authorKind'
+  | 'authorId'
+  | 'revision'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+/**
+ * One item on the to-do list (009). `issueKey` is derived from the link, and is
+ * null for a to-do that is not linked to a ticket.
+ */
+export type Todo = Pick<
+  CoreTodo,
+  | 'id'
+  | 'text'
+  | 'ticketKey'
+  | 'issueKey'
+  | 'doneAt'
   | 'authorKind'
   | 'authorId'
   | 'revision'

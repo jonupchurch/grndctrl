@@ -165,6 +165,9 @@ export function usePushInvalidation(): void {
        * shown.
        */
       bridge.on.historyChanged(() => void client.invalidateQueries({ queryKey: ['history.list'] })),
+      // A to-do was added, edited, ticked off or deleted — by the operator or by
+      // an agent. The list and every ticket's to-do count come from one read.
+      bridge.on.todosChanged(() => void client.invalidateQueries({ queryKey: ['todos.list'] })),
       // Nothing changed; the numbers aged. Re-render without refetching — the
       // data is identical and only the "4 minutes ago" beside it is not.
       bridge.on.freshnessTick(() => void client.invalidateQueries({ queryKey: ['__tick'] })),

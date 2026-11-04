@@ -6,15 +6,16 @@ import { NotesModal } from './components/NotesModal.js'
 import { StatTiles } from './components/StatTiles.js'
 import { filterHistory, filterSessions, filterWork, summarise, useFilter } from './filter.js'
 import { RegionsProvider, useRegionState } from './regions.js'
-import { Tickets, type NotesAccess } from './lanes/Lanes.js'
+import { Tickets, type NotesAccess, type TodosAccess } from './lanes/Lanes.js'
 import { LaneBoundary } from './lanes/LaneBoundary.js'
 import { ActiveTicket, type ActiveTicketView } from './panels/ActiveTicket.js'
 import { TicketHistory } from './panels/TicketHistory.js'
+import { Todos } from './panels/Todos.js'
 import { call } from './bridge.js'
 import { useOperation, usePushInvalidation, worstFreshness, type Envelope } from './query.js'
 import { Settings } from './settings/Settings.js'
 import { Titlebar } from './Titlebar.js'
-import type { AgentSession, Note, Project, TicketHistoryEntry, WorkItem } from './types.js'
+import type { AgentSession, Note, Project, TicketHistoryEntry, Todo, WorkItem } from './types.js'
 
 /**
  * One page (T137).
@@ -122,6 +123,16 @@ export function App(): ReactElement {
   const history = useOperation<TicketHistoryEntry[]>('history.list', { limit: 1000 })
 
   /**
+   * The to-do list (009), open and done, in one read. The panel shows it and the
+   * ticket lane's badges count from it, so the two cannot disagree.
+   */
+  const todoList = useOperation<Todo[]>('todos.list', { state: 'all', limit: 1000 })
+  /** The ticket the To do panel is narrowed to, set from a ticket row's badge. */
+  const [todoTicket, setTodoTicket] = useState<string | null>(null)
+  /** Bumped on each badge press so the panel scrolls and focuses again. */
+  const [todoRequest, setTodoRequest] = useState(0)
+
+  /**
    * Every subject a row could carry a badge for, in one call (T150).
    *
    * Taken from the **unfiltered** snapshot on purpose. Keying the query on the
@@ -197,7 +208,7 @@ export function App(): ReactElement {
    * Which regions are folded away (T102, T103).
    *
    * **The ids are literals, here and in each component that names one**:
-   * `summary`, `connections`, `tickets`, `active-ticket`, `ticket-history`.
+   * `summary`, `connections`, `tickets`, `active-ticket`, `todos`, `ticket-history`.
    * They are the keys of a stored preference, so a generated one would change
    * between builds and quietly unfold everything the operator had put away — and
    * would leave a dead key behind each time.
@@ -259,6 +270,18 @@ export function App(): ReactElement {
 
   const deleteHistory = useCallback(async (request: { ticketKey: string; revision: number }) => {
     await call('history.delete', request)
+  }, [])
+
+  // To-do writes. No invalidation here: they mutate, so main's push wrapper
+  // announces `todos:changed` and `usePushInvalidation` refetches.
+  const createTodo = useCallback(async (request: { text: string; ticketKey: string | null }) => {
+    await call('todos.create', request)
+  }, [])
+  const updateTodo = useCallback(async (request: Record<string, unknown>) => {
+    await call('todos.update', request)
+  }, [])
+  const deleteTodo = useCallback(async (request: { id: string; revision: number }) => {
+    await call('todos.delete', request)
   }, [])
 
   const refresh = useCallback(() => {
@@ -330,6 +353,25 @@ export function App(): ReactElement {
           open: (key, label) => setNotesFor({ key, label }),
         }
 
+  const openTodoCounts: Record<string, number> = {}
+  for (const todo of todoList.data ?? []) {
+    if (todo.doneAt === null && todo.ticketKey !== null) {
+      openTodoCounts[todo.ticketKey] = (openTodoCounts[todo.ticketKey] ?? 0) + 1
+    }
+  }
+  const todos: TodosAccess | undefined =
+    todoList.data === undefined
+      ? undefined
+      : {
+          counts: openTodoCounts,
+          open: (ticketKey) => {
+            setTodoTicket(ticketKey)
+            setTodoRequest((n) => n + 1)
+            // A folded panel would swallow the press; unfold it first.
+            if (regions.isCollapsed('todos')) regions.toggle('todos')
+          },
+        }
+
   return (
     <RegionsProvider value={regions}>
       <Titlebar
@@ -391,6 +433,7 @@ export function App(): ReactElement {
                   projects={known}
                   freshness={ticketFreshness}
                   notes={notes}
+                  todos={todos}
                   statuses={{
                     hidden: new Set(hiddenStatuses ?? settings.data?.hiddenStatuses ?? []),
                     onChange: (next) => {
@@ -420,6 +463,28 @@ export function App(): ReactElement {
                   // pressed a project chip would read as "nothing is active".
                   items={work.data?.data}
                   onClear={clearActive}
+                />
+              </LaneBoundary>
+
+              {/*
+                The to-do list (009). Not narrowed by the project chips: a
+                free-standing to-do has no project, and hiding linked ones
+                would make the list look shorter than it is.
+              */}
+              <LaneBoundary lane="To do">
+                <Todos
+                  todos={todoList.data ?? []}
+                  tickets={(work.data?.data ?? []).map((item) => ({
+                    key: item.ticket.key,
+                    issueKey: item.ticket.issueKey,
+                    summary: item.ticket.summary,
+                  }))}
+                  focusTicket={todoTicket}
+                  onFocusTicket={setTodoTicket}
+                  focusRequest={todoRequest}
+                  onCreate={createTodo}
+                  onUpdate={updateTodo}
+                  onDelete={deleteTodo}
                 />
               </LaneBoundary>
 

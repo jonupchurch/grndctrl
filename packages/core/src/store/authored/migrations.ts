@@ -419,6 +419,35 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_ticket_history_updated ON ticket_history(updated_at DESC);
     `,
   },
+  {
+    version: 7,
+    name: 'todos',
+    /**
+     * The to-do list (009). Additive: the table did not exist before.
+     *
+     * **`ticket_key` is nullable and not a foreign key.** A to-do can stand on
+     * its own, and one linked to a ticket must survive that ticket leaving the
+     * mirror — the same reasoning as `ticket_history` (XIII).
+     *
+     * **Nothing prunes it.** A finished to-do stays until the operator deletes
+     * it; a list that quietly forgot what was done is not one anybody trusts.
+     */
+    up: `
+      CREATE TABLE todos (
+        id          TEXT PRIMARY KEY,
+        text        TEXT NOT NULL,
+        ticket_key  TEXT,
+        done_at     TEXT,
+        author_kind TEXT NOT NULL CHECK (author_kind IN ('user','agent')),
+        author_id   TEXT,
+        revision    INTEGER NOT NULL DEFAULT 1,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE INDEX idx_todos_ticket ON todos(ticket_key);
+      CREATE INDEX idx_todos_created ON todos(created_at);
+    `,
+  },
 ]
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {

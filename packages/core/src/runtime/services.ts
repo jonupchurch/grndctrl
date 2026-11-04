@@ -10,6 +10,7 @@ import { buildSyncTargets, type BuiltTargets } from './providers.js'
 import { confirmationTokens, type ConfirmationTokens } from '../services/confirmation.js'
 import { focusService, type FocusService } from '../services/focus.js'
 import { historyService, type HistoryService } from '../services/history.js'
+import { todosService, type TodosService } from '../services/todos.js'
 import { siteCheck } from '../services/sites.js'
 import { updatesService, type UpdatesService } from '../services/updates.js'
 import { promptsService, type PromptsService } from '../services/prompts.js'
@@ -21,6 +22,7 @@ import { settingsStore, type SettingsStore } from '../services/settings.js'
 import { projectsRepository, type ProjectsRepository } from '../store/authored/config.js'
 import { focusRepository } from '../store/authored/focus.js'
 import { historyRepository } from '../store/authored/history.js'
+import { todosRepository } from '../store/authored/todos.js'
 import { updatesRepository } from '../store/authored/updates.js'
 import { promptsRepository } from '../store/authored/prompts.js'
 import { notesRepository } from '../store/authored/notes.js'
@@ -58,6 +60,8 @@ export interface CoreServices {
   prompts: PromptsService
   /** One curated line per ticket, kept for good. The only unbounded stream (008/FR-150). */
   history: HistoryService
+  /** The operator's to-do list, writable by agents too (009). */
+  todos: TodosService
   sessions: SessionsService
   outbox: OutboxService
   settings: SettingsStore
@@ -175,6 +179,11 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     assertKnownSite: (key) => sites.assertKnown(key),
   })
 
+  const todos = todosService({
+    todos: todosRepository(authoredDb),
+    assertKnownSite: (key) => sites.assertKnown(key),
+  })
+
   const sessions = sessionsService({
     sessions: sessionsRepo,
     openQuestionSubjects: () => notesRepo.openQuestionSubjects(),
@@ -244,6 +253,7 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     updates,
     prompts,
     history,
+    todos,
     sessions,
     outbox,
     settings,

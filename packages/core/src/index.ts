@@ -29,4 +29,5 @@ export * from './services/links.js'
 // this one is exported because the interface renders `issueKey`, which the entry
 // carries and the domain type does not.
 export type { TicketHistoryView } from './services/history.js'
+export type { TodoView } from './services/todos.js'
 export * from './services/connections.js'

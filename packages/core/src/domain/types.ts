@@ -432,6 +432,28 @@ export interface TicketHistoryEntry {
   updatedAt: Timestamp
 }
 
+/**
+ * One item on the operator's to-do list (009).
+ *
+ * Written by the operator in the window or by an agent over MCP, and linked to
+ * at most one ticket. The link is a natural key, not a reference: a to-do
+ * outlives the ticket leaving the mirror, like every other authored record.
+ */
+export interface Todo {
+  id: string
+  text: string
+  /** The ticket it belongs to, or null for a free-standing to-do. */
+  ticketKey: NaturalKey | null
+  /** When it was ticked off. Null while it is open. */
+  doneAt: Timestamp | null
+  /** Who created it. From `Ctx`, never from a payload. */
+  authorKind: AuthorKind
+  authorId: string | null
+  revision: number
+  createdAt: Timestamp
+  updatedAt: Timestamp
+}
+
 export type ActionKind = 'transition-ticket' | 'investigate'
 
 export type ActionState = 'pending' | 'claimed' | 'complete' | 'failed' | 'expired' | 'cancelled'
