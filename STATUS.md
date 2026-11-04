@@ -1,6 +1,23 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-09-15 (0.7.0 published from a tag) · **Stage:** released · **On npm:** 0.7.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-11-04 (0.9.0 published from a tag) · **Stage:** released · **On npm:** 0.9.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.9.0 is on the registry**, published 2026-11-04 by the tag `v0.9.0` on
+`main`, each package carrying SLSA provenance, read back from
+`registry.npmjs.org` directly. It adds a to-do list (a To do region, a to-do
+badge on ticket rows, and three MCP tools) and sizes the sprint column to the
+widest sprint name. A dry run and CI passed against `main` first.
+
+**It runs a migration**: authored 6 → 7, a new `todos` table.
+`npx grndctrl@0.9.0` under `GRNDCTRL_SMOKE=1` over a scratch data directory,
+after removing an `_npx` entry pinned `^0.7.0` that could never have reached it:
+`{"version":"0.9.0","dbVersions":{"mirror":7,"authored":7},"runtimeAbi":{"modules":"130","electron":"33.4.11","isElectron":true}}`.
+
+The registry showed 0.8.0 as `latest` for about 190 seconds after the publish
+step finished — longer than the 75 seconds last time.
+
+0.8.0 (Logged and PR columns, a status filter; mirror 6 → 7) was published
+2026-09-28 and is not otherwise recorded here.
 
 **0.7.0 is on the registry**, published 2026-09-15 by the tag `v0.7.0` on
 `main`, each package carrying SLSA provenance, read back from
