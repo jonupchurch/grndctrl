@@ -12,6 +12,29 @@ detail** instead: the first is a removal, and what an upgrader needs is the list
 of what is gone rather than a sentence saying a lot is; the rest are small
 enough to state in full.
 
+## [0.10.0] — 2026-11-09
+
+**Ticket tags, and no Priority column.**
+
+### Added
+
+- **A tag on each ticket row** — Blocked (red), Waiting (yellow) or Deploy
+  (green) to start with. It sits in the right-hand slot beside the note and
+  to-do badges. Hover a row and press `#` to tag it; press the tag to change
+  or remove it. A ticket carries at most one.
+- **Settings → Ticket tags**: rename, recolour, reorder, add and remove tags.
+  Renaming or recolouring keeps every ticket on that tag; removing one takes
+  it off every ticket.
+- **Two MCP tools**: `grndctrl_list_tags` and `grndctrl_set_tag`. Agents can
+  put the operator's tags on tickets, but not define new ones.
+
+### Removed
+
+- **The Priority column** on the ticket lane, to make room for the tag.
+
+**This runs an authored migration** (authored 7 → 8, one new `ticket_tags`
+table). Nothing existing changes.
+
 ## [0.9.0] — 2026-11-04
 
 **A to-do list, and a sprint column that shows the whole sprint name.**
