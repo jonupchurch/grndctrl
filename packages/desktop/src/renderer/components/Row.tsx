@@ -87,7 +87,6 @@ export interface RowProps {
     | {
         release: readonly string[]
         sprint: string | null
-        priority: string | null
         points: number | null
         /** Seconds. Null is nothing logged; `0` is logged and deleted, and shows. */
         logged: number | null
@@ -116,6 +115,8 @@ export interface RowProps {
   onOpenNotes?: (() => void) | undefined
   /** Anything else for the trailing slot. Rendered after the note badge. */
   trailing?: ReactNode
+  /** Rendered first in the trailing slot, pinned to its left edge — the ticket tag (010). */
+  trailingLead?: ReactNode
   onOpen(): void
   now?: Date
 }
@@ -208,7 +209,11 @@ export interface RowHeadingsProps {
    * cannot be made clickable without something behind it to sort by.
    */
   sort?:
-    | { state: SortState | null; columns: readonly SortColumn[]; onSort: (column: SortColumn) => void }
+    | {
+        state: SortState | null
+        columns: readonly SortColumn[]
+        onSort: (column: SortColumn) => void
+      }
     | undefined
 }
 
@@ -300,7 +305,6 @@ export function RowHeadings({
       {metrics && (
         <>
           {heading('sprint', 'Sprint')}
-          {heading('priority', 'Priority')}
           {heading('points', 'Points')}
           {heading('logged', 'Logged')}
           {heading('pr', 'PR')}
@@ -331,6 +335,7 @@ export function Row({
   hasOpenQuestion,
   onOpenNotes,
   trailing,
+  trailingLead,
   onOpen,
   now,
 }: RowProps): ReactElement {
@@ -362,7 +367,11 @@ export function Row({
         aria-label={`Open ${identifier}${title === '' ? '' : `: ${title}`}`}
       />
 
-      <StaleBar band={staleness} lastRealActivityAt={lastRealActivityAt} {...(now === undefined ? {} : { now })} />
+      <StaleBar
+        band={staleness}
+        lastRealActivityAt={lastRealActivityAt}
+        {...(now === undefined ? {} : { now })}
+      />
 
       <span className="row__project">
         {project === undefined ? (
@@ -411,14 +420,8 @@ export function Row({
             {metrics.sprint ?? <Absent />}
           </span>
 
-          {/*
-            The tracker's own word, unmapped — see `Ticket.priority` in core.
-            `title` carries the column's name because the heading row is
-            decorative: it tells a screen reader what "Highest" is a Highest of.
-          */}
-          <span className="row__priority" title={`Priority: ${metrics.priority ?? 'not set'}`}>
-            {metrics.priority ?? <Absent />}
-          </span>
+          {/* The Priority column stood here until 0.10.0 and was removed on the
+              operator's instruction, to make room for the ticket tag. */}
 
           {/*
             Never `metrics.points || …` — that renders a genuine zero-point
@@ -438,7 +441,11 @@ export function Row({
           */}
           <span
             className="row__logged"
-            title={metrics.logged === null ? 'Nothing logged' : `Logged: ${exactDuration(metrics.logged)}`}
+            title={
+              metrics.logged === null
+                ? 'Nothing logged'
+                : `Logged: ${exactDuration(metrics.logged)}`
+            }
           >
             {metrics.logged === null ? <Absent /> : formatHours(metrics.logged)}
           </span>
@@ -459,7 +466,10 @@ export function Row({
                 : metrics.pullRequests.length === 0
                   ? 'No linked pull request'
                   : metrics.pullRequests
-                      .map((p) => `${p.label} ${p.state}${p.repository === null ? '' : ` · ${p.repository}`}`)
+                      .map(
+                        (p) =>
+                          `${p.label} ${p.state}${p.repository === null ? '' : ` · ${p.repository}`}`,
+                      )
                       .join('\n')
             }
           >
@@ -506,6 +516,7 @@ export function Row({
         placeholders, applied to a control rather than to a mark.
       */}
       <span className="row__trailing">
+        {trailingLead}
         {onOpenNotes !== undefined && (
           <button
             type="button"

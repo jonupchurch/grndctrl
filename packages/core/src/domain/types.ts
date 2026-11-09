@@ -454,6 +454,31 @@ export interface Todo {
   updatedAt: Timestamp
 }
 
+/**
+ * A tag the operator can put on a ticket row (010) — "Blocked", "Waiting".
+ *
+ * Defined in settings, so the operator names and colours them. The id is what
+ * a ticket stores, so renaming or recolouring a tag keeps every ticket on it.
+ */
+export interface TicketTagDefinition {
+  id: string
+  label: string
+  /** `#rrggbb`. */
+  color: string
+}
+
+/**
+ * The one tag on one ticket. A ticket with no tag has no row. Last write wins:
+ * it is a single value set by a single gesture, so there is no edit to lose.
+ */
+export interface TicketTag {
+  ticketKey: NaturalKey
+  tagId: string
+  authorKind: AuthorKind
+  authorId: string | null
+  updatedAt: Timestamp
+}
+
 export type ActionKind = 'transition-ticket' | 'investigate'
 
 export type ActionState = 'pending' | 'claimed' | 'complete' | 'failed' | 'expired' | 'cancelled'
@@ -524,6 +549,8 @@ export interface Settings {
   alwaysOnTop: boolean
   /** Status names the ticket lane hides. Empty shows every status. */
   hiddenStatuses: string[]
+  /** The tags a ticket can carry, in the order the picker offers them (010). */
+  ticketTags: TicketTagDefinition[]
   /**
    * Which regions of the board the operator has folded away (FR-143).
    *

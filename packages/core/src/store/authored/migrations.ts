@@ -448,6 +448,27 @@ export const AUTHORED_MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_todos_created ON todos(created_at);
     `,
   },
+  {
+    version: 8,
+    name: 'ticket_tags',
+    /**
+     * One tag per ticket (010). Additive: the table did not exist before.
+     *
+     * `tag_id` names a definition in settings, not a row here, so deleting a
+     * tag in settings leaves its assignments behind; readers skip any id that
+     * is no longer defined. `ticket_key` is not a foreign key, for the reason
+     * every authored table gives (XIII).
+     */
+    up: `
+      CREATE TABLE ticket_tags (
+        ticket_key  TEXT PRIMARY KEY,
+        tag_id      TEXT NOT NULL,
+        author_kind TEXT NOT NULL CHECK (author_kind IN ('user','agent')),
+        author_id   TEXT,
+        updated_at  TEXT NOT NULL
+      );
+    `,
+  },
 ]
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {

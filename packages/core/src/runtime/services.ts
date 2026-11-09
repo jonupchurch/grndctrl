@@ -11,6 +11,7 @@ import { confirmationTokens, type ConfirmationTokens } from '../services/confirm
 import { focusService, type FocusService } from '../services/focus.js'
 import { historyService, type HistoryService } from '../services/history.js'
 import { todosService, type TodosService } from '../services/todos.js'
+import { ticketTagsService, type TicketTagsService } from '../services/ticketTags.js'
 import { siteCheck } from '../services/sites.js'
 import { updatesService, type UpdatesService } from '../services/updates.js'
 import { promptsService, type PromptsService } from '../services/prompts.js'
@@ -23,6 +24,7 @@ import { projectsRepository, type ProjectsRepository } from '../store/authored/c
 import { focusRepository } from '../store/authored/focus.js'
 import { historyRepository } from '../store/authored/history.js'
 import { todosRepository } from '../store/authored/todos.js'
+import { ticketTagsRepository } from '../store/authored/ticketTags.js'
 import { updatesRepository } from '../store/authored/updates.js'
 import { promptsRepository } from '../store/authored/prompts.js'
 import { notesRepository } from '../store/authored/notes.js'
@@ -62,6 +64,8 @@ export interface CoreServices {
   history: HistoryService
   /** The operator's to-do list, writable by agents too (009). */
   todos: TodosService
+  /** One operator-defined tag per ticket (010). */
+  ticketTags: TicketTagsService
   sessions: SessionsService
   outbox: OutboxService
   settings: SettingsStore
@@ -179,6 +183,12 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     assertKnownSite: (key) => sites.assertKnown(key),
   })
 
+  const ticketTags = ticketTagsService({
+    tags: ticketTagsRepository(authoredDb),
+    definitions: () => settings.get().ticketTags,
+    assertKnownSite: (key) => sites.assertKnown(key),
+  })
+
   const todos = todosService({
     todos: todosRepository(authoredDb),
     assertKnownSite: (key) => sites.assertKnown(key),
@@ -254,6 +264,7 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
     prompts,
     history,
     todos,
+    ticketTags,
     sessions,
     outbox,
     settings,

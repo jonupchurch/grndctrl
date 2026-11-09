@@ -143,12 +143,13 @@ test('the lane reports its own freshness, not the board-wide worst', async () =>
  * badge left to draw; "there is no Agent column any more" below replaces it.
  */
 
-test('the ticket lane carries release, sprint, priority and story points, and names its columns', async () => {
+test('the ticket lane carries release, sprint and story points, and names its columns', async () => {
   const tickets = it.window.getByRole('region', { name: 'Tickets' })
 
   await expect(tickets.getByText('Release', { exact: true })).toBeVisible()
   await expect(tickets.getByText('Sprint', { exact: true })).toBeVisible()
-  await expect(tickets.getByText('Priority', { exact: true })).toBeVisible()
+  // Priority was removed in 0.10.0 to make room for the ticket tag.
+  await expect(tickets.getByText('Priority', { exact: true })).toHaveCount(0)
   await expect(tickets.getByText('Points', { exact: true })).toBeVisible()
 
   const row = await it.window.evaluate(() => {
@@ -158,7 +159,6 @@ test('the ticket lane carries release, sprint, priority and story points, and na
     return {
       release: el?.querySelector('.row__release')?.getAttribute('title') ?? null,
       sprint: el?.querySelector('.row__sprint')?.textContent ?? null,
-      priority: el?.querySelector('.row__priority')?.textContent ?? null,
       points: el?.querySelector('.row__points')?.textContent ?? null,
     }
   })
@@ -166,7 +166,6 @@ test('the ticket lane carries release, sprint, priority and story points, and na
   // Read from `title`, which holds the whole list; the cell may ellipsise it.
   expect(row.release).toBe('Release: 2026.09, 2026.10')
   expect(row.sprint).toBe('Sprint 12')
-  expect(row.priority).toBe('High')
   expect(row.points).toBe('5')
 })
 
@@ -349,8 +348,8 @@ test('the column headings line up with the cells beneath them', async () => {
       '.row__release',
       '.row__status',
       '.row__sprint',
-      '.row__priority',
       '.row__points',
+      '.row__pr',
     ].map((slot) => ({ slot, head: left(head, slot), row: left(row, slot) }))
   })
 
@@ -486,7 +485,9 @@ test('selecting a project narrows the page rather than navigating', async () => 
 
   // Still one page. No navigation, no history entry, nothing to come back from.
   expect(it.window.url()).toBe(before)
-  await expect(it.window.getByRole('region', { name: 'Tickets' }).getByText('MERC-1184')).toBeVisible()
+  await expect(
+    it.window.getByRole('region', { name: 'Tickets' }).getByText('MERC-1184'),
+  ).toBeVisible()
 
   // Pressing the same chip again widens back out — the filter is a toggle, and
   // "All" is a chip like the others rather than a special mode.

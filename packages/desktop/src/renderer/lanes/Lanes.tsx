@@ -1,10 +1,18 @@
-import { useMemo, useState, type CSSProperties, type ReactElement } from 'react'
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 import { EmptyState } from '../components/EmptyState.js'
 import { LaneStatus } from '../components/LaneStatus.js'
 import { Section } from '../components/Section.js'
 import { Row, RowHeadings } from '../components/Row.js'
 import { paletteIndexOf } from '../components/ProjectChip.js'
 import { StatusFilter } from '../components/StatusFilter.js'
+import { TagAdd, TagMenu, TagPill, type TagDefinition } from '../components/TicketTag.js'
 import { launch, launchPullRequest } from '../launch.js'
 import type { FreshnessView } from '../query.js'
 import type { Project, WorkItem } from '../types.js'
@@ -12,7 +20,6 @@ import { identifierTrack, idTextMeasurer, metaTextMeasurer, sprintTrack } from '
 import {
   applySort,
   nextSort,
-  priorityOrder,
   sortableColumns,
   type SortAccessors,
   type SortColumn,
@@ -92,7 +99,7 @@ interface LaneShellProps {
     columns: readonly SortColumn[]
     onSort: (column: SortColumn) => void
   }
-  children: ReactElement | ReactElement[] | null
+  children: ReactNode
   empty: ReactElement
   now?: Date
 }
@@ -267,6 +274,17 @@ function todoBadge(
   )
 }
 
+/**
+ * What the ticket lane needs to draw tags (010): the tags that exist, which
+ * ticket carries which, and the write.
+ */
+export interface TagsAccess {
+  definitions: readonly TagDefinition[]
+  /** Tag id per ticket key. A key that is absent is untagged. */
+  byTicket: Readonly<Record<string, string>>
+  set(ticketKey: string, tagId: string | null): void
+}
+
 interface LaneProps {
   items: readonly WorkItem[]
   projects: readonly Project[]
@@ -275,6 +293,8 @@ interface LaneProps {
   notes?: NotesAccess | undefined
   /** Absent draws no to-do badge. */
   todos?: TodosAccess | undefined
+  /** Absent draws no tags. */
+  tags?: TagsAccess | undefined
   /**
    * The status filter: which status names are hidden, and how to change that.
    * Absent draws no dropdown and hides nothing.
@@ -367,9 +387,22 @@ export function Tickets({
   freshness,
   notes,
   todos,
+  tags,
   statuses,
   now,
 }: LaneProps): ReactElement {
+  /** The one open tag menu: which ticket, and where its control sits. */
+  const [picking, setPicking] = useState<{
+    ticketKey: string
+    issueKey: string
+    anchor: DOMRect
+  } | null>(null)
+  const closePicker = useCallback(() => setPicking(null), [])
+  const tagOf = (ticketKey: string): TagDefinition | undefined => {
+    const id = tags?.byTicket[ticketKey]
+    return id === undefined ? undefined : tags?.definitions.find((d) => d.id === id)
+  }
+
   // No `withTickets` filter, and no `?.` below. Every work item has a ticket
   // (FR-106), so both were guarding against a state the type no longer permits
   // — and a filter whose predicate is always true is a filter a future reader
@@ -385,10 +418,6 @@ export function Tickets({
     release: (i) => (i.ticket.fixVersions.length === 0 ? null : i.ticket.fixVersions.join(', ')),
     status: (i) => i.ticket.statusName,
     sprint: (i) => i.ticket.sprint,
-    // The one column whose sort key is not what the cell shows — `Highest` has
-    // to come before `High`, which no alphabetical order produces. See
-    // `priorityOrder`: it orders and never relabels.
-    priority: (i) => priorityOrder(i.ticket.priority),
     points: (i) => i.ticket.storyPoints,
     logged: (i) => i.ticket.timeSpentSeconds,
     // By the first pull request's number: "which of mine have a PR up" is the
@@ -469,7 +498,6 @@ export function Tickets({
           metrics={{
             release: item.ticket.fixVersions,
             sprint: item.ticket.sprint,
-            priority: item.ticket.priority,
             points: item.ticket.storyPoints,
             logged: item.ticket.timeSpentSeconds,
             pullRequests: item.ticket.pullRequests,
@@ -478,10 +506,43 @@ export function Tickets({
           {...slot(item.projectId, projects)}
           {...noteSlot(notes, item.ticket.key, item.ticket.issueKey)}
           trailing={todoBadge(todos, item.ticket.key, item.ticket.issueKey)}
+          trailingLead={
+            tags === undefined ? null : (
+              <span className="row__tagslot">
+                {(() => {
+                  const tag = tagOf(item.ticket.key)
+                  const pick = (anchor: DOMRect): void =>
+                    setPicking({
+                      ticketKey: item.ticket.key,
+                      issueKey: item.ticket.issueKey,
+                      anchor,
+                    })
+                  return tag === undefined ? (
+                    <TagAdd issueKey={item.ticket.issueKey} onPick={pick} />
+                  ) : (
+                    <TagPill tag={tag} issueKey={item.ticket.issueKey} onPick={pick} />
+                  )
+                })()}
+              </span>
+            )
+          }
           {...(now === undefined ? {} : { now })}
           onOpen={() => void launch(item.key, 'ticket')}
         />
       ))}
+      {picking === null || tags === undefined ? null : (
+        <TagMenu
+          anchor={picking.anchor}
+          issueKey={picking.issueKey}
+          tags={tags.definitions}
+          current={tags.byTicket[picking.ticketKey] ?? null}
+          onPick={(tagId) => {
+            tags.set(picking.ticketKey, tagId)
+            setPicking(null)
+          }}
+          onClose={closePicker}
+        />
+      )}
     </Lane>
   )
 }

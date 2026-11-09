@@ -114,9 +114,7 @@ test('2 · a ticket row opens the ticket, not the repository', async () => {
     .getByRole('button', { name: /^Open MERC-1184/ })
     .click()
 
-  await expect
-    .poll(openedUrls)
-    .toEqual(['https://acme.atlassian.net/browse/MERC-1184'])
+  await expect.poll(openedUrls).toEqual(['https://acme.atlassian.net/browse/MERC-1184'])
 })
 
 /**
@@ -204,8 +202,8 @@ test('4b · the row that gained a note still lines up with the one that did not'
         '.row__release',
         '.row__status',
         '.row__sprint',
-        '.row__priority',
         '.row__points',
+        '.row__trailing',
       ]) {
         const cell = row?.querySelector(slot) ?? null
         if (cell !== null) out[slot] = Math.round(cell.getBoundingClientRect().left)
@@ -239,7 +237,9 @@ test('5 · editing that note against a current revision succeeds', async () => {
   await dialog.getByLabel('Editing').fill('Reconcile reads a missing ref once upstream is deleted.')
   await dialog.getByRole('button', { name: 'Save changes' }).click()
 
-  await expect(written.getByText('Reconcile reads a missing ref once upstream is deleted.')).toBeVisible()
+  await expect(
+    written.getByText('Reconcile reads a missing ref once upstream is deleted.'),
+  ).toBeVisible()
   // Still one note. An edit that lost its revision race would have been
   // rejected outright, and one that ignored the revision would have made two.
   await expect(written.getByRole('listitem')).toHaveCount(1)
@@ -300,7 +300,9 @@ test('5b · an edit that lost the revision race shows what it lost to', async ()
   ).toBeVisible()
 
   // And the draft is still in the box, which is the point of showing both.
-  await expect(dialog.getByLabel('Editing')).toHaveValue('My own version, typed while that happened.')
+  await expect(dialog.getByLabel('Editing')).toHaveValue(
+    'My own version, typed while that happened.',
+  )
 
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
 })

@@ -6,7 +6,8 @@ import { NotesModal } from './components/NotesModal.js'
 import { StatTiles } from './components/StatTiles.js'
 import { filterHistory, filterSessions, filterWork, summarise, useFilter } from './filter.js'
 import { RegionsProvider, useRegionState } from './regions.js'
-import { Tickets, type NotesAccess, type TodosAccess } from './lanes/Lanes.js'
+import { Tickets, type NotesAccess, type TagsAccess, type TodosAccess } from './lanes/Lanes.js'
+import type { TagDefinition } from './components/TicketTag.js'
 import { LaneBoundary } from './lanes/LaneBoundary.js'
 import { ActiveTicket, type ActiveTicketView } from './panels/ActiveTicket.js'
 import { TicketHistory } from './panels/TicketHistory.js'
@@ -127,6 +128,11 @@ export function App(): ReactElement {
    * ticket lane's badges count from it, so the two cannot disagree.
    */
   const todoList = useOperation<Todo[]>('todos.list', { state: 'all', limit: 1000 })
+  /** Ticket tags (010): the definitions from settings and every ticket's tag. */
+  const tagList = useOperation<{
+    definitions: TagDefinition[]
+    tags: { ticketKey: string; tagId: string }[]
+  }>('tags.list')
   /** The ticket the To do panel is narrowed to, set from a ticket row's badge. */
   const [todoTicket, setTodoTicket] = useState<string | null>(null)
   /** Bumped on each badge press so the panel scrolls and focuses again. */
@@ -359,6 +365,17 @@ export function App(): ReactElement {
       openTodoCounts[todo.ticketKey] = (openTodoCounts[todo.ticketKey] ?? 0) + 1
     }
   }
+  const tags: TagsAccess | undefined =
+    tagList.data === undefined
+      ? undefined
+      : {
+          definitions: tagList.data.definitions,
+          byTicket: Object.fromEntries(tagList.data.tags.map((t) => [t.ticketKey, t.tagId])),
+          // No invalidation: `tags.set` mutates, so main announces it.
+          set: (ticketKey, tagId) =>
+            void call('tags.set', { ticketKey, tagId }).catch(() => undefined),
+        }
+
   const todos: TodosAccess | undefined =
     todoList.data === undefined
       ? undefined
@@ -434,6 +451,7 @@ export function App(): ReactElement {
                   freshness={ticketFreshness}
                   notes={notes}
                   todos={todos}
+                  tags={tags}
                   statuses={{
                     hidden: new Set(hiddenStatuses ?? settings.data?.hiddenStatuses ?? []),
                     onChange: (next) => {

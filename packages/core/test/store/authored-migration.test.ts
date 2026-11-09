@@ -611,6 +611,36 @@ const CASES: MigrationCase[] = [
       expect(db.prepare('SELECT COUNT(*) AS n FROM todos').get()).toEqual({ n: 1 })
     },
   },
+  {
+    version: 8,
+    name: 'ticket_tags',
+    /** Additive. Pins the columns, that to-dos survive, and one tag per ticket. */
+    seed: (db) => {
+      db.prepare(
+        `INSERT INTO todos (id, text, ticket_key, done_at, author_kind, author_id, revision,
+                            created_at, updated_at)
+         VALUES ('todo:1', 'Kept.', NULL, NULL, 'user', NULL, 1,
+                 '2026-11-01T12:00:00Z', '2026-11-01T12:00:00Z')`,
+      ).run()
+    },
+    verify: (db) => {
+      const columns = (
+        db.prepare(`PRAGMA table_info("ticket_tags")`).all() as { name: string }[]
+      ).map((c) => c.name)
+      expect(columns).toEqual(['ticket_key', 'tag_id', 'author_kind', 'author_id', 'updated_at'])
+
+      expect(
+        (db.prepare(`SELECT text FROM todos WHERE id = 'todo:1'`).get() as { text: string }).text,
+      ).toBe('Kept.')
+
+      const insert = db.prepare(
+        `INSERT INTO ticket_tags (ticket_key, tag_id, author_kind, author_id, updated_at)
+         VALUES ('jira:acme.atlassian.net/MERC-1', ?, 'user', NULL, '2026-11-01T12:00:00Z')`,
+      )
+      insert.run('blocked')
+      expect(() => insert.run('deploy')).toThrow(/UNIQUE|PRIMARY/)
+    },
+  },
 ]
 
 describe('authored migrations', () => {

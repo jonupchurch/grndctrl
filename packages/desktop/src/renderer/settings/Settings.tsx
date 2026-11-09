@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { Connections } from './Connections.js'
 import { Projects } from './Projects.js'
+import { TicketTags } from './TicketTags.js'
 
 /**
  * Settings, as a view rather than a dialog (T153).
@@ -31,6 +32,7 @@ export function Settings({ onClose }: { onClose(): void }): ReactElement {
 
       <Connections />
       <Projects />
+      <TicketTags />
     </main>
   )
 }

@@ -118,6 +118,7 @@ export interface Push {
   promptsChanged(): void
   historyChanged(): void
   todosChanged(): void
+  tagsChanged(): void
   /**
    * Emit whatever this operation implies, having run.
    *
@@ -154,6 +155,7 @@ export function push(options: PushOptions): Push {
     promptsChanged: () => broadcast(PUSH_CHANNELS.promptsChanged, {}),
     historyChanged: () => broadcast(PUSH_CHANNELS.historyChanged, {}),
     todosChanged: () => broadcast(PUSH_CHANNELS.todosChanged, {}),
+    tagsChanged: () => broadcast(PUSH_CHANNELS.tagsChanged, {}),
 
     afterDispatch(operation) {
       // A read changes nothing, and announcing one is not merely wasteful — it
@@ -188,6 +190,9 @@ export function push(options: PushOptions): Push {
       // being typed into, once per character.
       if (operation.startsWith('history.')) self.historyChanged()
       if (operation.startsWith('todos.')) self.todosChanged()
+      // A tag set, or a tag renamed or recoloured in settings: either changes
+      // what the ticket rows show.
+      if (operation.startsWith('tags.') || operation === 'settings.update') self.tagsChanged()
     },
 
     start() {

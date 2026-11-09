@@ -30,4 +30,5 @@ export * from './services/links.js'
 // carries and the domain type does not.
 export type { TicketHistoryView } from './services/history.js'
 export type { TodoView } from './services/todos.js'
+export type { TicketTagView } from './services/ticketTags.js'
 export * from './services/connections.js'

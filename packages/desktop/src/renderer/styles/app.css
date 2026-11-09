@@ -175,10 +175,13 @@ body {
   /* Sprint is sized to the widest sprint name in the lane (`--sprint-w`, set
      by `Lane` from `sprintTrack`); 88px is the floor and the fallback when the
      measurement declines. It used to be a fixed 88px and cut names off. */
+  /* Priority's 80px track went in 0.10.0, on the operator's instruction, to
+     pay for the tag in the trailing slot. */
   --row-columns: var(--stale-w) 46px var(--id-w) minmax(0, 1fr) 110px 104px var(--sprint-w, 88px)
-    80px 58px 62px 72px var(--trailing-w) var(--mark-w);
-  /* The trailing slot holds the note badge and the to-do badge (009). */
-  --trailing-w: 80px;
+    58px 62px 72px var(--trailing-w) var(--mark-w);
+  /* The trailing slot holds the ticket tag (010), pinned left at a fixed
+     width so tags line up down the lane, then the note and to-do badges. */
+  --trailing-w: 156px;
 }
 
 /*
@@ -320,8 +323,7 @@ body {
 
 .row__release,
 .row__status,
-.row__sprint,
-.row__priority {
+.row__sprint {
   font-size: var(--t-meta);
   color: var(--ink-3);
   overflow: hidden;
@@ -702,4 +704,155 @@ body {
 .lane__count {
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Ticket tags (010) ───────────────────────────────────────────────────── */
+
+/* The tag's own track inside the trailing slot. `margin-right: auto` pins it to
+   the slot's left edge while the badges stay right-aligned, so a tag does not
+   shift with the width of the note badge beside it. */
+.row__tagslot {
+  display: flex;
+  align-items: center;
+  width: 84px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.row__tag {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--tag);
+  color: var(--tag-ink);
+  cursor: pointer;
+}
+
+.row__tag:focus-visible,
+.row__tag-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Quiet until the operator is on the row, like the empty note badge. */
+.row__tag-add {
+  font: inherit;
+  font-size: var(--t-meta);
+  line-height: 1;
+  color: var(--ink-3);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0 4px;
+  height: 16px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-hover) var(--ease);
+}
+
+.row:hover .row__tag-add,
+.row:focus-within .row__tag-add {
+  opacity: 0.65;
+  border-color: var(--line);
+}
+
+.row__tag-add:hover,
+.row__tag-add:focus-visible {
+  opacity: 1;
+  color: var(--ink);
+}
+
+.tag-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: var(--t-meta);
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.tag-menu__item:hover,
+.tag-menu__item:focus-visible {
+  background: var(--sunken);
+  outline: none;
+}
+
+.tag-menu__item[aria-checked='true'] {
+  font-weight: 600;
+}
+
+.tag-menu__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tag);
+}
+
+.tag-menu__clear {
+  color: var(--ink-2);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 4px 4px;
+}
+
+.tag-menu__empty {
+  margin: 4px 8px;
+  font-size: var(--t-meta);
+  color: var(--ink-3);
+}
+
+/* Settings → Ticket tags. */
+.ticket-tags__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ticket-tags__row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 14rem) 44px auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.ticket-tags__preview {
+  cursor: default;
+  justify-self: start;
+}
+
+.ticket-tags__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
 }

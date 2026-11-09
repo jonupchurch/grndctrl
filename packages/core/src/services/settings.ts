@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3'
 import { z } from 'zod'
-import type { Settings } from '../domain/types.js'
+import type { Settings, TicketTagDefinition } from '../domain/types.js'
 import { invalid } from '../registry/errors.js'
 
 /**
@@ -10,6 +10,20 @@ import { invalid } from '../registry/errors.js'
  * may never lose data; adding a key with a default is safer than an ALTER on
  * the one table there is no backup for.
  */
+
+export const DEFAULT_TICKET_TAGS: TicketTagDefinition[] = [
+  { id: 'blocked', label: 'Blocked', color: '#d64545' },
+  { id: 'waiting', label: 'Waiting', color: '#e0b100' },
+  { id: 'deploy', label: 'Deploy', color: '#2f9e44' },
+]
+
+export const MAX_TICKET_TAGS = 24
+
+export const ticketTagDefinitionSchema = z.object({
+  id: z.string().min(1).max(64),
+  label: z.string().trim().min(1).max(24),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'a colour is #rrggbb'),
+})
 
 export const DEFAULT_SETTINGS: Settings = {
   appearance: 'system',
@@ -37,6 +51,9 @@ export const DEFAULT_SETTINGS: Settings = {
   // Every status shown. Same reasoning as the map above: only what is hidden is
   // stored, so empty is both a fresh install and "show everything".
   hiddenStatuses: [],
+  // The three the operator asked for. Ids are fixed literals so a fresh install
+  // and an upgraded one agree on what `blocked` means.
+  ticketTags: DEFAULT_TICKET_TAGS,
 }
 
 const geometrySchema = z.object({
@@ -55,8 +72,14 @@ export const settingsSchema = z.object({
     jira: z.number().int().min(30).max(3600),
   }),
   laneThresholdHours: z.object({
-    tickets: z.number().min(1).max(24 * 90),
-    sessions: z.number().min(1).max(24 * 90),
+    tickets: z
+      .number()
+      .min(1)
+      .max(24 * 90),
+    sessions: z
+      .number()
+      .min(1)
+      .max(24 * 90),
   }),
   // Below 2, one dropped heartbeat on a busy machine reads as a dead agent.
   heartbeatMissMultiplier: z.number().int().min(2).max(10),
@@ -94,6 +117,17 @@ export const settingsSchema = z.object({
    * needs no migration.
    */
   hiddenStatuses: z.array(z.string().min(1).max(200)).max(200),
+  /**
+   * The tags a ticket can carry (010). Needs no migration: a row written before
+   * this key existed merges over the defaults and gets the three.
+   */
+  ticketTags: z
+    .array(ticketTagDefinitionSchema)
+    .max(MAX_TICKET_TAGS)
+    .refine(
+      (tags) => new Set(tags.map((t) => t.id)).size === tags.length,
+      'tag ids must be unique',
+    ),
 })
 
 export interface SettingsStore {
@@ -109,8 +143,7 @@ export interface SettingsStore {
 export function settingsStore(db: Database): SettingsStore {
   const read = (): Settings => {
     const row = db.prepare('SELECT payload FROM settings WHERE id = 1').get() as
-      | { payload: string }
-      | undefined
+      { payload: string } | undefined
 
     if (row === undefined) return DEFAULT_SETTINGS
 
@@ -119,7 +152,9 @@ export function settingsStore(db: Database): SettingsStore {
     // refusing to start over a missing preference would be absurd. An unusable
     // row falls back to defaults rather than blocking launch.
     const parsed = settingsSchema.partial().safeParse(safeJson(row.payload))
-    return parsed.success ? { ...DEFAULT_SETTINGS, ...stripUndefined(parsed.data) } : DEFAULT_SETTINGS
+    return parsed.success
+      ? { ...DEFAULT_SETTINGS, ...stripUndefined(parsed.data) }
+      : DEFAULT_SETTINGS
   }
 
   const write = (settings: Settings): void => {

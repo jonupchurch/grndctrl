@@ -105,6 +105,7 @@ export const PUSH_CHANNELS = {
   promptsChanged: 'grndctrl:push:prompts-changed',
   historyChanged: 'grndctrl:push:history-changed',
   todosChanged: 'grndctrl:push:todos-changed',
+  tagsChanged: 'grndctrl:push:tags-changed',
 } as const
 
 /**

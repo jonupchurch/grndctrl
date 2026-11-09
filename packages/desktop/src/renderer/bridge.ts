@@ -60,6 +60,7 @@ export interface Bridge {
     promptsChanged(listener: (payload: unknown) => void): () => void
     historyChanged(listener: (payload: unknown) => void): () => void
     todosChanged(listener: (payload: unknown) => void): () => void
+    tagsChanged(listener: (payload: unknown) => void): () => void
   }
 }
 
