@@ -1,6 +1,17 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-11-04 (0.9.0 published from a tag) · **Stage:** released · **On npm:** 0.9.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-11-09 (0.10.0 published from a tag) · **Stage:** released · **On npm:** 0.10.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.10.0 is on the registry**, published 2026-11-09 by the tag `v0.10.0` on
+`main`, each package carrying SLSA provenance, read back from
+`registry.npmjs.org` directly. It adds ticket tags (one per ticket, defined in
+Settings, starting as Blocked/Waiting/Deploy; MCP `grndctrl_list_tags` and
+`grndctrl_set_tag`) and removes the Priority column. Dry run, CI and Packaging
+passed against `main` first.
+
+**It runs a migration**: authored 7 → 8, a new `ticket_tags` table. Smoke, after
+removing an `_npx` entry pinned `^0.9.0`:
+`{"version":"0.10.0","dbVersions":{"mirror":7,"authored":8},"runtimeAbi":{"modules":"130","electron":"33.4.11","isElectron":true}}`.
 
 **0.9.0 is on the registry**, published 2026-11-04 by the tag `v0.9.0` on
 `main`, each package carrying SLSA provenance, read back from
