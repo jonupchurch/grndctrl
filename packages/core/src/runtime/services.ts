@@ -186,6 +186,7 @@ export function createCoreServices(options: CoreServicesOptions): CoreServices {
   const ticketTags = ticketTagsService({
     tags: ticketTagsRepository(authoredDb),
     definitions: () => settings.get().ticketTags,
+    saveDefinitions: (ticketTags) => void settings.update({ ticketTags }),
     assertKnownSite: (key) => sites.assertKnown(key),
   })
 

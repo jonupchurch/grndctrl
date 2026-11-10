@@ -57,7 +57,10 @@ async function refusal(op: string, input: unknown): Promise<OperationError> {
   throw new Error(`expected '${op}' to be refused`)
 }
 
+let ids = 0
+
 beforeEach(() => {
+  ids = 0
   dir = mkdtempSync(join(tmpdir(), 'grndctrl-tags-'))
   const opened = openAuthored({ dir })
   close = () => opened.db.close()
@@ -67,6 +70,8 @@ beforeEach(() => {
   const service = ticketTagsService({
     tags: ticketTagsRepository(opened.db),
     definitions: () => settings.get().ticketTags,
+    saveDefinitions: (ticketTags) => void settings.update({ ticketTags }),
+    newId: () => `tag-${++ids}`,
   })
   for (const op of ticketTagsOperations(service)) registry.register(op)
 })
@@ -162,5 +167,55 @@ describe('tag definitions in settings', () => {
     await expect(
       reg.dispatch('settings.update', { ticketTags: [] }, ctxOn('mcp')),
     ).rejects.toBeInstanceOf(OperationError)
+  })
+})
+
+describe('an agent creating a tag (0.11.0)', () => {
+  it('creates one with the colour asked for, and can then put it on a ticket', async () => {
+    const made = await run<{
+      definition: { id: string; label: string; color: string }
+      created: boolean
+    }>('tags.define', { label: 'Needs design', color: '#7C3AED' }, 'mcp')
+    expect(made).toEqual({
+      definition: { id: 'tag-1', label: 'Needs design', color: '#7c3aed' },
+      created: true,
+    })
+    expect(settings.get().ticketTags.map((t) => t.label)).toEqual([
+      'Blocked',
+      'Waiting',
+      'Deploy',
+      'Needs design',
+    ])
+
+    const tag = await run<WireTag>('tags.set', { ticketKey: KEY, tagId: 'tag-1' }, 'mcp')
+    expect(tag.label).toBe('Needs design')
+  })
+
+  it('picks an unused colour when none is given', async () => {
+    const a = await run<{ definition: { color: string } }>('tags.define', { label: 'One' }, 'mcp')
+    const b = await run<{ definition: { color: string } }>('tags.define', { label: 'Two' }, 'mcp')
+    expect(a.definition.color).toMatch(/^#[0-9a-f]{6}$/)
+    expect(b.definition.color).not.toBe(a.definition.color)
+  })
+
+  it('returns the existing tag instead of duplicating one, ignoring case', async () => {
+    const again = await run<{ definition: { id: string }; created: boolean }>(
+      'tags.define',
+      { label: '  blocked ' },
+      'mcp',
+    )
+    expect(again).toEqual({ definition: DEFAULT_TICKET_TAGS[0], created: false })
+    expect(settings.get().ticketTags).toHaveLength(3)
+  })
+
+  it('refuses a bad colour and an over-long name', async () => {
+    expect((await refusal('tags.define', { label: 'X', color: 'purple' })).code).toBe('invalid')
+    expect((await refusal('tags.define', { label: 'x'.repeat(25) })).code).toBe('invalid')
+  })
+
+  it('stops at the tag limit, with the reason', async () => {
+    for (let i = 0; i < 21; i++) await run('tags.define', { label: `T${i}` })
+    const e = await refusal('tags.define', { label: 'One too many' })
+    expect(e.message).toMatch(/ticketTags/)
   })
 })

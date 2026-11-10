@@ -137,3 +137,25 @@ test('Settings renames a tag, and every ticket carrying it follows', async () =>
   ])
   await it.window.keyboard.press('Escape')
 })
+
+test('an agent creates a tag; the menu offers it and Settings lists it without a reload', async () => {
+  await it.window
+    .getByRole('button', { name: /settings/i })
+    .first()
+    .click()
+  const section = it.window.getByRole('region', { name: 'Ticket tags' })
+  await expect(section.getByRole('textbox', { name: 'Name of tag 4' })).toHaveValue('Review')
+
+  const res = await agent('tags.define', { label: 'Needs design', color: '#7c3aed' })
+  expect(res.status).toBe(200)
+  await expect(section.getByRole('textbox', { name: 'Name of tag 5' })).toHaveValue(
+    'Needs design',
+    PUSHED,
+  )
+
+  await it.window.getByRole('button', { name: 'Back to the board' }).click()
+  await row('MERC-1190').hover()
+  await row('MERC-1190').getByRole('button', { name: 'Tag MERC-1190' }).click()
+  await menu().getByRole('menuitemradio', { name: 'Needs design' }).click()
+  await expect(pill('MERC-1190')).toHaveText('Needs design', PUSHED)
+})

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BridgeError, call } from '../bridge.js'
+import { useOperation } from '../query.js'
 import { tagStyle, type TagDefinition } from '../components/TicketTag.js'
 
 /**
@@ -19,23 +20,34 @@ function newId(): string {
 
 export function TicketTags(): ReactElement {
   const client = useQueryClient()
-  const settings = useQuery({
-    queryKey: ['settings.get', 'ticketTags'],
-    queryFn: () => call('settings.get') as Promise<{ ticketTags: TagDefinition[] }>,
-  })
+  // Read through `tags.list` rather than `settings.get`: main announces every
+  // tag change on that query, including a tag an agent creates while this page
+  // is open.
+  const settings = useOperation<{ definitions: TagDefinition[] }>('tags.list')
 
   const [draft, setDraft] = useState<TagDefinition[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
-  const stored = settings.data?.ticketTags ?? null
+  const stored = settings.data?.definitions ?? null
+  /** What the draft was taken from. Untouched drafts follow the stored list. */
+  const [base, setBase] = useState<TagDefinition[] | null>(null)
   useEffect(() => {
-    if (stored !== null && draft === null) setDraft(stored)
-  }, [stored, draft])
+    if (stored === null) return
+    // Untouched (or never loaded): take the new list, so a tag an agent just
+    // created appears here and a later save does not quietly remove it.
+    if (draft === null || JSON.stringify(draft) === JSON.stringify(base)) {
+      setDraft(stored)
+      setBase(stored)
+    }
+  }, [stored, draft, base])
 
   const save = useMutation({
     mutationFn: (ticketTags: TagDefinition[]) => call('settings.update', { ticketTags }),
-    onSuccess: () => {
+    onSuccess: (_result, ticketTags) => {
+      // The saved list is the new base, so the draft keeps following changes.
+      setDraft(ticketTags)
+      setBase(ticketTags)
       setSaved(true)
       void client.invalidateQueries({ queryKey: ['settings.get'] })
       void client.invalidateQueries({ queryKey: ['tags.list'] })
@@ -131,7 +143,14 @@ export function TicketTags(): ReactElement {
             Save tags
           </button>
           {dirty && (
-            <button type="button" className="ghost" onClick={() => change(stored ?? [])}>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                change(stored ?? [])
+                setBase(stored)
+              }}
+            >
               Discard changes
             </button>
           )}

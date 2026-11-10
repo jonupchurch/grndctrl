@@ -80,7 +80,8 @@ This project is tracked on Ground Control. Use the `grndctrl` MCP tools:
   `grndctrl_list_todos` first so you do not add a duplicate.
 - **Tag a ticket** (`grndctrl_set_tag`) when its state is worth a glance —
   Blocked when you hit something you cannot get past, for example. Use the
-  operator's tags from `grndctrl_list_tags`; you cannot invent one.
+  operator's tags from `grndctrl_list_tags`. Create a new one
+  (`grndctrl_define_tag`) only when the operator asks for it.
 - **Read the board before asking the operator** (`grndctrl_list_updates`,
   `grndctrl_list_notes`, `grndctrl_list_ticket_history`): another agent may have
   already tried it, and the history says how it went.
@@ -345,13 +346,15 @@ item is already out of the way, and removing one is the operator's call.
 | Tool | |
 | --- | --- |
 | `grndctrl_list_tags` | The tags the operator defined (id, label, colour), and which ticket carries which |
+| `grndctrl_define_tag` | Create a tag the operator asked for; an existing tag of that name is returned instead |
 | `grndctrl_set_tag` | Put a tag on a ticket, replacing its tag, or clear it with `tagId: null` |
 
 **A ticket carries at most one tag**, shown as a coloured pill on its row. The
 tags themselves are the operator's — they start as Blocked, Waiting and Deploy
-and are renamed, recoloured and added in Settings. `settings.update` is
-`ui-only`, so you can use the tags but not change them; an id that is not
-defined is refused with the list of ones that are.
+and are renamed, recoloured, added and removed in Settings. You can **create**
+one when the operator names it — give a `#rrggbb` colour or let one be picked —
+but not rename or remove one. An id that is not defined is refused with the list
+of ones that are.
 
 ### Sessions
 
@@ -440,7 +443,8 @@ fastest way to find out how work like this has been asked for before.
 
 **Delete a to-do.** `todos.delete` is `ui-only`. Tick it off instead.
 
-**Define a ticket tag.** The tags live in settings, which are `ui-only`.
+**Rename, recolour or remove a ticket tag.** Those live in Settings, which is
+`ui-only`. Creating one is allowed (`grndctrl_define_tag`).
 
 **Touch the operator's disk.** There is no local git reader any more and no
 checkout binding to point one at. The application spawns no child process at

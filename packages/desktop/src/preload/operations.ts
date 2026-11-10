@@ -68,6 +68,7 @@ export const OPERATIONS = [
   'settings.update',
   'sync.now',
   'sync.status',
+  'tags.define',
   'tags.list',
   'tags.set',
   'todos.create',
