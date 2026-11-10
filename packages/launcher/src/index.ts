@@ -12,7 +12,7 @@
  * entry behind when either fails.
  */
 
-export const LAUNCHER_VERSION = '0.10.0'
+export const LAUNCHER_VERSION = '0.11.0'
 
 export {
   abiMismatch,

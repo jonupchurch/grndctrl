@@ -12,6 +12,21 @@ detail** instead: the first is a removal, and what an upgrader needs is the list
 of what is gone rather than a sentence saying a lot is; the rest are small
 enough to state in full.
 
+## [0.11.0] — 2026-11-10
+
+**Agents can create ticket tags.**
+
+### Added
+
+- **`grndctrl_define_tag`**: tell an agent "add a tag called X" (optionally
+  with a colour) and it can create it, then put it on tickets. If a tag of that
+  name already exists, it gets that one rather than a duplicate. Renaming,
+  recolouring and removing tags stay in Settings.
+- **Settings → Ticket tags** picks up a tag an agent creates while the page is
+  open, so saving there no longer risks dropping it.
+
+No migration.
+
 ## [0.10.0] — 2026-11-09
 
 **Ticket tags, and no Priority column.**
