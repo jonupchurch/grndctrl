@@ -1,6 +1,15 @@
 # Status — Ground Control (`grndctrl`)
 
-**Last updated:** 2026-11-09 (0.10.0 published from a tag) · **Stage:** released · **On npm:** 0.10.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+**Last updated:** 2026-11-10 (0.11.0 published from a tag) · **Stage:** released · **On npm:** 0.11.0 is `latest` on all four packages — `npx grndctrl`. 0.1.0 is deprecated on `grndctrl` and `@grndctrl/desktop`; 0.1.1 works but has no agent-push.
+
+**0.11.0 is on the registry**, published 2026-11-10 by the tag `v0.11.0`, with
+provenance. Agents can create ticket tags (`tags.define`, MCP
+`grndctrl_define_tag`); renaming and removing stay in Settings. No migration;
+smoke `dbVersions` mirror 7 / authored 8.
+
+**Known gap:** a ticket moved between Jira projects gets a new key, and its tag,
+to-dos, notes and history stay behind on the old one. Jira's stable issue id is
+fetched but not stored. Raised with the operator 2026-11-10; not decided.
 
 **0.10.0 is on the registry**, published 2026-11-09 by the tag `v0.10.0` on
 `main`, each package carrying SLSA provenance, read back from
